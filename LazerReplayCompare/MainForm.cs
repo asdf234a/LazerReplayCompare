@@ -5,6 +5,9 @@ namespace LazerReplayCompare;
 
 public sealed class MainForm : Form
 {
+    private const int ApiPort = 24052;
+    private const string TosuHost = "127.0.0.1:24050";
+
     private readonly ReplayFinder replayFinder = new();
     private readonly TosuClient tosuClient = new();
     private readonly ReplayApiServer apiServer;
@@ -12,11 +15,8 @@ public sealed class MainForm : Form
 
     private readonly Label statusLabel = new();
     private readonly Label beatmapLabel = new();
-    private readonly Label serverLabel = new();
     private readonly TextBox osuLazerBox = new();
     private readonly Button browseOsuLazerButton = new();
-    private readonly TextBox tosuBox = new();
-    private readonly NumericUpDown portBox = new();
     private readonly Button refreshButton = new();
     private readonly ListView replayList = new();
 
@@ -35,12 +35,11 @@ public sealed class MainForm : Form
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
-        apiServer.Start((int)portBox.Value);
-        serverLabel.Text = $"API: http://127.0.0.1:{apiServer.Port}";
+        apiServer.Start(ApiPort);
 
         tosuClient.StatusChanged += status => BeginInvoke(() => statusLabel.Text = status);
         tosuClient.SnapshotReceived += OnSnapshotReceived;
-        tosuClient.Start(tosuBox.Text);
+        tosuClient.Start(TosuHost);
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -66,101 +65,164 @@ public sealed class MainForm : Form
     private void InitializeComponent()
     {
         Text = "Lazer Replay Compare";
-        Width = 1040;
-        Height = 680;
-        MinimumSize = new Size(900, 560);
+        Width = 1120;
+        Height = 720;
+        MinimumSize = new Size(940, 590);
         StartPosition = FormStartPosition.CenterScreen;
+        BackColor = Color.FromArgb(14, 18, 24);
+        ForeColor = Color.FromArgb(231, 236, 245);
+        Font = new Font("Segoe UI", 9.5f);
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
 
         var main = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
-            Padding = new Padding(14),
+            RowCount = 5,
+            Padding = new Padding(18),
+            BackColor = BackColor,
         };
+        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         Controls.Add(main);
 
+        var header = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            ColumnCount = 1,
+            RowCount = 2,
+            AutoSize = true,
+            Padding = new Padding(0, 0, 0, 12),
+            BackColor = BackColor,
+        };
+        header.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        header.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        main.Controls.Add(header, 0, 0);
+
         var title = new Label
         {
             Text = "Lazer Replay Compare",
             Dock = DockStyle.Top,
-            Font = new Font(Font.FontFamily, 18, FontStyle.Bold),
-            Height = 38,
+            Font = new Font("Segoe UI Semibold", 22, FontStyle.Bold),
+            ForeColor = Color.White,
+            AutoSize = true,
         };
-        main.Controls.Add(title, 0, 0);
+        header.Controls.Add(title, 0, 0);
+
+        var subtitle = new Label
+        {
+            Text = "Choose a saved replay and compare it with your current osu!lazer play.",
+            Dock = DockStyle.Top,
+            Font = new Font("Segoe UI", 10.5f),
+            ForeColor = Color.FromArgb(151, 162, 179),
+            AutoSize = true,
+            Padding = new Padding(1, 4, 0, 0),
+        };
+        header.Controls.Add(subtitle, 0, 1);
 
         var settings = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            ColumnCount = 5,
+            ColumnCount = 4,
             AutoSize = true,
-            Padding = new Padding(0, 6, 0, 8),
+            Padding = new Padding(14, 12, 14, 12),
+            BackColor = Color.FromArgb(21, 27, 36),
         };
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         main.Controls.Add(settings, 0, 1);
 
         osuLazerBox.Text = GetDefaultOsuLazerPath();
         osuLazerBox.Dock = DockStyle.Fill;
-        browseOsuLazerButton.Text = "...";
-        browseOsuLazerButton.Width = 36;
+        osuLazerBox.BorderStyle = BorderStyle.FixedSingle;
+        osuLazerBox.BackColor = Color.FromArgb(9, 12, 17);
+        osuLazerBox.ForeColor = Color.FromArgb(231, 236, 245);
+        osuLazerBox.Margin = new Padding(10, 2, 8, 2);
+        browseOsuLazerButton.Text = "Browse";
+        browseOsuLazerButton.Width = 82;
+        browseOsuLazerButton.Height = 30;
+        browseOsuLazerButton.FlatStyle = FlatStyle.Flat;
+        browseOsuLazerButton.BackColor = Color.FromArgb(43, 99, 235);
+        browseOsuLazerButton.ForeColor = Color.White;
+        browseOsuLazerButton.FlatAppearance.BorderSize = 0;
+        browseOsuLazerButton.Margin = new Padding(0, 0, 8, 0);
         browseOsuLazerButton.Click += (_, _) => BrowseOsuLazerFolder();
-        tosuBox.Text = "127.0.0.1:24050";
-        tosuBox.Width = 130;
-        portBox.Minimum = 1024;
-        portBox.Maximum = 65535;
-        portBox.Value = 24052;
-        portBox.Width = 80;
 
-        settings.Controls.Add(new Label { Text = "osu-lazer", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+        refreshButton.Text = "Refresh";
+        refreshButton.Width = 82;
+        refreshButton.Height = 30;
+        refreshButton.FlatStyle = FlatStyle.Flat;
+        refreshButton.BackColor = Color.FromArgb(36, 44, 58);
+        refreshButton.ForeColor = Color.FromArgb(231, 236, 245);
+        refreshButton.FlatAppearance.BorderColor = Color.FromArgb(55, 66, 84);
+        refreshButton.Click += (_, _) => RefreshReplays();
+
+        settings.Controls.Add(new Label
+        {
+            Text = "osu!lazer folder",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            ForeColor = Color.FromArgb(185, 195, 211),
+            Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold),
+        }, 0, 0);
         settings.Controls.Add(osuLazerBox, 1, 0);
         settings.Controls.Add(browseOsuLazerButton, 2, 0);
-        settings.Controls.Add(new Label { Text = "tosu", AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(10, 0, 0, 0) }, 3, 0);
-        settings.Controls.Add(tosuBox, 4, 0);
+        settings.Controls.Add(refreshButton, 3, 0);
 
         var statusBar = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
             AutoSize = true,
             WrapContents = false,
-            Padding = new Padding(0, 0, 0, 8),
+            Padding = new Padding(0, 12, 0, 12),
+            BackColor = BackColor,
         };
         main.Controls.Add(statusBar, 0, 2);
 
-        refreshButton.Text = "Refresh";
-        refreshButton.AutoSize = true;
-        refreshButton.Click += (_, _) => RefreshReplays();
-        statusBar.Controls.Add(refreshButton);
-
-        statusBar.Controls.Add(new Label { Text = "API Port", AutoSize = true, Padding = new Padding(14, 6, 0, 0) });
-        statusBar.Controls.Add(portBox);
-
         statusLabel.AutoSize = true;
-        statusLabel.Padding = new Padding(14, 6, 0, 0);
-        statusLabel.Text = "Waiting for tosu...";
+        statusLabel.Padding = new Padding(12, 7, 12, 7);
+        statusLabel.Margin = new Padding(0, 0, 10, 0);
+        statusLabel.BackColor = Color.FromArgb(30, 38, 50);
+        statusLabel.ForeColor = Color.FromArgb(198, 207, 221);
+        statusLabel.Text = "Waiting for osu!lazer selection...";
         statusBar.Controls.Add(statusLabel);
 
-        serverLabel.AutoSize = true;
-        serverLabel.Padding = new Padding(14, 6, 0, 0);
-        statusBar.Controls.Add(serverLabel);
-
         beatmapLabel.AutoSize = true;
-        beatmapLabel.Padding = new Padding(14, 6, 0, 0);
-        beatmapLabel.Text = "Beatmap: -";
+        beatmapLabel.Padding = new Padding(12, 7, 12, 7);
+        beatmapLabel.Margin = new Padding(0);
+        beatmapLabel.BackColor = Color.FromArgb(30, 38, 50);
+        beatmapLabel.ForeColor = Color.FromArgb(198, 207, 221);
+        beatmapLabel.Text = "Beatmap: none selected";
         statusBar.Controls.Add(beatmapLabel);
+
+        var listHeader = new Label
+        {
+            Text = "Replay scores",
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            Padding = new Padding(1, 0, 0, 8),
+            ForeColor = Color.FromArgb(231, 236, 245),
+            Font = new Font("Segoe UI Semibold", 11.5f, FontStyle.Bold),
+        };
+        main.Controls.Add(listHeader, 0, 3);
 
         replayList.Dock = DockStyle.Fill;
         replayList.View = View.Details;
         replayList.CheckBoxes = true;
         replayList.FullRowSelect = true;
-        replayList.GridLines = true;
+        replayList.GridLines = false;
+        replayList.BorderStyle = BorderStyle.None;
+        replayList.BackColor = Color.FromArgb(11, 15, 21);
+        replayList.ForeColor = Color.FromArgb(231, 236, 245);
+        replayList.OwnerDraw = true;
+        replayList.DrawColumnHeader += ReplayList_DrawColumnHeader;
+        replayList.DrawItem += (_, e) => e.DrawDefault = true;
+        replayList.DrawSubItem += (_, e) => e.DrawDefault = true;
         replayList.Columns.Add("Player", 160);
         replayList.Columns.Add("Date", 170);
         replayList.Columns.Add("Mods", 150);
@@ -172,7 +234,21 @@ public sealed class MainForm : Form
         replayList.Columns.Add("File", 360);
         replayList.ItemChecked += ReplayList_ItemChecked;
         replayList.DoubleClick += (_, _) => OpenSelectedReplayFolder();
-        main.Controls.Add(replayList, 0, 3);
+        main.Controls.Add(replayList, 0, 4);
+    }
+
+    private void ReplayList_DrawColumnHeader(object? sender, DrawListViewColumnHeaderEventArgs e)
+    {
+        using var background = new SolidBrush(Color.FromArgb(22, 29, 39));
+        using var headerFont = new Font("Segoe UI Semibold", 9f, FontStyle.Bold);
+        e.Graphics.FillRectangle(background, e.Bounds);
+        TextRenderer.DrawText(
+            e.Graphics,
+            e.Header?.Text ?? string.Empty,
+            headerFont,
+            new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width - 10, e.Bounds.Height),
+            Color.FromArgb(185, 195, 211),
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
     }
 
     private void BrowseOsuLazerFolder()
@@ -202,7 +278,7 @@ public sealed class MainForm : Form
             var oldChecksum = currentSnapshot.BeatmapChecksum;
             currentSnapshot = snapshot;
             beatmapLabel.Text = string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum)
-                ? "Beatmap: -"
+                ? "Beatmap: none selected"
                 : $"Beatmap: {snapshot.BeatmapChecksum}";
 
             if (!string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum) && snapshot.BeatmapChecksum != oldChecksum)
@@ -214,7 +290,7 @@ public sealed class MainForm : Form
     {
         if (string.IsNullOrWhiteSpace(currentSnapshot.BeatmapChecksum))
         {
-            statusLabel.Text = "No selected beatmap from tosu";
+            statusLabel.Text = "Select a beatmap in osu!lazer first";
             return;
         }
 
@@ -254,7 +330,7 @@ public sealed class MainForm : Form
                 BeginInvoke(() =>
                 {
                     FillReplayList(replays);
-                    statusLabel.Text = $"{replays.Count} replay(s) loaded";
+                    statusLabel.Text = $"{replays.Count} replay score(s) found";
                     refreshButton.Enabled = true;
                 });
             }
