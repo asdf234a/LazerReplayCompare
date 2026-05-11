@@ -1,76 +1,55 @@
 # LazerReplayCompare
 
-LazerReplayCompare is a Windows helper app and tosu overlay set for comparing a live osu!lazer play against stored lazer replay scores.
+LazerReplayCompare is a helper app for osu!lazer players who want to compare their current play with their saved lazer replays in real time.
 
-It reads osu!lazer `client.realm` and `files`, finds replay files for the currently selected beatmap, and exposes a small localhost API that tosu overlays can use.
+It works with tosu overlays. While you play, it can show the score difference against your best matching replay, or against a replay you manually select in the app.
 
-## Included
+## What It Does
 
-- `LazerReplayCompare`: Windows GUI helper app and localhost API server.
-- `LazerReplayCompareLive by Codex`: tosu overlay with score, accuracy, combo, judgement, and replay target display.
-- `LazerSameModScoreDiff by Codex`: compact score-difference overlay.
-- GitHub Releases: ready-to-run `LazerReplayCompare.exe`.
+- Finds replay scores saved by osu!lazer.
+- Shows replays for the beatmap currently selected in osu!lazer.
+- Lets you pin one replay as the comparison target.
+- Compares only the same mod and speed by default.
+- Treats Mirror as the same mod for comparison.
+- Provides overlays for live score difference and detailed replay comparison.
 
-## Requirements
+## Download
 
-- Windows
-- osu!lazer
-- tosu
-- .NET 8 Desktop Runtime, unless you build a self-contained release yourself
+Download `LazerReplayCompare.exe` from the latest release:
 
-## Quick Start
+https://github.com/asdf234a/LazerReplayCompare/releases/latest
 
-1. Download `LazerReplayCompare.exe` from the latest GitHub Release.
-2. Run `LazerReplayCompare.exe`.
-3. Start osu!lazer and tosu.
-4. Select a beatmap in osu!lazer.
-5. If needed, choose your osu!lazer folder in the app with the `...` button.
+You may need the .NET 8 Desktop Runtime installed on Windows.
+
+## How To Use
+
+1. Download and run `LazerReplayCompare.exe`.
+2. Start osu!lazer.
+3. Start tosu.
+4. In osu!lazer, select the beatmap you want to play.
+5. If the app does not find your osu!lazer folder automatically, click `...` and select your osu!lazer folder.
 6. Copy the overlay folders from `static` into your tosu `static` folder.
-7. Open the overlay through tosu.
+7. Open the overlay from tosu.
+8. Play the map.
 
-## Build From Source
+## Overlays
 
-The project references DLLs from your local osu!lazer installation. By default it looks in:
+`LazerReplayCompareLive by Codex`
 
-```txt
-%LocalAppData%\osulazer\current
-```
+Shows a detailed live comparison: score, accuracy, combo, judgements, replay target, and whether the target was selected manually or chosen automatically.
 
-Build:
+`LazerSameModScoreDiff by Codex`
 
-```powershell
-dotnet build .\LazerReplayCompare\LazerReplayCompare.csproj
-```
+Shows only the score difference in a compact format.
 
-Publish:
+## Choosing A Replay
 
-```powershell
-dotnet publish .\LazerReplayCompare\LazerReplayCompare.csproj -c Release -r win-x64 --self-contained false -o .\LazerReplayCompare\publish
-```
+If no replay is checked in LazerReplayCompare, the overlay automatically compares against the highest score with the same mod and speed.
 
-If your osu!lazer DLLs are in a different location, pass:
+If you check a replay in the app, that replay becomes the comparison target even if its mod or speed is different.
 
-```powershell
-dotnet build .\LazerReplayCompare\LazerReplayCompare.csproj -p:OsuLazerCurrentPath="C:\path\to\osulazer\current"
-```
+## Notes
 
-## API
-
-Default API host:
-
-```txt
-http://127.0.0.1:24052
-```
-
-Endpoints:
-
-```txt
-GET /health
-GET /replays
-GET /best-replay
-GET /timeline?osr=<replay-file>&osu=<beatmap-file>
-```
-
-Use `correction=raw` for a fast uncorrected timeline while the corrected timeline is still loading.
-
-More details are in [LazerReplayCompare/README.md](LazerReplayCompare/README.md).
+- Keep `LazerReplayCompare.exe` running while using the overlay.
+- The app is intended for osu!lazer mania replay comparison.
+- The first timeline calculation can take a moment. If you start playing before it finishes, the overlay may temporarily use raw replay data and update once calculation is ready.
