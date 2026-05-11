@@ -1,14 +1,20 @@
-using System;
-using System.Windows.Forms;
+using Avalonia;
 
 namespace LazerReplayCompare;
 
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
-        ApplicationConfiguration.Initialize();
-        Application.Run(new MainForm());
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
+
+    public static AppBuilder BuildAvaloniaApp()
+    {
+        return AppBuilder.Configure<App>()
+            .UsePlatformDetect()
+            .WithInterFont()
+            .LogToTrace();
     }
 }

@@ -1,0 +1,24 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LazerReplayCompare.App"
+             RequestedThemeVariant="Default">
+  <Application.Styles>
+    <FluentTheme />
+  </Application.Styles>
+
+  <Application.Resources>
+    <Color x:Key="AccentBlueColor">#3B82F6</Color>
+    <Color x:Key="DarkPageColor">#050C19</Color>
+    <Color x:Key="DarkCardColor">#0D192C</Color>
+    <Color x:Key="DarkCardAltColor">#111F34</Color>
+    <Color x:Key="DarkBorderColor">#29436F</Color>
+    <Color x:Key="LightPageColor">#F8FAFC</Color>
+    <Color x:Key="LightCardColor">#FFFFFF</Color>
+    <Color x:Key="LightCardAltColor">#F1F5F9</Color>
+    <Color x:Key="LightBorderColor">#CBD5E1</Color>
+
+    <SolidColorBrush x:Key="AccentBlueBrush" Color="{StaticResource AccentBlueColor}" />
+    <SolidColorBrush x:Key="GoodBrush" Color="#74E658" />
+    <SolidColorBrush x:Key="WarningBrush" Color="#FFAB40" />
+  </Application.Resources>
+</Application>

@@ -1,0 +1,321 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:LazerReplayCompare"
+        x:Class="LazerReplayCompare.MainWindow"
+        x:CompileBindings="False"
+        Title="Lazer Replay Compare"
+        Width="1280"
+        Height="780"
+        MinWidth="1080"
+        MinHeight="640"
+        Background="{DynamicResource PageBackgroundBrush}"
+        Foreground="{DynamicResource BodyTextBrush}"
+        FontFamily="Inter, Segoe UI, Arial">
+  <Window.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="16" />
+    </Style>
+
+    <Style Selector="Border.infoCard">
+      <Setter Property="Background" Value="{DynamicResource CardAltBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="14" />
+    </Style>
+
+    <Style Selector="Border.badge">
+      <Setter Property="Background" Value="{DynamicResource BadgeBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="12,8" />
+    </Style>
+
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+    </Style>
+
+    <Style Selector="TextBox.pathInput">
+      <Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="13,9" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="18,10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{DynamicResource AccentBlueBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBlueBrush}" />
+    </Style>
+
+    <Style Selector="ComboBox">
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+    </Style>
+
+    <Style Selector="ListBox.replayList">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <Style Selector="ListBox.replayList ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,4" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="10" />
+    </Style>
+
+    <Style Selector="ListBox.replayList ListBoxItem:pointerover">
+      <Setter Property="Background" Value="{DynamicResource RowHoverBrush}" />
+    </Style>
+
+    <Style Selector="ListBox.replayList ListBoxItem:selected">
+      <Setter Property="Background" Value="{DynamicResource RowSelectedBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*" Margin="26" RowSpacing="22">
+    <Border Grid.Row="0" Classes="card" Padding="20">
+      <Grid RowDefinitions="Auto,Auto" RowSpacing="18">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+          <Canvas Width="44" Height="44" VerticalAlignment="Center">
+            <Path Stroke="{DynamicResource AccentBlueBrush}"
+                  StrokeThickness="2.5"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Data="M2,22 L12,22 L17,8 L23,36 L31,18 L38,18 L44,18" />
+          </Canvas>
+
+          <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Lazer Replay Compare"
+                       FontSize="24"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource HeadingTextBrush}" />
+            <TextBlock Text="Compare a saved lazer replay with your current osu!lazer play."
+                       FontSize="14"
+                       Classes="muted" />
+          </StackPanel>
+
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <TextBlock Text="Theme" Classes="muted" VerticalAlignment="Center" />
+            <ComboBox x:Name="ThemeBox"
+                      Width="116"
+                      SelectionChanged="ThemeSelectionChanged">
+              <ComboBoxItem Content="System" />
+              <ComboBoxItem Content="Dark" />
+              <ComboBoxItem Content="Light" />
+            </ComboBox>
+          </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" RowDefinitions="Auto,Auto" RowSpacing="16">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+            <TextBlock Text="osu!lazer folder"
+                       FontWeight="SemiBold"
+                       FontSize="14"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource BodyTextBrush}" />
+            <TextBox x:Name="OsuLazerBox"
+                     Grid.Column="1"
+                     Classes="pathInput"
+                     PlaceholderText="Select your osu!lazer folder" />
+            <Button Grid.Column="2"
+                    Classes="primary"
+                    Content="Browse"
+                    Click="BrowseOsuLazerFolder" />
+            <Button Grid.Column="3"
+                    x:Name="RefreshButton"
+                    Content="Refresh"
+                    Click="RefreshReplays" />
+          </Grid>
+
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12">
+            <Border Classes="badge" MinWidth="260">
+              <StackPanel>
+                <TextBlock Text="Selected replay" FontSize="12" Classes="muted" />
+                <TextBlock x:Name="SelectedReplayBadgeLabel"
+                           Text="Auto best replay"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource BodyTextBrush}" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="badge" MinWidth="360">
+              <StackPanel>
+                <TextBlock Text="Beatmap" FontSize="12" Classes="muted" />
+                <TextBlock x:Name="BeatmapLabel"
+                           Text="None selected"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource BodyTextBrush}" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="badge" MinWidth="240">
+              <StackPanel>
+                <TextBlock Text="Status" FontSize="12" Classes="muted" />
+                <TextBlock x:Name="StatusLabel"
+                           Text="Waiting for osu!lazer selection..."
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource BodyTextBrush}" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Grid>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="1.55*,0.9*" ColumnSpacing="22">
+      <Border Grid.Column="0" Classes="card" Padding="18">
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Replay scores"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource HeadingTextBrush}" />
+            <TextBlock x:Name="ReplayCountLabel"
+                       Grid.Column="1"
+                       Text="0 replays found"
+                       Classes="muted"
+                       VerticalAlignment="Center" />
+          </Grid>
+
+          <Grid Grid.Row="1"
+                ColumnDefinitions="34,1.05*,1.2*,1.05*,0.9*,0.8*,0.55*,0.8*,0.55*"
+                Margin="8,4,8,0">
+            <TextBlock Grid.Column="1" Text="Player" Classes="muted" />
+            <TextBlock Grid.Column="2" Text="Date" Classes="muted" />
+            <TextBlock Grid.Column="3" Text="Mods" Classes="muted" />
+            <TextBlock Grid.Column="4" Text="Score" Classes="muted" TextAlignment="Right" />
+            <TextBlock Grid.Column="5" Text="Accuracy" Classes="muted" TextAlignment="Right" />
+            <TextBlock Grid.Column="6" Text="Miss" Classes="muted" TextAlignment="Right" />
+            <TextBlock Grid.Column="7" Text="Combo" Classes="muted" TextAlignment="Right" />
+            <TextBlock Grid.Column="8" Text="Rank" Classes="muted" TextAlignment="Center" />
+          </Grid>
+
+          <ListBox x:Name="ReplayList"
+                   Grid.Row="2"
+                   Classes="replayList"
+                   ItemsSource="{Binding ReplayRows}"
+                   SelectionChanged="ReplaySelectionChanged">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="local:ReplayRow">
+                <Border Classes="infoCard" Padding="10,11" Margin="0,2">
+                  <Grid ColumnDefinitions="34,1.05*,1.2*,1.05*,0.9*,0.8*,0.55*,0.8*,0.55*" ColumnSpacing="10">
+                    <CheckBox IsChecked="{Binding IsPinned, Mode=TwoWay}"
+                              VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding Player}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{Binding DateText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Text="{Binding ModsText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="4" Text="{Binding ScoreText}" TextAlignment="Right" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="5" Text="{Binding AccuracyText}" Foreground="{DynamicResource AccentBlueBrush}" TextAlignment="Right" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="6" Text="{Binding MissText}" Foreground="{Binding MissBrush}" TextAlignment="Right" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="7" Text="{Binding ComboText}" TextAlignment="Right" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="8" Text="{Binding Rank}" TextAlignment="Center" VerticalAlignment="Center" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="1" Classes="card" Padding="20">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="18">
+            <TextBlock Text="Selected replay"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource HeadingTextBrush}" />
+
+            <StackPanel Spacing="5">
+              <TextBlock x:Name="DetailTitleLabel"
+                         Text="No replay selected"
+                         FontSize="23"
+                         FontWeight="SemiBold"
+                         Foreground="{DynamicResource HeadingTextBrush}" />
+              <TextBlock x:Name="DetailSubtitleLabel"
+                         Text="Select a beatmap, then choose a replay."
+                         Classes="muted" />
+            </StackPanel>
+
+            <UniformGrid Columns="2" Rows="3">
+              <Border Classes="infoCard" Margin="0,0,8,8">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="Score" Classes="muted" />
+                  <TextBlock x:Name="DetailScoreLabel" Text="-" FontSize="22" FontWeight="SemiBold" />
+                </StackPanel>
+              </Border>
+              <Border Classes="infoCard" Margin="0,0,0,8">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="Accuracy" Classes="muted" />
+                  <TextBlock x:Name="DetailAccuracyLabel" Text="-" FontSize="22" FontWeight="SemiBold" />
+                </StackPanel>
+              </Border>
+              <Border Classes="infoCard" Margin="0,0,8,8">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="Miss" Classes="muted" />
+                  <TextBlock x:Name="DetailMissLabel" Text="-" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource GoodBrush}" />
+                </StackPanel>
+              </Border>
+              <Border Classes="infoCard" Margin="0,0,0,8">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="Max Combo" Classes="muted" />
+                  <TextBlock x:Name="DetailComboLabel" Text="-" FontSize="22" FontWeight="SemiBold" />
+                </StackPanel>
+              </Border>
+              <Border Classes="infoCard" Margin="0,0,8,0">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="Rank" Classes="muted" />
+                  <TextBlock x:Name="DetailRankLabel" Text="-" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource AccentBlueBrush}" />
+                </StackPanel>
+              </Border>
+              <Border Classes="infoCard">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="Mods" Classes="muted" />
+                  <TextBlock x:Name="DetailModsLabel" Text="-" FontSize="22" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+              </Border>
+            </UniformGrid>
+
+            <Border Classes="infoCard">
+              <StackPanel Spacing="16">
+                <StackPanel Spacing="5">
+                  <TextBlock Text="Replay Date" Classes="muted" />
+                  <TextBlock x:Name="DetailDateLabel" Text="-" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <StackPanel Spacing="5">
+                  <TextBlock Text="Beatmap ID" Classes="muted" />
+                  <TextBlock x:Name="DetailBeatmapLabel" Text="-" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <StackPanel Spacing="5">
+                  <TextBlock Text="Replay file path" Classes="muted" />
+                  <TextBlock x:Name="DetailFileLabel" Text="-" TextWrapping="Wrap" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>
