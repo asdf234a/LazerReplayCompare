@@ -9,7 +9,7 @@ It reads osu!lazer `client.realm` and `files`, finds replay files for the curren
 - `LazerReplayCompare`: Windows GUI helper app and localhost API server.
 - `LazerReplayCompareLive by Codex`: tosu overlay with score, accuracy, combo, judgement, and replay target display.
 - `LazerSameModScoreDiff by Codex`: compact score-difference overlay.
-- `release/LazerReplayCompare-v0.1.0-win-x64.zip`: ready-to-run Windows build.
+- GitHub Releases: ready-to-run `LazerReplayCompare.exe`.
 
 ## Requirements
 
@@ -20,14 +20,13 @@ It reads osu!lazer `client.realm` and `files`, finds replay files for the curren
 
 ## Quick Start
 
-1. Download `release/LazerReplayCompare-v0.1.0-win-x64.zip`.
-2. Extract the zip.
-3. Run `LazerReplayCompare.exe`.
-4. Start osu!lazer and tosu.
-5. Select a beatmap in osu!lazer.
-6. If needed, choose your osu!lazer folder in the app with the `...` button.
-7. Copy the overlay folders from `static` into your tosu `static` folder.
-8. Open the overlay through tosu.
+1. Download `LazerReplayCompare.exe` from the latest GitHub Release.
+2. Run `LazerReplayCompare.exe`.
+3. Start osu!lazer and tosu.
+4. Select a beatmap in osu!lazer.
+5. If needed, choose your osu!lazer folder in the app with the `...` button.
+6. Copy the overlay folders from `static` into your tosu `static` folder.
+7. Open the overlay through tosu.
 
 ## Build From Source
 
