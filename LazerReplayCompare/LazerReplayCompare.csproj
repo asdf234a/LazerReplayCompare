@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish\**</DefaultItemExcludes>
+    <OsuLazerCurrentPath Condition="'$(OsuLazerCurrentPath)' == ''">$(LocalAppData)\osulazer\current</OsuLazerCurrentPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="osu.Framework">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Framework.dll</HintPath>
+    </Reference>
+    <Reference Include="Realm">
+      <HintPath>$(OsuLazerCurrentPath)\Realm.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game.Rulesets.Osu">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.Rulesets.Osu.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game.Rulesets.Taiko">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.Rulesets.Taiko.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game.Rulesets.Catch">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.Rulesets.Catch.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game.Rulesets.Mania">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.Rulesets.Mania.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(OsuLazerCurrentPath)\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Text.Json">
+      <HintPath>$(OsuLazerCurrentPath)\System.Text.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.Diagnostics.DiagnosticSource">
+      <HintPath>$(OsuLazerCurrentPath)\System.Diagnostics.DiagnosticSource.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.Threading.Channels">
+      <HintPath>$(OsuLazerCurrentPath)\System.Threading.Channels.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.Text.Encodings.Web">
+      <HintPath>$(OsuLazerCurrentPath)\System.Text.Encodings.Web.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <None Include="$(OsuLazerCurrentPath)\realm-wrappers.dll">
+      <Link>realm-wrappers.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

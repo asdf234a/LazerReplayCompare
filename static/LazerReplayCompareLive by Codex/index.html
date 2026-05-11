@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>LazerReplayCompareLive</title>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="styles/main.css" />
+</head>
+
+<body>
+    <div id="panel" class="panel">
+        <div class="panel-header">
+            <span>LIVE</span>
+            <span class="vs">vs</span>
+            <div class="replay-target">
+                <span id="targetMode" class="target-mode">AUTO BEST</span>
+                <span id="replayPlayer" class="replay-player">REPLAY</span>
+                <span id="replayLabel" class="replay-mods">-</span>
+            </div>
+        </div>
+
+        <div class="compare-row">
+            <div class="col col-live">
+                <div id="liveScore" class="score">0</div>
+                <div id="liveAcc" class="acc">0.00%</div>
+                <div id="liveCombo" class="combo">x0</div>
+            </div>
+            <div class="col col-diff">
+                <div id="scoreDiff" class="score-diff neutral">+0</div>
+                <div id="accDiff" class="acc-diff">+0.00%</div>
+            </div>
+            <div class="col col-replay">
+                <div id="replayScore" class="score">-</div>
+                <div id="replayAcc" class="acc">-</div>
+                <div id="replayCombo" class="combo">-</div>
+            </div>
+        </div>
+
+        <div id="hitsGrid" class="hits-grid"></div>
+
+        <div id="timelineInfo" class="timeline-info">-</div>
+    </div>
+
+    <script type="module" src="index.js"></script>
+</body>
+
+</html>

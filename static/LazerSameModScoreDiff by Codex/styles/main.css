@@ -1,0 +1,51 @@
+@font-face {
+    src: url("../Pretendard-SemiBold.ttf");
+    font-family: "Pretendard";
+    font-weight: 600;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    user-select: none;
+    font-family: "Pretendard", "Segoe UI", Arial, sans-serif;
+}
+
+.scoreDiff {
+    position: absolute;
+    top: 2rem;
+    left: 50%;
+    min-width: 8rem;
+    transform: translateX(-50%);
+    opacity: 0;
+    color: #ffffff;
+    font-size: 2.4rem;
+    font-weight: 600;
+    line-height: 1;
+    text-align: center;
+    text-shadow:
+        0 0 0.25rem rgba(0, 0, 0, 0.95),
+        0 0 0.75rem rgba(0, 0, 0, 0.75);
+    font-variant-numeric: tabular-nums;
+    transition: opacity 140ms ease, color 120ms ease;
+}
+
+.scoreDiff.visible {
+    opacity: 1;
+}
+
+.scoreDiff.positive {
+    color: #77ff9a;
+}
+
+.scoreDiff.negative {
+    color: #ff6f7f;
+}
+
+.scoreDiff.neutral {
+    color: #ffffff;
+}

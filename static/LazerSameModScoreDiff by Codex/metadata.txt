@@ -1,0 +1,4 @@
+Name: LazerSameModScoreDiff
+Author: Codex
+Version: 1.1.0
+Description: Shows live score difference against the highest same-mod same-rate lazer replay using LazerReplayCompare timeline.

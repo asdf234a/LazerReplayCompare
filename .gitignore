@@ -1,0 +1,17 @@
+﻿# Build outputs
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vs/
+
+# Local runtime files
+logs/
+settings/
+*.env
+*.lnk
+*.exe
+
+# osu/tosu local data
+.cache/

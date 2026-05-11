@@ -1,0 +1,3 @@
+Name: LazerReplayCompareLive
+Author: Codex
+Description: Real-time score/accuracy/hit comparison between live play and best stored Lazer replay with the same mods. Requires LazerReplayCompare running on port 24052.

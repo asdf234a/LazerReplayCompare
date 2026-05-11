@@ -1,0 +1,30 @@
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LazerRealmProbe", "LazerRealmProbe\LazerRealmProbe.csproj", "{D5A1CFD2-73C9-65FE-1E55-C1962E0573D4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LazerReplayCompare", "LazerReplayCompare\LazerReplayCompare.csproj", "{5613F39C-A4F4-41A7-87B4-90B67B8D1EFA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D5A1CFD2-73C9-65FE-1E55-C1962E0573D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D5A1CFD2-73C9-65FE-1E55-C1962E0573D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D5A1CFD2-73C9-65FE-1E55-C1962E0573D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D5A1CFD2-73C9-65FE-1E55-C1962E0573D4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5613F39C-A4F4-41A7-87B4-90B67B8D1EFA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5613F39C-A4F4-41A7-87B4-90B67B8D1EFA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5613F39C-A4F4-41A7-87B4-90B67B8D1EFA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5613F39C-A4F4-41A7-87B4-90B67B8D1EFA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B99D63A1-4C82-49E6-8499-A199777CCB94}
+	EndGlobalSection
+EndGlobal
