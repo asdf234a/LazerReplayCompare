@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using osu.Game.Scoring;
 using Realms;
 
@@ -52,8 +51,8 @@ public sealed class ReplayFinder
                     }
 
                     var mods = GetReplayMods(score);
-                    var modsText = FormatModsText(mods);
-                    var modsKey = BuildModsKey(mods);
+                    var modsText = ModUtility.FormatModsText(mods);
+                    var modsKey = ModUtility.BuildModsKey(mods);
                     var player = score.User?.Username ?? "unknown";
                     var totalScore = score.TotalScore;
                     var accuracy = score.Accuracy;
@@ -115,8 +114,9 @@ public sealed class ReplayFinder
             if (File.Exists(tempRealmPath))
                 File.Delete(tempRealmPath);
         }
-        catch
+        catch (Exception ex)
         {
+            InternalLogger.Log(ex);
         }
     }
 
@@ -155,21 +155,11 @@ public sealed class ReplayFinder
                 .ThenBy(mod => mod.MatchKey, StringComparer.Ordinal)
                 .ToList();
         }
-        catch
+        catch (Exception ex)
         {
+            InternalLogger.Log(ex);
             return new List<ReplayMod>();
         }
-    }
-
-    private static string FormatModsText(IReadOnlyList<ReplayMod> mods)
-    {
-        return mods.Count == 0 ? "NM" : string.Join(", ", mods.Select(mod => mod.Display));
-    }
-
-    private static string BuildModsKey(IReadOnlyList<ReplayMod> mods)
-    {
-        var modKey = mods.Count == 0 ? "NM" : string.Join("+", mods.Select(mod => mod.MatchKey));
-        return $"{modKey}|{GetPlaybackRate(mods).ToString("F4", CultureInfo.InvariantCulture)}";
     }
 
     private static string GetStringProperty(object source, string name)
@@ -242,44 +232,4 @@ public sealed class ReplayFinder
             .Select(pair => $"{pair.Key}={pair.Value}"));
     }
 
-    private static double GetPlaybackRate(IReadOnlyList<ReplayMod> mods)
-    {
-        foreach (var mod in mods)
-        {
-            if (!IsSpeedChangeMod(mod.Acronym))
-                continue;
-
-            foreach (var setting in mod.Settings)
-            {
-                var key = setting.Key.ToLowerInvariant();
-                if ((key.Contains("speed") || key.Contains("rate")) && TryParseRate(setting.Value, out var rate))
-                    return rate;
-            }
-
-            return DefaultRateForMod(mod.Acronym);
-        }
-
-        return 1.0;
-    }
-
-    private static bool IsSpeedChangeMod(string acronym)
-    {
-        return acronym.ToUpperInvariant() is "DT" or "NC" or "HT" or "DC";
-    }
-
-    private static double DefaultRateForMod(string acronym)
-    {
-        return acronym.ToUpperInvariant() is "DT" or "NC" ? 1.5 : 0.75;
-    }
-
-    private static bool TryParseRate(string text, out double rate)
-    {
-        if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out rate) && rate > 0)
-            return true;
-
-        var match = Regex.Match(text, @"\d+(\.\d+)?");
-        return match.Success &&
-            double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out rate) &&
-            rate > 0;
-    }
 }

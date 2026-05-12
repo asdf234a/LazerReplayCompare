@@ -22,8 +22,9 @@ public sealed class AppSettings
             var json = File.ReadAllText(SettingsPath);
             return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
         }
-        catch
+        catch (Exception ex)
         {
+            InternalLogger.Log(ex);
             return new AppSettings();
         }
     }

@@ -1,16 +1,13 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
-using Avalonia.Styling;
 using Avalonia.Threading;
 
 namespace LazerReplayCompare;
@@ -24,7 +21,9 @@ public sealed partial class MainWindow : Window
     private readonly TosuClient tosuClient = new();
     private readonly ReplayApiServer apiServer;
     private readonly object replayLock = new();
-    private readonly AppSettings settings;
+    private readonly AppSettingsService settingsService = new();
+    private readonly ReplaySelectionService replaySelection = new();
+    private readonly MainWindowViewModel viewModel = new();
 
     private TextBox osuLazerBox = null!;
     private Button refreshButton = null!;
@@ -48,19 +47,17 @@ public sealed partial class MainWindow : Window
 
     private List<ReplayEntry> currentReplays = new();
     private string currentReplaysMd5 = string.Empty;
-    private string selectedReplayPath = string.Empty;
     private bool fillingReplayList;
     private TosuSnapshot currentSnapshot = new("lazer", "", "", "", "", "", "", "", "");
 
-    public ObservableCollection<ReplayRow> ReplayRows { get; } = new();
+    private IList<ReplayRow> ReplayRows => viewModel.ReplayRows;
 
     public MainWindow()
     {
-        settings = AppSettings.Load();
         apiServer = new ReplayApiServer(GetCurrentReplays);
 
         InitializeComponent();
-        DataContext = this;
+        DataContext = viewModel;
         BindControls();
         ApplySavedSettings();
     }
@@ -82,14 +79,17 @@ public sealed partial class MainWindow : Window
         tosuClient.SnapshotReceived += OnSnapshotReceived;
         tosuClient.Start(TosuHost);
 
-        if (!IsOsuLazerRoot(settings.OsuLazerPath) && TryResolveOsuLazerRoot(null) is { } detectedPath)
+        if (!OsuLazerPathResolver.IsOsuLazerRoot(settingsService.Current.OsuLazerPath) &&
+            OsuLazerPathResolver.Resolve(null) is { } detectedPath)
         {
             SetOsuLazerPath(detectedPath);
             return;
         }
 
         await Task.Delay(2500);
-        if (!IsOsuLazerRoot(osuLazerBox.Text) && (string.IsNullOrWhiteSpace(settings.OsuLazerPath) || !IsOsuLazerRoot(settings.OsuLazerPath)))
+        if (!OsuLazerPathResolver.IsOsuLazerRoot(osuLazerBox.Text) &&
+            (string.IsNullOrWhiteSpace(settingsService.Current.OsuLazerPath) ||
+             !OsuLazerPathResolver.IsOsuLazerRoot(settingsService.Current.OsuLazerPath)))
             await BrowseOsuLazerFolderCore(true);
     }
 
@@ -130,16 +130,16 @@ public sealed partial class MainWindow : Window
 
     private void ApplySavedSettings()
     {
-        osuLazerBox.Text = IsOsuLazerRoot(settings.OsuLazerPath)
-            ? settings.OsuLazerPath
-            : TryResolveOsuLazerRoot(null) ?? settings.OsuLazerPath;
-        var theme = string.IsNullOrWhiteSpace(settings.Theme) ? "System" : settings.Theme;
+        osuLazerBox.Text = OsuLazerPathResolver.IsOsuLazerRoot(settingsService.Current.OsuLazerPath)
+            ? settingsService.Current.OsuLazerPath
+            : OsuLazerPathResolver.Resolve(null) ?? settingsService.Current.OsuLazerPath;
+        var theme = string.IsNullOrWhiteSpace(settingsService.Current.Theme) ? "System" : settingsService.Current.Theme;
         themeBox.SelectedIndex = theme.Equals("Dark", StringComparison.OrdinalIgnoreCase)
             ? 1
             : theme.Equals("Light", StringComparison.OrdinalIgnoreCase)
                 ? 2
                 : 0;
-        ApplyTheme(theme);
+        ThemeService.Apply(this, theme);
         UpdateSelectedReplayDetails(null);
     }
 
@@ -148,9 +148,7 @@ public sealed partial class MainWindow : Window
         lock (replayLock)
         {
             var replays = currentReplays.ToList();
-            var selected = string.IsNullOrWhiteSpace(selectedReplayPath)
-                ? null
-                : replays.FirstOrDefault(replay => string.Equals(replay.FilePath, selectedReplayPath, StringComparison.OrdinalIgnoreCase));
+            var selected = replaySelection.GetSelected(replays);
 
             return (currentReplaysMd5, replays, selected);
         }
@@ -186,9 +184,7 @@ public sealed partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(path))
             return;
 
-        osuLazerBox.Text = path;
-        settings.OsuLazerPath = path;
-        settings.Save();
+        SetOsuLazerPath(path);
         RefreshReplays();
     }
 
@@ -197,41 +193,8 @@ public sealed partial class MainWindow : Window
         if (themeBox.SelectedItem is not ComboBoxItem item || item.Content is not string theme)
             return;
 
-        settings.Theme = theme;
-        settings.Save();
-        ApplyTheme(theme);
-    }
-
-    private void ApplyTheme(string theme)
-    {
-        var normalized = string.IsNullOrWhiteSpace(theme) ? "System" : theme;
-        RequestedThemeVariant = normalized.Equals("Dark", StringComparison.OrdinalIgnoreCase)
-            ? ThemeVariant.Dark
-            : normalized.Equals("Light", StringComparison.OrdinalIgnoreCase)
-                ? ThemeVariant.Light
-                : ThemeVariant.Default;
-
-        var isLight = normalized.Equals("Light", StringComparison.OrdinalIgnoreCase);
-        if (normalized.Equals("System", StringComparison.OrdinalIgnoreCase))
-            isLight = ActualThemeVariant == ThemeVariant.Light;
-
-        SetPalette(isLight);
-    }
-
-    private void SetPalette(bool light)
-    {
-        Resources["PageBackgroundBrush"] = new SolidColorBrush(light ? Color.Parse("#F8FAFC") : Color.Parse("#050C19"));
-        Resources["CardBackgroundBrush"] = new SolidColorBrush(light ? Colors.White : Color.Parse("#0D192C"));
-        Resources["CardAltBackgroundBrush"] = new SolidColorBrush(light ? Color.Parse("#F1F5F9") : Color.Parse("#111F34"));
-        Resources["CardBorderBrush"] = new SolidColorBrush(light ? Color.Parse("#CBD5E1") : Color.Parse("#29436F"));
-        Resources["InputBackgroundBrush"] = new SolidColorBrush(light ? Color.Parse("#FFFFFF") : Color.Parse("#050D1B"));
-        Resources["ButtonBackgroundBrush"] = new SolidColorBrush(light ? Color.Parse("#E2E8F0") : Color.Parse("#16243B"));
-        Resources["BadgeBackgroundBrush"] = new SolidColorBrush(light ? Color.Parse("#EFF6FF") : Color.Parse("#12233A"));
-        Resources["RowHoverBrush"] = new SolidColorBrush(light ? Color.Parse("#EFF6FF") : Color.Parse("#12223A"));
-        Resources["RowSelectedBrush"] = new SolidColorBrush(light ? Color.Parse("#DBEAFE") : Color.Parse("#1E3A70"));
-        Resources["HeadingTextBrush"] = new SolidColorBrush(light ? Color.Parse("#0F172A") : Colors.White);
-        Resources["BodyTextBrush"] = new SolidColorBrush(light ? Color.Parse("#1E293B") : Color.Parse("#E8EEF8"));
-        Resources["MutedTextBrush"] = new SolidColorBrush(light ? Color.Parse("#64748B") : Color.Parse("#97A4BC"));
+        settingsService.SetTheme(theme);
+        ThemeService.Apply(this, theme);
     }
 
     private void OnSnapshotReceived(TosuSnapshot snapshot)
@@ -245,7 +208,8 @@ public sealed partial class MainWindow : Window
                 : FormatBeatmapDisplay(snapshot);
             detailBeatmapLabel.Text = string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum) ? "-" : snapshot.BeatmapChecksum;
 
-            if (!IsOsuLazerRoot(osuLazerBox.Text) && TryResolveOsuLazerRoot(snapshot) is { } detectedPath)
+            if (!OsuLazerPathResolver.IsOsuLazerRoot(osuLazerBox.Text) &&
+                OsuLazerPathResolver.Resolve(snapshot) is { } detectedPath)
                 SetOsuLazerPath(detectedPath);
 
             if (!string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum) && snapshot.BeatmapChecksum != oldChecksum)
@@ -268,7 +232,7 @@ public sealed partial class MainWindow : Window
 
         var md5 = currentSnapshot.BeatmapChecksum;
         var osuLazerRoot = (osuLazerBox.Text ?? string.Empty).Trim();
-        if (!string.Equals(settings.OsuLazerPath, osuLazerRoot, StringComparison.Ordinal))
+        if (!string.Equals(settingsService.Current.OsuLazerPath, osuLazerRoot, StringComparison.Ordinal))
             SetOsuLazerPath(osuLazerRoot);
 
         var realmPath = Path.Combine(osuLazerRoot, "client.realm");
@@ -298,8 +262,7 @@ public sealed partial class MainWindow : Window
                 {
                     currentReplays = replays;
                     currentReplaysMd5 = md5;
-                    if (!replays.Any(replay => string.Equals(replay.FilePath, selectedReplayPath, StringComparison.OrdinalIgnoreCase)))
-                        selectedReplayPath = string.Empty;
+                    replaySelection.ClearIfMissing(replays);
                 }
 
                 Dispatcher.UIThread.Post(() =>
@@ -330,7 +293,7 @@ public sealed partial class MainWindow : Window
         {
             var row = new ReplayRow(replay)
             {
-                IsPinned = string.Equals(replay.FilePath, selectedReplayPath, StringComparison.OrdinalIgnoreCase),
+                IsPinned = replaySelection.IsSelected(replay),
             };
             row.PropertyChanged += ReplayRow_PropertyChanged;
             ReplayRows.Add(row);
@@ -354,7 +317,7 @@ public sealed partial class MainWindow : Window
         if (row.IsPinned)
         {
             lock (replayLock)
-                selectedReplayPath = row.Entry.FilePath;
+                replaySelection.Select(row.Entry);
 
             fillingReplayList = true;
             foreach (var replayRow in ReplayRows)
@@ -372,8 +335,8 @@ public sealed partial class MainWindow : Window
 
         lock (replayLock)
         {
-            if (string.Equals(selectedReplayPath, row.Entry.FilePath, StringComparison.OrdinalIgnoreCase))
-                selectedReplayPath = string.Empty;
+            if (replaySelection.IsSelected(row.Entry))
+                replaySelection.Clear();
         }
 
         statusLabel.Text = "Selected replay cleared";
@@ -383,9 +346,9 @@ public sealed partial class MainWindow : Window
 
     private ReplayEntry? GetDetailReplay()
     {
-        if (!string.IsNullOrWhiteSpace(selectedReplayPath))
+        if (!string.IsNullOrWhiteSpace(replaySelection.SelectedReplayPath))
         {
-            var pinned = ReplayRows.FirstOrDefault(row => string.Equals(row.Entry.FilePath, selectedReplayPath, StringComparison.OrdinalIgnoreCase));
+            var pinned = ReplayRows.FirstOrDefault(row => replaySelection.IsSelected(row.Entry));
             if (pinned != null)
                 return pinned.Entry;
         }
@@ -464,8 +427,7 @@ public sealed partial class MainWindow : Window
     private void SetOsuLazerPath(string path)
     {
         osuLazerBox.Text = path;
-        settings.OsuLazerPath = path;
-        settings.Save();
+        settingsService.SetOsuLazerPath(path);
     }
 
     private static string FormatBeatmapDisplay(TosuSnapshot snapshot)
@@ -482,59 +444,6 @@ public sealed partial class MainWindow : Window
         }
 
         return snapshot.BeatmapChecksum;
-    }
-
-    private static string? TryResolveOsuLazerRoot(TosuSnapshot? snapshot)
-    {
-        var candidates = new List<string>();
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (!string.IsNullOrWhiteSpace(localAppData))
-            candidates.Add(Path.Combine(localAppData, "osulazer"));
-
-        if (snapshot != null)
-        {
-            AddPathCandidate(candidates, snapshot.SongsFolder);
-            AddPathCandidate(candidates, snapshot.BeatmapFolder);
-            if (!string.IsNullOrWhiteSpace(snapshot.SongsFolder) && !string.IsNullOrWhiteSpace(snapshot.BeatmapFile))
-                AddPathCandidate(candidates, Path.Combine(snapshot.SongsFolder, snapshot.BeatmapFile));
-            AddPathCandidate(candidates, snapshot.BeatmapFile);
-        }
-
-        foreach (var candidate in candidates.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            var root = FindOsuLazerRootFrom(candidate);
-            if (root != null)
-                return root;
-        }
-
-        return null;
-    }
-
-    private static void AddPathCandidate(List<string> candidates, string path)
-    {
-        if (!string.IsNullOrWhiteSpace(path))
-            candidates.Add(path);
-    }
-
-    private static string? FindOsuLazerRootFrom(string path)
-    {
-        var current = File.Exists(path) ? Path.GetDirectoryName(path) : path;
-        while (!string.IsNullOrWhiteSpace(current))
-        {
-            if (IsOsuLazerRoot(current))
-                return current;
-
-            current = Directory.GetParent(current)?.FullName;
-        }
-
-        return null;
-    }
-
-    private static bool IsOsuLazerRoot(string? path)
-    {
-        return !string.IsNullOrWhiteSpace(path) &&
-            File.Exists(Path.Combine(path, "client.realm")) &&
-            Directory.Exists(Path.Combine(path, "files"));
     }
 
 }

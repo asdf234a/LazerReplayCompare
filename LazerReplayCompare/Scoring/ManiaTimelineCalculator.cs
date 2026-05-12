@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Globalization;
 using osu.Game.Beatmaps;
 using osu.Game.Rulesets.Mania;
@@ -23,7 +22,7 @@ public sealed class ManiaTimelineCalculator
             throw new NotSupportedException("The replay does not contain score headers, and only osu!mania timeline simulation is currently supported.");
 
         var safeRate = rate > 0 ? rate : 1.0;
-        var keyPairs = ExtractKeyPairs(score, beatmap.Columns, HasMirrorMod(score));
+        var keyPairs = ManiaReplayInputExtractor.ExtractKeyPairs(score, beatmap.Columns, ModUtility.HasMirrorMod(score));
         var judgements = Judge(beatmap, keyPairs, safeRate);
 
         if (judgements.Count == 0)
@@ -34,83 +33,6 @@ public sealed class ManiaTimelineCalculator
             : judgements;
 
         return ScoreJudgements(finalJudgements, scoreMultiplier);
-    }
-
-    // Returns per-column ordered list of (pressRealTime, releaseRealTime) pairs.
-    // releaseRealTime is +Infinity if still held at end of replay.
-    private static (double press, double release)[][] ExtractKeyPairs(Score score, int columns, bool mirrorColumns)
-    {
-        var events = new List<(double press, double release)>[columns];
-        for (var c = 0; c < columns; c++)
-            events[c] = new List<(double, double)>();
-
-        var pressStart = new double?[columns];
-        var previous = new bool[columns];
-
-        foreach (var frame in score.Replay.Frames.OrderBy(f => f.Time))
-        {
-            var pressed = GetPressedColumns(frame, columns, mirrorColumns);
-            for (var c = 0; c < columns; c++)
-            {
-                if (pressed[c] && !previous[c])
-                    pressStart[c] = frame.Time;
-                else if (!pressed[c] && previous[c] && pressStart[c].HasValue)
-                {
-                    events[c].Add((pressStart[c]!.Value, frame.Time));
-                    pressStart[c] = null;
-                }
-            }
-            previous = pressed;
-        }
-
-        for (var c = 0; c < columns; c++)
-        {
-            if (pressStart[c].HasValue)
-                events[c].Add((pressStart[c]!.Value, double.PositiveInfinity));
-        }
-
-        return events.Select(e => e.ToArray()).ToArray();
-    }
-
-    private static bool[] GetPressedColumns(object frame, int columns, bool mirrorColumns)
-    {
-        var pressed = new bool[columns];
-        var actions = frame.GetType().GetField("Actions")?.GetValue(frame) as IEnumerable;
-        if (actions == null)
-            return pressed;
-
-        foreach (var action in actions)
-        {
-            var name = action?.ToString() ?? string.Empty;
-            if (!name.StartsWith("Key", StringComparison.OrdinalIgnoreCase))
-                continue;
-            if (!int.TryParse(name[3..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var oneBasedColumn))
-                continue;
-            var col = oneBasedColumn - 1;
-            if (mirrorColumns)
-                col = columns - 1 - col;
-            if (col >= 0 && col < columns)
-                pressed[col] = true;
-        }
-
-        return pressed;
-    }
-
-    private static bool HasMirrorMod(Score score)
-    {
-        try
-        {
-            return score.ScoreInfo.Mods.Any(mod =>
-            {
-                var acronym = mod.GetType().GetProperty("Acronym")?.GetValue(mod)?.ToString();
-                return string.Equals(acronym, "MR", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(acronym, "MIRROR", StringComparison.OrdinalIgnoreCase);
-            });
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static List<ManiaJudgement> Judge(ManiaBeatmap beatmap, (double press, double release)[][] keyPairs, double rate)
@@ -825,8 +747,9 @@ public sealed class ManiaTimelineCalculator
 
             return frames;
         }
-        catch
+        catch (Exception ex)
         {
+            InternalLogger.Log(ex);
             return null;
         }
     }

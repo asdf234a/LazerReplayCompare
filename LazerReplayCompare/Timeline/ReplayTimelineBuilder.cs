@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 
@@ -50,7 +49,7 @@ public sealed class ReplayTimelineBuilder
         var source = $"frame-header(total={totalFrames},withHeader={framesWithHeader})";
         if (frames.Count == 0)
         {
-            var detectedRate = GetPlaybackRate(score);
+            var detectedRate = ModUtility.GetPlaybackRate(score);
             var finalRate = rate > 0 ? rate : detectedRate;
             var scoreMultiplier = GetScoreMultiplier(score);
             frames = maniaTimelineCalculator.Build(score, beatmapPath ?? string.Empty, finalRate, scoreMultiplier, applyCorrections);
@@ -102,39 +101,6 @@ public sealed class ReplayTimelineBuilder
             "Perfect";
     }
 
-    private static double GetPlaybackRate(Score score)
-    {
-        try
-        {
-            var mods = score.ScoreInfo.GetType().GetProperty("Mods")?.GetValue(score.ScoreInfo);
-            if (mods is not IEnumerable modsEnumerable)
-                return 1.0;
-
-            foreach (var mod in modsEnumerable.Cast<object>())
-            {
-                var acronym = mod.GetType().GetProperty("Acronym")?.GetValue(mod)?.ToString()?.ToUpperInvariant();
-                if (acronym is null)
-                    continue;
-
-                var isSpeedUp = acronym is "DT" or "NC";
-                var isSlowDown = acronym is "HT" or "DC";
-                if (!isSpeedUp && !isSlowDown)
-                    continue;
-
-                var rate = TryGetSpeedChangeSetting(mod);
-                if (rate.HasValue)
-                    return rate.Value;
-
-                return isSpeedUp ? 1.5 : 0.75;
-            }
-        }
-        catch
-        {
-        }
-
-        return 1.0;
-    }
-
     private static double GetScoreMultiplier(Score score)
     {
         var multiplier = 1.0;
@@ -152,78 +118,13 @@ public sealed class ReplayTimelineBuilder
                     multiplier *= convertible.ToDouble(CultureInfo.InvariantCulture);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            InternalLogger.Log(ex);
             return 1.0;
         }
 
         return multiplier > 0 ? multiplier : 1.0;
-    }
-
-    private static double? TryGetSpeedChangeSetting(object mod)
-    {
-        try
-        {
-            var settingsObj = mod.GetType().GetProperty("Settings")?.GetValue(mod);
-
-            if (settingsObj is IDictionary dict)
-            {
-                foreach (DictionaryEntry entry in dict)
-                {
-                    var key = entry.Key?.ToString()?.ToLowerInvariant();
-                    if (key?.Contains("speed") == true || key?.Contains("rate") == true)
-                    {
-                        if (TryParseRate(GetSettingValue(entry.Value), out var r))
-                            return r;
-                    }
-                }
-            }
-            else if (settingsObj is IEnumerable enumerable)
-            {
-                foreach (var item in enumerable.Cast<object>())
-                {
-                    var key = item.GetType().GetProperty("Key")?.GetValue(item)?.ToString()?.ToLowerInvariant();
-                    if (key?.Contains("speed") == true || key?.Contains("rate") == true)
-                    {
-                        var raw = item.GetType().GetProperty("Value")?.GetValue(item);
-                        if (TryParseRate(GetSettingValue(raw), out var r))
-                            return r;
-                    }
-                }
-            }
-        }
-        catch
-        {
-        }
-
-        return null;
-    }
-
-    private static bool TryParseRate(string? text, out double rate)
-    {
-        if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out rate) && rate > 0)
-            return true;
-
-        var match = Regex.Match(text ?? string.Empty, @"\d+(\.\d+)?");
-        return match.Success &&
-            double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out rate) &&
-            rate > 0;
-    }
-
-    private static string? GetSettingValue(object? value)
-    {
-        if (value == null)
-            return null;
-
-        var nestedValue = value.GetType().GetProperty("Value")?.GetValue(value);
-        if (nestedValue != null && !ReferenceEquals(nestedValue, value))
-            value = nestedValue;
-
-        return value switch
-        {
-            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
-            _ => value.ToString(),
-        };
     }
 }
 
