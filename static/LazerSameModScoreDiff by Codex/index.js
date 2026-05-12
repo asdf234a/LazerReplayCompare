@@ -190,13 +190,18 @@ function setDisplay(diff, visible) {
 
 function getDiffColor(diff) {
     const value = Number(diff) || 0;
-    if (value === 0) return 'rgba(255, 255, 255, 0.86)';
+    if (value === 0) return 'rgb(255, 255, 255)';
 
-    const intensity = Math.min(1, Math.abs(value) / 50000);
-    const alpha = 0.42 + intensity * 0.58;
-    return value > 0
-        ? `rgba(119, 255, 154, ${alpha.toFixed(3)})`
-        : `rgba(255, 111, 127, ${alpha.toFixed(3)})`;
+    const spectrum = 3 + Math.min(1, Math.abs(value) / 10000) * 7;
+    const t = spectrum / 10;
+    const target = value > 0
+        ? { r: 119, g: 255, b: 154 }
+        : { r: 255, g: 111, b: 127 };
+
+    const r = Math.round(255 + (target.r - 255) * t);
+    const g = Math.round(255 + (target.g - 255) * t);
+    const b = Math.round(255 + (target.b - 255) * t);
+    return `rgb(${r}, ${g}, ${b})`;
 }
 
 function updateDisplay() {
