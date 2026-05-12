@@ -23,7 +23,7 @@ It reads osu!lazer's `client.realm` and `files` storage, finds replay files for 
   - max combo
   - rank
   - file
-- Includes mod settings in API data, so plugins can compare only same-mod and same-rate plays.
+- Includes mod settings in API data, so plugins can compare by playback speed or implement their own mod filters.
 - Provides a replay timeline API. It first uses lazer replay frame headers when present, then falls back to the mania simulator with large excess-miss correction guided by final score and accuracy.
 
 ## Requirements
@@ -112,7 +112,7 @@ Each replay includes:
 }
 ```
 
-Use `modsKey` or the structured `mods` array when a plugin needs same-mod filtering.
+Use `modsKey` or the structured `mods` array when a plugin needs mod or playback-rate filtering.
 
 ### `/best-replay`
 

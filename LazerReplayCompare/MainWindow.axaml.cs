@@ -50,7 +50,7 @@ public sealed partial class MainWindow : Window
     private string currentReplaysMd5 = string.Empty;
     private string selectedReplayPath = string.Empty;
     private bool fillingReplayList;
-    private TosuSnapshot currentSnapshot = new("lazer", "", "", "", "", "");
+    private TosuSnapshot currentSnapshot = new("lazer", "", "", "", "", "", "", "", "");
 
     public ObservableCollection<ReplayRow> ReplayRows { get; } = new();
 
@@ -69,13 +69,27 @@ public sealed partial class MainWindow : Window
     {
         base.OnOpened(e);
 
-        apiServer.Start(ApiPort);
+        try
+        {
+            apiServer.Start(ApiPort);
+        }
+        catch (Exception ex)
+        {
+            statusLabel.Text = $"Replay API unavailable: {ex.Message}";
+        }
 
         tosuClient.StatusChanged += status => Dispatcher.UIThread.Post(() => statusLabel.Text = status);
         tosuClient.SnapshotReceived += OnSnapshotReceived;
         tosuClient.Start(TosuHost);
 
-        if (string.IsNullOrWhiteSpace(settings.OsuLazerPath) || !Directory.Exists(settings.OsuLazerPath))
+        if (!IsOsuLazerRoot(settings.OsuLazerPath) && TryResolveOsuLazerRoot(null) is { } detectedPath)
+        {
+            SetOsuLazerPath(detectedPath);
+            return;
+        }
+
+        await Task.Delay(2500);
+        if (!IsOsuLazerRoot(osuLazerBox.Text) && (string.IsNullOrWhiteSpace(settings.OsuLazerPath) || !IsOsuLazerRoot(settings.OsuLazerPath)))
             await BrowseOsuLazerFolderCore(true);
     }
 
@@ -116,7 +130,9 @@ public sealed partial class MainWindow : Window
 
     private void ApplySavedSettings()
     {
-        osuLazerBox.Text = settings.OsuLazerPath;
+        osuLazerBox.Text = IsOsuLazerRoot(settings.OsuLazerPath)
+            ? settings.OsuLazerPath
+            : TryResolveOsuLazerRoot(null) ?? settings.OsuLazerPath;
         var theme = string.IsNullOrWhiteSpace(settings.Theme) ? "System" : settings.Theme;
         themeBox.SelectedIndex = theme.Equals("Dark", StringComparison.OrdinalIgnoreCase)
             ? 1
@@ -226,8 +242,11 @@ public sealed partial class MainWindow : Window
             currentSnapshot = snapshot;
             beatmapLabel.Text = string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum)
                 ? "None selected"
-                : snapshot.BeatmapChecksum;
+                : FormatBeatmapDisplay(snapshot);
             detailBeatmapLabel.Text = string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum) ? "-" : snapshot.BeatmapChecksum;
+
+            if (!IsOsuLazerRoot(osuLazerBox.Text) && TryResolveOsuLazerRoot(snapshot) is { } detectedPath)
+                SetOsuLazerPath(detectedPath);
 
             if (!string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum) && snapshot.BeatmapChecksum != oldChecksum)
                 RefreshReplays();
@@ -250,10 +269,7 @@ public sealed partial class MainWindow : Window
         var md5 = currentSnapshot.BeatmapChecksum;
         var osuLazerRoot = (osuLazerBox.Text ?? string.Empty).Trim();
         if (!string.Equals(settings.OsuLazerPath, osuLazerRoot, StringComparison.Ordinal))
-        {
-            settings.OsuLazerPath = osuLazerRoot;
-            settings.Save();
-        }
+            SetOsuLazerPath(osuLazerRoot);
 
         var realmPath = Path.Combine(osuLazerRoot, "client.realm");
         var filesRoot = Path.Combine(osuLazerRoot, "files");
@@ -391,6 +407,7 @@ public sealed partial class MainWindow : Window
             detailRankLabel.Text = "-";
             detailComboLabel.Text = "-";
             detailMissLabel.Text = "-";
+            detailMissLabel.Foreground = new SolidColorBrush(Color.Parse("#64748B"));
             detailModsLabel.Text = "-";
             detailDateLabel.Text = "-";
             detailFileLabel.Text = "-";
@@ -404,7 +421,11 @@ public sealed partial class MainWindow : Window
         detailAccuracyLabel.Text = (replay.Accuracy * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%";
         detailRankLabel.Text = replay.Rank;
         detailComboLabel.Text = replay.MaxCombo.ToString(CultureInfo.InvariantCulture) + " x";
-        detailMissLabel.Text = GetStatistic(replay, "Miss").ToString(CultureInfo.InvariantCulture);
+        var miss = GetStatistic(replay, "Miss");
+        detailMissLabel.Text = miss.ToString(CultureInfo.InvariantCulture);
+        detailMissLabel.Foreground = miss == 0
+            ? new SolidColorBrush(Color.Parse("#74E658"))
+            : new SolidColorBrush(Color.Parse("#FFAB40"));
         detailModsLabel.Text = replay.ModsText;
         detailDateLabel.Text = FormatDate(replay.Date);
         detailFileLabel.Text = replay.FilePath;
@@ -423,7 +444,7 @@ public sealed partial class MainWindow : Window
             : value;
     }
 
-    private void OpenSelectedReplayFolder()
+    private void OpenSelectedReplayFolder(object? sender = null, RoutedEventArgs? e = null)
     {
         var replay = GetDetailReplay();
         if (replay == null)
@@ -440,6 +461,82 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void SetOsuLazerPath(string path)
+    {
+        osuLazerBox.Text = path;
+        settings.OsuLazerPath = path;
+        settings.Save();
+    }
+
+    private static string FormatBeatmapDisplay(TosuSnapshot snapshot)
+    {
+        if (!string.IsNullOrWhiteSpace(snapshot.BeatmapArtist) ||
+            !string.IsNullOrWhiteSpace(snapshot.BeatmapTitle) ||
+            !string.IsNullOrWhiteSpace(snapshot.BeatmapVersion))
+        {
+            var artist = string.IsNullOrWhiteSpace(snapshot.BeatmapArtist) ? "Unknown artist" : snapshot.BeatmapArtist;
+            var title = string.IsNullOrWhiteSpace(snapshot.BeatmapTitle) ? "Unknown title" : snapshot.BeatmapTitle;
+            return string.IsNullOrWhiteSpace(snapshot.BeatmapVersion)
+                ? $"{artist} - {title}"
+                : $"{artist} - {title} [{snapshot.BeatmapVersion}]";
+        }
+
+        return snapshot.BeatmapChecksum;
+    }
+
+    private static string? TryResolveOsuLazerRoot(TosuSnapshot? snapshot)
+    {
+        var candidates = new List<string>();
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localAppData))
+            candidates.Add(Path.Combine(localAppData, "osulazer"));
+
+        if (snapshot != null)
+        {
+            AddPathCandidate(candidates, snapshot.SongsFolder);
+            AddPathCandidate(candidates, snapshot.BeatmapFolder);
+            if (!string.IsNullOrWhiteSpace(snapshot.SongsFolder) && !string.IsNullOrWhiteSpace(snapshot.BeatmapFile))
+                AddPathCandidate(candidates, Path.Combine(snapshot.SongsFolder, snapshot.BeatmapFile));
+            AddPathCandidate(candidates, snapshot.BeatmapFile);
+        }
+
+        foreach (var candidate in candidates.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var root = FindOsuLazerRootFrom(candidate);
+            if (root != null)
+                return root;
+        }
+
+        return null;
+    }
+
+    private static void AddPathCandidate(List<string> candidates, string path)
+    {
+        if (!string.IsNullOrWhiteSpace(path))
+            candidates.Add(path);
+    }
+
+    private static string? FindOsuLazerRootFrom(string path)
+    {
+        var current = File.Exists(path) ? Path.GetDirectoryName(path) : path;
+        while (!string.IsNullOrWhiteSpace(current))
+        {
+            if (IsOsuLazerRoot(current))
+                return current;
+
+            current = Directory.GetParent(current)?.FullName;
+        }
+
+        return null;
+    }
+
+    private static bool IsOsuLazerRoot(string? path)
+    {
+        return !string.IsNullOrWhiteSpace(path) &&
+            File.Exists(Path.Combine(path, "client.realm")) &&
+            Directory.Exists(Path.Combine(path, "files"));
+    }
+
 }
 
 public sealed class ReplayRow : INotifyPropertyChanged
@@ -453,7 +550,7 @@ public sealed class ReplayRow : INotifyPropertyChanged
 
     public ReplayEntry Entry { get; }
     public string Player => Entry.Player;
-    public string DateText => FormatDate(Entry.Date);
+    public string DateText => FormatDateOnly(Entry.Date);
     public string ModsText => Entry.ModsText;
     public string ScoreText => Entry.Score.ToString("N0", CultureInfo.InvariantCulture);
     public string AccuracyText => (Entry.Accuracy * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%";
@@ -488,6 +585,13 @@ public sealed class ReplayRow : INotifyPropertyChanged
     {
         return DateTimeOffset.TryParse(value, out var date)
             ? date.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            : value;
+    }
+
+    private static string FormatDateOnly(string value)
+    {
+        return DateTimeOffset.TryParse(value, out var date)
+            ? date.LocalDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
             : value;
     }
 

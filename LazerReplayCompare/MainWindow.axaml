@@ -309,7 +309,24 @@
                 </StackPanel>
                 <StackPanel Spacing="5">
                   <TextBlock Text="Replay file path" Classes="muted" />
-                  <TextBlock x:Name="DetailFileLabel" Text="-" TextWrapping="Wrap" />
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <TextBlock x:Name="DetailFileLabel"
+                               Text="-"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center" />
+                    <Button Grid.Column="1"
+                            Width="42"
+                            Height="38"
+                            Padding="0"
+                            Click="OpenSelectedReplayFolder">
+                      <Path Width="18"
+                            Height="20"
+                            Stretch="Uniform"
+                            Stroke="{DynamicResource BodyTextBrush}"
+                            StrokeThickness="1.8"
+                            Data="M4,2 L12,2 L17,7 L17,18 L4,18 Z M12,2 L12,7 L17,7" />
+                    </Button>
+                  </Grid>
                 </StackPanel>
               </StackPanel>
             </Border>

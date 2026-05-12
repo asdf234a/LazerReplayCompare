@@ -97,10 +97,10 @@ function getReplayModsKey(replay) {
     return buildModsKey(acronyms, rate);
 }
 
-function isSameModAndRate(replay) {
-    const [replayMods, replayRate] = getReplayModsKey(replay).split('|');
-    const [currentMods, currentRate] = cache.modsKey.split('|');
-    return replayMods === currentMods && Math.abs(Number(replayRate) - Number(currentRate)) <= RATE_EPSILON;
+function isSameRate(replay) {
+    const replayRate = Number(getReplayModsKey(replay).split('|')[1]);
+    const currentRate = Number(cache.modsKey.split('|')[1]);
+    return Math.abs(replayRate - currentRate) <= RATE_EPSILON;
 }
 
 function chooseReplayTarget(replaysData) {
@@ -112,10 +112,10 @@ function chooseReplayTarget(replaysData) {
     }
 
     const replay = replays
-        .filter(isSameModAndRate)
+        .filter(isSameRate)
         .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0] ?? null;
 
-    return { replay, mode: 'auto', error: replay ? '' : 'no same-mod replay' };
+    return { replay, mode: 'auto', error: replay ? '' : 'no same-rate replay' };
 }
 
 // --- Hit index ---
@@ -181,9 +181,22 @@ function setDisplay(diff, visible) {
     diffValueElement.textContent = formatSigned(diff);
     if (!visible) {
         diffElement.className = 'scoreDiff';
+        diffElement.style.color = '';
         return;
     }
     diffElement.className = `scoreDiff visible ${diff > 0 ? 'positive' : diff < 0 ? 'negative' : 'neutral'}`;
+    diffElement.style.color = getDiffColor(diff);
+}
+
+function getDiffColor(diff) {
+    const value = Number(diff) || 0;
+    if (value === 0) return 'rgba(255, 255, 255, 0.86)';
+
+    const intensity = Math.min(1, Math.abs(value) / 50000);
+    const alpha = 0.42 + intensity * 0.58;
+    return value > 0
+        ? `rgba(119, 255, 154, ${alpha.toFixed(3)})`
+        : `rgba(255, 111, 127, ${alpha.toFixed(3)})`;
 }
 
 function updateDisplay() {
@@ -193,7 +206,7 @@ function updateDisplay() {
     }
 
     if (cache.replayFrames.length === 0 || cache.hitIndex <= 0) {
-        setDisplay(0, true);
+        setDisplay(0, false);
         return;
     }
 
@@ -251,6 +264,7 @@ async function loadTimelineInternal(forceTargetCheck) {
             cache.error = target.error;
             cache.loadBaseKey = baseKey;
             cache.loadKey = '';
+            updateDisplay();
             return;
         }
 

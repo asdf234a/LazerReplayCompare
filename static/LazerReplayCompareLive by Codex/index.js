@@ -103,10 +103,10 @@ function getReplayModsKey(replay) {
     return buildModsKey(acronyms, rate);
 }
 
-function isSameModAndRate(replay) {
-    const [replayMods, replayRate] = getReplayModsKey(replay).split('|');
-    const [currentMods, currentRate] = cache.modsKey.split('|');
-    return replayMods === currentMods && Math.abs(Number(replayRate) - Number(currentRate)) <= RATE_EPSILON;
+function isSameRate(replay) {
+    const replayRate = Number(getReplayModsKey(replay).split('|')[1]);
+    const currentRate = Number(cache.modsKey.split('|')[1]);
+    return Math.abs(replayRate - currentRate) <= RATE_EPSILON;
 }
 
 function chooseReplayTarget(replaysData) {
@@ -118,10 +118,10 @@ function chooseReplayTarget(replaysData) {
     }
 
     const replay = replays
-        .filter(isSameModAndRate)
+        .filter(isSameRate)
         .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0] ?? null;
 
-    return { replay, mode: 'AUTO BEST', error: replay ? '' : 'no same-mod replay' };
+    return { replay, mode: 'AUTO BEST', error: replay ? '' : 'no same-rate replay' };
 }
 
 // --- Hit index ---
@@ -253,12 +253,17 @@ function isPlaying() {
     return cache.state === 'play' || cache.state === 'playing';
 }
 
+function isVisibleState() {
+    const state = String(cache.state || '').toLowerCase();
+    return isPlaying() || state === 'result' || state === 'results' || state === 'resultscreen';
+}
+
 function render() {
     const panel = $('panel');
-    const playing = isPlaying();
+    const visible = isVisibleState();
 
-    panel.className = `panel${playing ? ' visible' : ''}`;
-    if (!playing) return;
+    panel.className = `panel${visible ? ' visible' : ''}`;
+    if (!visible) return;
 
     $('liveScore').textContent = fmtScore(cache.score);
     $('liveAcc').textContent = fmtAcc(cache.accuracy);

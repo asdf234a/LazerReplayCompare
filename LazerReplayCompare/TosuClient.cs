@@ -29,7 +29,7 @@ public sealed class TosuClient : IDisposable
                 StatusChanged?.Invoke("Connected to tosu");
 
                 var filter = """
-                    applyFilters:["client",{"field":"beatmap","keys":["checksum"]},{"field":"folders","keys":["songs","beatmap"]},{"field":"files","keys":["beatmap"]},{"field":"state","keys":["name"]}]
+                    applyFilters:["client",{"field":"beatmap","keys":["checksum","artist","title","version","difficulty","name"]},{"field":"folders","keys":["songs","beatmap"]},{"field":"files","keys":["beatmap"]},{"field":"state","keys":["name"]}]
                     """;
                 var filterBytes = Encoding.UTF8.GetBytes(filter);
                 await socket.SendAsync(filterBytes, WebSocketMessageType.Text, true, token);
@@ -80,6 +80,9 @@ public sealed record TosuSnapshot(
     string Client,
     string State,
     string BeatmapChecksum,
+    string BeatmapArtist,
+    string BeatmapTitle,
+    string BeatmapVersion,
     string SongsFolder,
     string BeatmapFolder,
     string BeatmapFile)
@@ -93,6 +96,9 @@ public sealed record TosuSnapshot(
             Client: GetString(root, "client"),
             State: GetString(root, "state", "name"),
             BeatmapChecksum: GetString(root, "beatmap", "checksum"),
+            BeatmapArtist: GetString(root, "beatmap", "artist"),
+            BeatmapTitle: GetString(root, "beatmap", "title"),
+            BeatmapVersion: GetBeatmapVersion(root),
             SongsFolder: GetString(root, "folders", "songs"),
             BeatmapFolder: GetString(root, "folders", "beatmap"),
             BeatmapFile: GetString(root, "files", "beatmap"));
@@ -113,5 +119,18 @@ public sealed record TosuSnapshot(
                value.ValueKind == JsonValueKind.String
             ? value.GetString() ?? string.Empty
             : string.Empty;
+    }
+
+    private static string GetBeatmapVersion(JsonElement root)
+    {
+        var version = GetString(root, "beatmap", "version");
+        if (!string.IsNullOrWhiteSpace(version))
+            return version;
+
+        version = GetString(root, "beatmap", "difficulty");
+        if (!string.IsNullOrWhiteSpace(version))
+            return version;
+
+        return GetString(root, "beatmap", "name");
     }
 }

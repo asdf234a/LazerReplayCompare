@@ -9,8 +9,8 @@ It works with tosu overlays. While you play, it can show the score difference ag
 - Finds replay scores saved by osu!lazer.
 - Shows replays for the beatmap currently selected in osu!lazer.
 - Lets you pin one replay as the comparison target.
-- Compares only the same mod and speed by default.
-- Treats Mirror as the same mod for comparison.
+- Compares against the highest score with the same playback speed by default.
+- Handles Mirror by flipping mania columns during replay timeline calculation.
 - Provides overlays for live score difference and detailed replay comparison.
 
 ## Download
@@ -44,7 +44,7 @@ Shows only the score difference in a compact format.
 
 ## Choosing A Replay
 
-If no replay is checked in LazerReplayCompare, the overlay automatically compares against the highest score with the same mod and speed.
+If no replay is checked in LazerReplayCompare, the overlay automatically compares against the highest score with the same playback speed.
 
 If you check a replay in the app, that replay becomes the comparison target even if its mod or speed is different.
 
