@@ -20,4 +20,16 @@ public sealed class AppSettingsService
         Current.Theme = string.IsNullOrWhiteSpace(theme) ? "System" : theme;
         Save();
     }
+
+    public void SetCorrectionMode(CorrectionMode mode)
+    {
+        Current.CorrectionMode = mode.ToString();
+        Save();
+    }
+
+    public void SetDebugMode(bool enabled)
+    {
+        Current.DebugMode = enabled;
+        Save();
+    }
 }

@@ -7,13 +7,23 @@ namespace LazerReplayCompare;
 public sealed class ReplayApiServer : IDisposable
 {
     private readonly Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays;
+    private readonly Func<CorrectionMode> getDefaultCorrectionMode;
+    private readonly Func<bool> getDebugEnabled;
+    private readonly DebugComparisonService debugComparison;
     private readonly ReplayTimelineBuilder timelineBuilder = new();
     private readonly CancellationTokenSource cancellation = new();
     private TcpListener? listener;
 
-    public ReplayApiServer(Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays)
+    public ReplayApiServer(
+        Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays,
+        Func<CorrectionMode> getDefaultCorrectionMode,
+        Func<bool> getDebugEnabled,
+        DebugComparisonService debugComparison)
     {
         this.getReplays = getReplays;
+        this.getDefaultCorrectionMode = getDefaultCorrectionMode;
+        this.getDebugEnabled = getDebugEnabled;
+        this.debugComparison = debugComparison;
     }
 
     public int Port { get; private set; }
@@ -103,12 +113,60 @@ public sealed class ReplayApiServer : IDisposable
                 var replayPath = GetQueryValue(query, "osr") ?? GetQueryValue(query, "replay") ?? GetQueryValue(query, "filePath");
                 var beatmapPath = GetQueryValue(query, "osu") ?? GetQueryValue(query, "beatmap");
                 var rateStr = GetQueryValue(query, "rate");
-                var correction = GetQueryValue(query, "correction") ?? GetQueryValue(query, "mode");
+                var correction = GetQueryValue(query, "correctionMode") ?? GetQueryValue(query, "correction") ?? GetQueryValue(query, "mode");
                 var rate = double.TryParse(rateStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var r) && r > 0 ? r : 0;
-                var applyCorrections = !string.Equals(correction, "raw", StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(correction, "none", StringComparison.OrdinalIgnoreCase);
+                var correctionMode = ParseCorrectionMode(correction, getDefaultCorrectionMode());
 
-                WriteJson(stream, timelineBuilder.Build(replayPath ?? string.Empty, beatmapPath, rate, applyCorrections));
+                WriteJson(stream, timelineBuilder.Build(replayPath ?? string.Empty, beatmapPath, rate, correctionMode));
+                return;
+            }
+
+            if (uri.AbsolutePath == "/debug-state")
+            {
+                var (md5, replayList, selectedReplay) = getReplays();
+                var replay = selectedReplay ?? replayList.FirstOrDefault();
+                WriteJson(stream, new
+                {
+                    enabled = getDebugEnabled(),
+                    correctionMode = getDefaultCorrectionMode().ToString().ToLowerInvariant(),
+                    beatmapMd5 = md5,
+                    selectedReplay = replay,
+                    logPath = debugComparison.CurrentLogPath,
+                    majorLogPath = debugComparison.CurrentMajorLogPath,
+                    mismatchCount = debugComparison.MismatchCount,
+                });
+                return;
+            }
+
+            if (uri.AbsolutePath == "/debug-hit")
+            {
+                var query = ParseQuery(uri.Query);
+                if (!getDebugEnabled())
+                {
+                    WriteJson(stream, new { accepted = false, reason = "debug disabled" });
+                    return;
+                }
+
+                var correctionMode = ParseCorrectionMode(GetQueryValue(query, "correctionMode") ?? GetQueryValue(query, "correction") ?? GetQueryValue(query, "mode"), getDefaultCorrectionMode());
+                var request = DebugHitRequest.FromQuery(query, correctionMode);
+                var result = debugComparison.RecordHit(request);
+                WriteJson(stream, result);
+                return;
+            }
+
+            if (uri.AbsolutePath == "/debug-start")
+            {
+                var query = ParseQuery(uri.Query);
+                if (!getDebugEnabled())
+                {
+                    WriteJson(stream, new { accepted = false, reason = "debug disabled" });
+                    return;
+                }
+
+                var correctionMode = ParseCorrectionMode(GetQueryValue(query, "correctionMode") ?? GetQueryValue(query, "correction") ?? GetQueryValue(query, "mode"), getDefaultCorrectionMode());
+                var request = DebugRunRequest.FromQuery(query, correctionMode);
+                var result = debugComparison.StartRun(request);
+                WriteJson(stream, result);
                 return;
             }
 
@@ -116,8 +174,22 @@ public sealed class ReplayApiServer : IDisposable
         }
         catch (Exception ex)
         {
+            InternalLogger.Log(ex);
             WriteJson(stream, new { error = ex.Message }, 500);
         }
+    }
+
+    private static CorrectionMode ParseCorrectionMode(string? value, CorrectionMode fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return fallback;
+
+        if (string.Equals(value, "raw", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "none", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "false", StringComparison.OrdinalIgnoreCase))
+            return CorrectionMode.Raw;
+
+        return CorrectionMode.Corrected;
     }
 
     private static void WriteJson(Stream stream, object value, int statusCode = 200)

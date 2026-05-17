@@ -30,6 +30,7 @@ const cache = {
     replayPlayer: '',
     targetMode: '',
     targetFilePath: '',
+    correctionMode: 'corrected',
     timelineSource: '',
     timelineTotalNotes: 0,
     loadBaseKey: '',
@@ -258,7 +259,8 @@ async function loadTimelineInternal(forceTargetCheck) {
         const timelineRate = target.mode === 'SELECTED'
             ? replayRate
             : parseFloat(cache.modsKey.split('|')[1]) || 1;
-        const key = `${baseKey}|${target.replay.filePath}|${timelineRate.toFixed(4)}`;
+        const correctionMode = await getTimelineMode();
+        const key = `${baseKey}|${target.replay.filePath}|${timelineRate.toFixed(4)}|${correctionMode}`;
         if (key === cache.loadKey && cache.replayFrames.length > 0) {
             cache.loadBaseKey = baseKey;
             return;
@@ -271,12 +273,8 @@ async function loadTimelineInternal(forceTargetCheck) {
         cache.timelineTotalNotes = 0;
         render();
 
-        const rawData = await fetchTimeline(target.replay.filePath, timelineRate, 'raw');
-        applyTimeline(rawData);
-        render();
-
-        const correctedData = await fetchTimeline(target.replay.filePath, timelineRate, 'corrected');
-        applyTimeline(correctedData);
+        const timelineData = await fetchTimeline(target.replay.filePath, timelineRate, correctionMode);
+        applyTimeline(timelineData);
         cache.loadBaseKey = baseKey;
         cache.loadKey = key;
     } catch (err) {
@@ -287,6 +285,18 @@ async function loadTimelineInternal(forceTargetCheck) {
         cache.loading = false;
         render();
     }
+}
+
+async function getTimelineMode() {
+    try {
+        const res = await fetch(`http://${LAZER_COMPARE_HOST}/debug-state`);
+        if (!res.ok) return cache.correctionMode;
+        const data = await res.json();
+        cache.correctionMode = data.correctionMode || cache.correctionMode;
+    } catch {
+        // Keep the previous mode if the app is still starting.
+    }
+    return cache.correctionMode;
 }
 
 async function fetchTimeline(filePath, rate, correction) {

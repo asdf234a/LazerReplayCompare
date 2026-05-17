@@ -9,7 +9,7 @@ public sealed class ReplayTimelineBuilder
 {
     private readonly ManiaTimelineCalculator maniaTimelineCalculator = new();
 
-    public ReplayTimelineResponse Build(string replayPath, string? beatmapPath, double rate = 0, bool applyCorrections = true)
+    public ReplayTimelineResponse Build(string replayPath, string? beatmapPath, double rate = 0, CorrectionMode correctionMode = CorrectionMode.Corrected)
     {
         if (string.IsNullOrWhiteSpace(replayPath))
             throw new ArgumentException("Missing osr path.", nameof(replayPath));
@@ -52,11 +52,11 @@ public sealed class ReplayTimelineBuilder
             var detectedRate = ModUtility.GetPlaybackRate(score);
             var finalRate = rate > 0 ? rate : detectedRate;
             var scoreMultiplier = GetScoreMultiplier(score);
-            frames = maniaTimelineCalculator.Build(score, beatmapPath ?? string.Empty, finalRate, scoreMultiplier, applyCorrections);
-            var correctionMode = applyCorrections
-                ? "density-limited-judgement-score-corrected"
-                : "raw-judgement";
-            source = $"mania-simulated(rate={finalRate:F4},scoreMultiplier={scoreMultiplier:F4},matcher=lazer-event,{correctionMode},totalFrames={totalFrames},withHeader={framesWithHeader})";
+            frames = maniaTimelineCalculator.Build(score, beatmapPath ?? string.Empty, finalRate, scoreMultiplier, correctionMode);
+            var correctionLabel = correctionMode == CorrectionMode.Corrected
+                ? "density-limited-judgement-score-corrected-hybrid-press-shift"
+                : "raw-hybrid-press-shift";
+            source = $"mania-simulated(rate={finalRate:F4},scoreMultiplier={scoreMultiplier:F4},matcher=lazer-event,{correctionLabel},totalFrames={totalFrames},withHeader={framesWithHeader})";
         }
 
         if (frames.Count == 0)
@@ -147,4 +147,12 @@ public sealed record ReplayTimelineFrame(
     int Combo,
     int MaxCombo,
     double Accuracy,
-    Dictionary<string, int> Hits);
+    Dictionary<string, int> Hits,
+    ReplayFrameDebugInfo? DebugInfo = null);
+
+public sealed record ReplayFrameDebugInfo(
+    int Column,
+    string Kind,
+    double ObjectTime,
+    double Offset,
+    string Result);

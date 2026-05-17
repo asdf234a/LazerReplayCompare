@@ -10,7 +10,12 @@ namespace LazerReplayCompare;
 
 public sealed class ManiaTimelineCalculator
 {
-    public List<ReplayTimelineFrame> Build(Score score, string beatmapPath, double rate = 1.0, double scoreMultiplier = 1.0, bool applyCorrections = true)
+    public List<ReplayTimelineFrame> Build(
+        Score score,
+        string beatmapPath,
+        double rate = 1.0,
+        double scoreMultiplier = 1.0,
+        CorrectionMode correctionMode = CorrectionMode.Corrected)
     {
         if (string.IsNullOrWhiteSpace(beatmapPath) || !File.Exists(beatmapPath))
             throw new InvalidOperationException("A .osu beatmap path is required to simulate mania timelines.");
@@ -21,16 +26,159 @@ public sealed class ManiaTimelineCalculator
 
         var safeRate = rate > 0 ? rate : 1.0;
         var keyPairs = ManiaReplayInputExtractor.ExtractKeyPairs(score, beatmap.Columns, ModUtility.HasMirrorMod(score));
-        var judgements = Judge(beatmap, keyPairs, safeRate);
+        var judgements = ShouldUseDenseHoldLookahead(beatmap)
+            ? Judge(beatmap, keyPairs, safeRate)
+            : JudgeRaw(beatmap, keyPairs, safeRate);
 
         if (judgements.Count == 0)
             return new List<ReplayTimelineFrame>();
 
-        var finalJudgements = applyCorrections
+        var finalJudgements = correctionMode == CorrectionMode.Corrected
             ? JudgementCorrectionService.CorrectJudgementDistribution(judgements, score, scoreMultiplier)
             : judgements;
 
         return ManiaScoreCalculator.ScoreJudgements(finalJudgements, scoreMultiplier);
+    }
+
+    private static bool ShouldUseDenseHoldLookahead(ManiaBeatmap beatmap)
+    {
+        if (beatmap.Notes.Count < 1000)
+            return false;
+
+        var holdRatio = beatmap.Notes.Count(note => note.EndTime.HasValue) / (double)beatmap.Notes.Count;
+        if (holdRatio < DenseHoldRatioThreshold)
+            return false;
+
+        var sameColumnSpacings = new List<double>();
+        foreach (var group in beatmap.Notes.GroupBy(note => note.Column))
+        {
+            var notes = group.OrderBy(note => note.StartTime).ToArray();
+            for (var i = 1; i < notes.Length; i++)
+                sameColumnSpacings.Add(notes[i].StartTime - notes[i - 1].StartTime);
+        }
+
+        if (sameColumnSpacings.Count == 0)
+            return false;
+
+        sameColumnSpacings.Sort();
+        return sameColumnSpacings[sameColumnSpacings.Count / 2] <= DenseHoldMedianSpacingThreshold;
+    }
+
+    private static List<ManiaJudgement> JudgeRaw(ManiaBeatmap beatmap, (double press, double release)[][] keyPairs, double rate)
+    {
+        var windows = ManiaWindows.ForDifficulty(beatmap.OverallDifficulty, rate);
+        var judgements = new List<ManiaJudgement>();
+        var noteStates = CreateNoteStates(beatmap);
+        var activeHoldByColumn = new NoteState?[beatmap.Columns];
+        var pressCursorByColumn = new int[beatmap.Columns];
+        var inputEvents = CreateRawInputEvents(keyPairs);
+
+        foreach (var keyEvent in inputEvents)
+        {
+            var columnNotes = noteStates[keyEvent.Column];
+            ExpirePressQueueColumn(columnNotes, ref pressCursorByColumn[keyEvent.Column], judgements, keyEvent.Time, windows, inputEvents, activeHoldByColumn);
+            ExpireTailColumn(columnNotes, judgements, keyEvent.Time, windows);
+
+            if (keyEvent.IsPress)
+            {
+                if (keyEvent.Consumed)
+                    continue;
+
+                var note = GetPressQueueFront(columnNotes, ref pressCursorByColumn[keyEvent.Column]);
+                if (note == null)
+                    continue;
+
+                if (TryConsumeFrontWithEarlierPress(columnNotes, note, judgements, windows, inputEvents, keyEvent, activeHoldByColumn))
+                {
+                    pressCursorByColumn[keyEvent.Column]++;
+                    note = GetPressQueueFront(columnNotes, ref pressCursorByColumn[keyEvent.Column]);
+                    if (note == null)
+                        continue;
+                }
+
+                var offset = keyEvent.Time - note.Note.StartTime;
+                if (offset < -windows.Miss || Math.Abs(offset) > windows.Miss)
+                    continue;
+
+                if (EnableLatePressShift &&
+                    offset > windows.Meh &&
+                    TryShiftLatePressToNextFront(columnNotes, ref pressCursorByColumn[keyEvent.Column], note, keyEvent, judgements, windows, out var shiftedNote))
+                {
+                    note = shiftedNote;
+                    offset = keyEvent.Time - note.Note.StartTime;
+                }
+
+                var result = windows.ResultFor(offset);
+                keyEvent.Consumed = true;
+                keyEvent.ConsumedByObjectId = note.Id;
+
+                note.HeadJudged = true;
+                note.HeadHit = result != HitResult.Miss;
+
+                judgements.Add(new ManiaJudgement(
+                    Time: keyEvent.Time,
+                    Column: keyEvent.Column,
+                    Result: result,
+                    ObjectTime: note.Note.StartTime,
+                    Kind: note.Note.EndTime.HasValue ? JudgementKind.HoldHead : JudgementKind.Note));
+
+                if (note.Note.EndTime.HasValue)
+                {
+                    note.PressTime = keyEvent.Time;
+                    note.IsHolding = note.HeadHit;
+                    if (note.HeadHit)
+                        activeHoldByColumn[keyEvent.Column] = note;
+                }
+
+                pressCursorByColumn[keyEvent.Column]++;
+            }
+            else
+            {
+                if (keyEvent.Consumed)
+                    continue;
+
+                var note = activeHoldByColumn[keyEvent.Column] ??
+                    FindTailReleaseCandidate(noteStates[keyEvent.Column], keyEvent.Time, windows);
+                if (note == null || note.TailJudged || !note.Note.EndTime.HasValue)
+                    continue;
+
+                if (keyEvent.Time < note.Note.EndTime.Value - windows.Miss * TailReleaseLenience)
+                {
+                    note.BodyBroken = true;
+                    note.IsHolding = false;
+                    if (ReferenceEquals(activeHoldByColumn[keyEvent.Column], note))
+                        activeHoldByColumn[keyEvent.Column] = null;
+                    continue;
+                }
+
+                if (keyEvent.Time <= note.Note.EndTime.Value + windows.Miss * TailReleaseLenience)
+                {
+                    ApplyTailJudgement(note, judgements, keyEvent.Time, windows);
+                    keyEvent.Consumed = true;
+                    keyEvent.ConsumedByObjectId = note.Id;
+                }
+
+                if (ReferenceEquals(activeHoldByColumn[keyEvent.Column], note))
+                    activeHoldByColumn[keyEvent.Column] = null;
+            }
+        }
+
+        foreach (var activeHold in activeHoldByColumn)
+        {
+            if (activeHold?.Note.EndTime.HasValue == true && !activeHold.TailJudged)
+                ApplyTailJudgement(activeHold, judgements, activeHold.Note.EndTime.Value, windows);
+        }
+
+        for (var column = 0; column < noteStates.Length; column++)
+        {
+            ExpirePressQueueColumn(noteStates[column], ref pressCursorByColumn[column], judgements, double.PositiveInfinity, windows, inputEvents, activeHoldByColumn);
+            ExpireTailColumn(noteStates[column], judgements, double.PositiveInfinity, windows);
+        }
+
+        return judgements
+            .OrderBy(j => j.Time)
+            .ThenBy(j => j.Column)
+            .ToList();
     }
 
     private static List<ManiaJudgement> Judge(ManiaBeatmap beatmap, (double press, double release)[][] keyPairs, double rate)
@@ -74,7 +222,8 @@ public sealed class ManiaTimelineCalculator
             }
             else
             {
-                var note = activeHoldByColumn[keyEvent.Column];
+                var note = activeHoldByColumn[keyEvent.Column] ??
+                    FindTailReleaseCandidate(noteStates[keyEvent.Column], keyEvent.Time, windows);
                 if (note == null || note.TailJudged || !note.Note.EndTime.HasValue)
                     continue;
 
@@ -146,6 +295,48 @@ public sealed class ManiaTimelineCalculator
         return ordered;
     }
 
+    private static List<LegacyKeyEvent> CreateLegacyKeyEvents((double press, double release)[][] keyPairs)
+    {
+        var events = new List<LegacyKeyEvent>();
+
+        for (var c = 0; c < keyPairs.Length; c++)
+        {
+            foreach (var pair in keyPairs[c])
+            {
+                events.Add(new LegacyKeyEvent(pair.press, c, true));
+                if (!double.IsPositiveInfinity(pair.release))
+                    events.Add(new LegacyKeyEvent(pair.release, c, false));
+            }
+        }
+
+        return events
+            .OrderBy(e => e.Time)
+            .ThenBy(e => e.IsPress ? 1 : 0)
+            .ToList();
+    }
+
+    private static List<RawInputEvent> CreateRawInputEvents((double press, double release)[][] keyPairs)
+    {
+        var events = new List<RawInputEvent>();
+        var id = 0;
+
+        for (var c = 0; c < keyPairs.Length; c++)
+        {
+            foreach (var pair in keyPairs[c])
+            {
+                events.Add(new RawInputEvent(++id, pair.press, c, true));
+                if (!double.IsPositiveInfinity(pair.release))
+                    events.Add(new RawInputEvent(++id, pair.release, c, false));
+            }
+        }
+
+        return events
+            .OrderBy(e => e.Time)
+            .ThenBy(e => e.IsPress ? 1 : 0)
+            .ThenBy(e => e.Column)
+            .ToList();
+    }
+
     private static NoteState? FindBestPressCandidate(IReadOnlyList<NoteState> notes, double pressTime, double? nextPressTime, ManiaWindows windows)
     {
         return notes
@@ -163,6 +354,286 @@ public sealed class ManiaTimelineCalculator
                     pressTime <= note.Note.EndTime.Value + windows.Meh;
             })
             .OrderBy(note => LocalLookaheadCost(notes, note, pressTime, nextPressTime, windows))
+            .FirstOrDefault();
+    }
+
+    private static NoteState? FindFrontPressCandidate(IReadOnlyList<NoteState> notes, double pressTime, ManiaWindows windows)
+    {
+        var note = notes.FirstOrDefault(note => !note.HeadJudged);
+        if (note == null)
+            return null;
+
+        var offset = pressTime - note.Note.StartTime;
+        if (offset < -windows.Miss)
+            return null;
+
+        return Math.Abs(offset) <= windows.Miss ? note : null;
+    }
+
+    private static NoteState? GetPressQueueFront(IReadOnlyList<NoteState> notes, ref int cursor)
+    {
+        while (cursor < notes.Count && notes[cursor].HeadJudged)
+            cursor++;
+
+        return cursor < notes.Count ? notes[cursor] : null;
+    }
+
+    private static void ExpirePressQueueColumn(
+        IReadOnlyList<NoteState> notes,
+        ref int cursor,
+        List<ManiaJudgement> judgements,
+        double time,
+        ManiaWindows windows,
+        IReadOnlyList<RawInputEvent> inputEvents,
+        NoteState?[] activeHoldByColumn)
+    {
+        while (cursor < notes.Count)
+        {
+            var note = notes[cursor];
+            if (note.HeadJudged)
+            {
+                cursor++;
+                continue;
+            }
+
+            if (time <= note.Note.StartTime + windows.Miss)
+                break;
+
+            if (TryRescueWithUnconsumedPress(notes, note, judgements, windows, inputEvents, activeHoldByColumn))
+            {
+                cursor++;
+                continue;
+            }
+
+            note.HeadJudged = true;
+            note.HeadHit = false;
+            note.IsHolding = false;
+            judgements.Add(new ManiaJudgement(
+                Time: note.Note.StartTime + windows.Miss,
+                Column: note.Note.Column,
+                Result: HitResult.Miss,
+                ObjectTime: note.Note.StartTime,
+                Kind: note.Note.EndTime.HasValue ? JudgementKind.HoldHead : JudgementKind.Note));
+            cursor++;
+        }
+    }
+
+    private static bool TryConsumeFrontWithEarlierPress(
+        IReadOnlyList<NoteState> notes,
+        NoteState note,
+        List<ManiaJudgement> judgements,
+        ManiaWindows windows,
+        IReadOnlyList<RawInputEvent> inputEvents,
+        RawInputEvent currentPress,
+        NoteState?[] activeHoldByColumn)
+    {
+        if (note.HeadJudged || HasEarlierUnjudgedPressObject(notes, note))
+            return false;
+
+        var currentOffset = currentPress.Time - note.Note.StartTime;
+        if (currentOffset <= 0 || Math.Abs(currentOffset) > windows.Miss)
+            return false;
+
+        var earlierPress = inputEvents
+            .Where(e => e.IsPress &&
+                !e.Consumed &&
+                e.Column == note.Note.Column &&
+                e.Time < currentPress.Time &&
+                Math.Abs(e.Time - note.Note.StartTime) <= windows.Miss)
+            .OrderBy(e => Math.Abs(e.Time - note.Note.StartTime))
+            .ThenByDescending(e => e.Time)
+            .FirstOrDefault();
+
+        if (earlierPress == null)
+            return false;
+
+        var earlierOffset = earlierPress.Time - note.Note.StartTime;
+        if (Math.Abs(earlierOffset) > Math.Abs(currentOffset) - FrontEarlierPressPreference)
+            return false;
+
+        var result = windows.ResultFor(earlierOffset);
+        earlierPress.Consumed = true;
+        earlierPress.ConsumedByObjectId = note.Id;
+        note.HeadJudged = true;
+        note.HeadHit = result != HitResult.Miss;
+
+        judgements.Add(new ManiaJudgement(
+            Time: earlierPress.Time,
+            Column: note.Note.Column,
+            Result: result,
+            ObjectTime: note.Note.StartTime,
+            Kind: note.Note.EndTime.HasValue ? JudgementKind.HoldHead : JudgementKind.Note));
+
+        if (note.Note.EndTime.HasValue)
+        {
+            note.PressTime = earlierPress.Time;
+            note.IsHolding = note.HeadHit;
+            if (note.HeadHit)
+                activeHoldByColumn[note.Note.Column] = note;
+        }
+
+        return true;
+    }
+
+    private static bool TryShiftLatePressToNextFront(
+        IReadOnlyList<NoteState> notes,
+        ref int cursor,
+        NoteState current,
+        RawInputEvent press,
+        List<ManiaJudgement> judgements,
+        ManiaWindows windows,
+        out NoteState shifted)
+    {
+        shifted = current;
+
+        if (current.HeadJudged || press.Time - current.Note.StartTime <= windows.Meh)
+            return false;
+
+        var nextIndex = cursor + 1;
+        while (nextIndex < notes.Count && notes[nextIndex].HeadJudged)
+            nextIndex++;
+
+        if (nextIndex >= notes.Count)
+            return false;
+
+        var next = notes[nextIndex];
+        var currentOffset = press.Time - current.Note.StartTime;
+        var nextOffset = press.Time - next.Note.StartTime;
+
+        if (nextOffset < -windows.Miss || Math.Abs(nextOffset) > windows.Meh)
+            return false;
+
+        if (Math.Abs(nextOffset) + LatePressShiftPreference >= Math.Abs(currentOffset))
+            return false;
+
+        current.HeadJudged = true;
+        current.HeadHit = false;
+        current.IsHolding = false;
+        judgements.Add(new ManiaJudgement(
+            Time: current.Note.StartTime + windows.Miss,
+            Column: current.Note.Column,
+            Result: HitResult.Miss,
+            ObjectTime: current.Note.StartTime,
+            Kind: current.Note.EndTime.HasValue ? JudgementKind.HoldHead : JudgementKind.Note));
+
+        cursor = nextIndex;
+        shifted = next;
+        return true;
+    }
+
+    private static bool TryRescueWithUnconsumedPress(
+        IReadOnlyList<NoteState> notes,
+        NoteState note,
+        List<ManiaJudgement> judgements,
+        ManiaWindows windows,
+        IReadOnlyList<RawInputEvent> inputEvents,
+        NoteState?[] activeHoldByColumn)
+    {
+        if (note.HeadJudged || HasEarlierUnjudgedPressObject(notes, note))
+            return false;
+
+        var press = inputEvents
+            .Where(e => e.IsPress &&
+                !e.Consumed &&
+                e.Column == note.Note.Column &&
+                Math.Abs(e.Time - note.Note.StartTime) <= windows.Miss)
+            .OrderBy(e => Math.Abs(e.Time - note.Note.StartTime))
+            .ThenBy(e => e.Time)
+            .FirstOrDefault();
+
+        if (press == null)
+            return false;
+
+        var offset = press.Time - note.Note.StartTime;
+        var result = windows.ResultFor(offset);
+
+        press.Consumed = true;
+        press.ConsumedByObjectId = note.Id;
+        note.HeadJudged = true;
+        note.HeadHit = result != HitResult.Miss;
+
+        judgements.Add(new ManiaJudgement(
+            Time: press.Time,
+            Column: note.Note.Column,
+            Result: result,
+            ObjectTime: note.Note.StartTime,
+            Kind: note.Note.EndTime.HasValue ? JudgementKind.HoldHead : JudgementKind.Note));
+
+        if (note.Note.EndTime.HasValue)
+        {
+            note.PressTime = press.Time;
+            note.IsHolding = note.HeadHit;
+            if (note.HeadHit)
+                activeHoldByColumn[note.Note.Column] = note;
+        }
+
+        return true;
+    }
+
+    private static bool HasEarlierUnjudgedPressObject(IReadOnlyList<NoteState> notes, NoteState note)
+    {
+        foreach (var candidate in notes)
+        {
+            if (ReferenceEquals(candidate, note))
+                return false;
+
+            if (!candidate.HeadJudged)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static void ExpireTailColumn(IReadOnlyList<NoteState> notes, List<ManiaJudgement> judgements, double time, ManiaWindows windows)
+    {
+        foreach (var note in notes)
+        {
+            if (!note.Note.EndTime.HasValue || note.TailJudged)
+                continue;
+
+            if (time > note.Note.EndTime.Value + windows.Miss * TailReleaseLenience)
+                ApplyTailJudgement(note, judgements, note.Note.EndTime.Value + windows.Miss * TailReleaseLenience, windows, forceMiss: true);
+        }
+    }
+
+    private static NoteState? FindLegacyPressCandidate(IReadOnlyList<NoteState> notes, double pressTime, ManiaWindows windows)
+    {
+        return notes
+            .Where(note =>
+            {
+                if (note.HeadJudged)
+                    return false;
+
+                var offset = pressTime - note.Note.StartTime;
+                if (Math.Abs(offset) <= windows.Miss)
+                    return true;
+
+                return note.Note.EndTime.HasValue &&
+                    pressTime > note.Note.StartTime + windows.Miss &&
+                    pressTime <= note.Note.EndTime.Value + windows.Meh;
+            })
+            .OrderBy(note => DistanceToCandidate(note, pressTime))
+            .FirstOrDefault();
+    }
+
+    private static NoteState? FindTailReleaseCandidate(IReadOnlyList<NoteState> notes, double releaseTime, ManiaWindows windows)
+    {
+        return notes
+            .Where(note =>
+            {
+                if (!note.Note.EndTime.HasValue || note.TailJudged)
+                    return false;
+
+                var endTime = note.Note.EndTime.Value;
+                if (releaseTime < endTime - windows.Miss * TailReleaseLenience ||
+                    releaseTime > endTime + windows.Miss * TailReleaseLenience)
+                    return false;
+
+                return note.HeadJudged || note.PressTime.HasValue;
+            })
+            .Where(note => !note.BodyBroken || releaseTime >= note.Note.EndTime!.Value - windows.Miss * TailReleaseLenience)
+            .OrderBy(note => note.HeadHit ? 0 : 1)
+            .ThenBy(note => Math.Abs(releaseTime - note.Note.EndTime!.Value))
             .FirstOrDefault();
     }
 
@@ -202,6 +673,7 @@ public sealed class ManiaTimelineCalculator
                 {
                     note.HeadJudged = true;
                     note.HeadHit = false;
+                    note.IsHolding = false;
                     judgements.Add(new ManiaJudgement(note.Note.StartTime + windows.Miss, note.Note.Column, HitResult.Miss, note.Note.StartTime, note.Note.EndTime.HasValue ? JudgementKind.HoldHead : JudgementKind.Note));
                 }
 
@@ -216,15 +688,22 @@ public sealed class ManiaTimelineCalculator
         var endTime = note.Note.EndTime!.Value;
         var result = forceMiss ? HitResult.Miss : windows.ResultForTail(releaseTime - endTime);
 
-        if (result > HitResult.Meh && !note.HeadHit)
+        if (result > HitResult.Meh && (!note.HeadHit || note.BodyBroken))
             result = HitResult.Meh;
 
         note.TailJudged = true;
+        note.TailConsumed = true;
+        note.IsHolding = false;
         judgements.Add(new ManiaJudgement(releaseTime, note.Note.Column, result, endTime, JudgementKind.HoldTail));
     }
 
     private const double TailReleaseLenience = 1.5;
     private const double LocalLookaheadWeight = 0.25;
+    private const bool EnableLatePressShift = true;
+    private const double FrontEarlierPressPreference = 8;
+    private const double LatePressShiftPreference = 32;
+    private const double DenseHoldRatioThreshold = 0.12;
+    private const double DenseHoldMedianSpacingThreshold = 100;
 
     private static List<ReplayTimelineFrame>? ScoreJudgementsWithLazerProcessor(IReadOnlyList<ManiaJudgement> judgements, Score score, string beatmapPath)
     {
@@ -318,13 +797,30 @@ public sealed class ManiaTimelineCalculator
     }
 
     private sealed record KeyEvent(double Time, int Column, bool IsPress, double? NextPressTime);
+    private sealed record LegacyKeyEvent(double Time, int Column, bool IsPress);
+
+    private sealed class RawInputEvent(int id, double time, int column, bool isPress)
+    {
+        public int Id { get; } = id;
+        public double Time { get; } = time;
+        public int Column { get; } = column;
+        public bool IsPress { get; } = isPress;
+        public bool Consumed { get; set; }
+        public int? ConsumedByObjectId { get; set; }
+    }
 
     private sealed class NoteState(ManiaNote note)
     {
+        private static int nextId;
+
+        public int Id { get; } = Interlocked.Increment(ref nextId);
         public ManiaNote Note { get; } = note;
         public bool HeadJudged { get; set; }
         public bool HeadHit { get; set; }
         public bool TailJudged { get; set; }
+        public bool TailConsumed { get; set; }
+        public bool IsHolding { get; set; }
+        public bool BodyBroken { get; set; }
         public double? PressTime { get; set; }
     }
 

@@ -26,6 +26,7 @@ const cache = {
     replayFrames: [],
     replayPath: '',
     targetMode: '',
+    correctionMode: 'corrected',
     loadBaseKey: '',
     loadKey: '',
     loading: false,
@@ -162,7 +163,8 @@ async function loadTimelineInternal(forceTargetCheck) {
         const timelineRate = target.mode === 'selected'
             ? replayRate
             : parseFloat(cache.modsKey.split('|')[1]) || 1;
-        const key = `${baseKey}|${target.replay.filePath}|${timelineRate.toFixed(4)}`;
+        const correctionMode = await getTimelineMode();
+        const key = `${baseKey}|${target.replay.filePath}|${timelineRate.toFixed(4)}|${correctionMode}`;
         if (key === cache.loadKey && cache.replayFrames.length > 0) {
             cache.loadBaseKey = baseKey;
             return;
@@ -171,12 +173,8 @@ async function loadTimelineInternal(forceTargetCheck) {
         cache.replayPath = '';
         updateDisplay();
 
-        const rawData = await fetchTimeline(target.replay.filePath, timelineRate, 'raw');
-        applyTimeline(rawData);
-        updateDisplay();
-
-        const correctedData = await fetchTimeline(target.replay.filePath, timelineRate, 'corrected');
-        applyTimeline(correctedData);
+        const timelineData = await fetchTimeline(target.replay.filePath, timelineRate, correctionMode);
+        applyTimeline(timelineData);
         cache.replayPath = target.replay.filePath;
         cache.loadBaseKey = baseKey;
         cache.loadKey = key;
@@ -188,6 +186,18 @@ async function loadTimelineInternal(forceTargetCheck) {
         cache.loading = false;
         updateDisplay();
     }
+}
+
+async function getTimelineMode() {
+    try {
+        const res = await fetch(`http://${LAZER_COMPARE_HOST}/debug-state`);
+        if (!res.ok) return cache.correctionMode;
+        const data = await res.json();
+        cache.correctionMode = data.correctionMode || cache.correctionMode;
+    } catch {
+        // Keep the previous mode if LazerReplayCompare is still starting.
+    }
+    return cache.correctionMode;
 }
 
 async function fetchTimeline(filePath, rate, correction) {

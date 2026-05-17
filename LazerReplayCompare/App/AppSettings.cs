@@ -6,6 +6,8 @@ public sealed class AppSettings
 {
     public string OsuLazerPath { get; set; } = string.Empty;
     public string Theme { get; set; } = "System";
+    public string CorrectionMode { get; set; } = "Corrected";
+    public bool DebugMode { get; set; }
 
     private static string SettingsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

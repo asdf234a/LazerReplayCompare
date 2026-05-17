@@ -72,7 +72,13 @@ internal static class ManiaScoreCalculator
                 Combo: currentCombo,
                 MaxCombo: highestCombo,
                 Accuracy: accuracy,
-                Hits: new Dictionary<string, int>(hits, StringComparer.Ordinal)));
+                Hits: new Dictionary<string, int>(hits, StringComparer.Ordinal),
+                DebugInfo: new ReplayFrameDebugInfo(
+                    Column: judgement.Column,
+                    Kind: judgement.Kind.ToString(),
+                    ObjectTime: judgement.ObjectTime,
+                    Offset: judgement.Time - judgement.ObjectTime,
+                    Result: judgement.Result.ToString())));
         }
 
         return frames;

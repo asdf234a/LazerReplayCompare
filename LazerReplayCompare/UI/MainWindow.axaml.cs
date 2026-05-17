@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
     private readonly ReplayFinder replayFinder = new();
     private readonly TosuClient tosuClient = new();
     private readonly ReplayApiServer apiServer;
+    private readonly DebugComparisonService debugComparison = new();
     private readonly object replayLock = new();
     private readonly AppSettingsService settingsService = new();
     private readonly ReplaySelectionService replaySelection = new();
@@ -28,6 +29,8 @@ public sealed partial class MainWindow : Window
     private TextBox osuLazerBox = null!;
     private Button refreshButton = null!;
     private ComboBox themeBox = null!;
+    private ComboBox correctionModeBox = null!;
+    private CheckBox debugModeBox = null!;
     private ListBox replayList = null!;
     private TextBlock statusLabel = null!;
     private TextBlock beatmapLabel = null!;
@@ -54,7 +57,7 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
-        apiServer = new ReplayApiServer(GetCurrentReplays);
+        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, () => settingsService.Current.DebugMode, debugComparison);
 
         InitializeComponent();
         DataContext = viewModel;
@@ -110,6 +113,8 @@ public sealed partial class MainWindow : Window
         osuLazerBox = this.FindControl<TextBox>("OsuLazerBox")!;
         refreshButton = this.FindControl<Button>("RefreshButton")!;
         themeBox = this.FindControl<ComboBox>("ThemeBox")!;
+        correctionModeBox = this.FindControl<ComboBox>("CorrectionModeBox")!;
+        debugModeBox = this.FindControl<CheckBox>("DebugModeBox")!;
         replayList = this.FindControl<ListBox>("ReplayList")!;
         statusLabel = this.FindControl<TextBlock>("StatusLabel")!;
         beatmapLabel = this.FindControl<TextBlock>("BeatmapLabel")!;
@@ -140,7 +145,15 @@ public sealed partial class MainWindow : Window
                 ? 2
                 : 0;
         ThemeService.Apply(this, theme);
+        var correctionMode = ParseCorrectionMode(settingsService.Current.CorrectionMode);
+        correctionModeBox.SelectedIndex = correctionMode == CorrectionMode.Raw ? 1 : 0;
+        debugModeBox.IsChecked = settingsService.Current.DebugMode;
         UpdateSelectedReplayDetails(null);
+    }
+
+    private CorrectionMode GetCurrentCorrectionMode()
+    {
+        return ParseCorrectionMode(settingsService.Current.CorrectionMode);
     }
 
     private (string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay) GetCurrentReplays()
@@ -195,6 +208,24 @@ public sealed partial class MainWindow : Window
 
         settingsService.SetTheme(theme);
         ThemeService.Apply(this, theme);
+    }
+
+    private void CorrectionModeSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (correctionModeBox.SelectedItem is not ComboBoxItem item || item.Content is not string value)
+            return;
+
+        settingsService.SetCorrectionMode(ParseCorrectionMode(value));
+        statusLabel.Text = $"Timeline mode: {value}";
+    }
+
+    private void DebugModeChanged(object? sender, RoutedEventArgs e)
+    {
+        var enabled = debugModeBox.IsChecked == true;
+        settingsService.SetDebugMode(enabled);
+        statusLabel.Text = enabled
+            ? "Debug mode enabled. Use the tosu debug overlay while replaying the same score."
+            : "Debug mode disabled.";
     }
 
     private void OnSnapshotReceived(TosuSnapshot snapshot)
@@ -444,6 +475,13 @@ public sealed partial class MainWindow : Window
         }
 
         return snapshot.BeatmapChecksum;
+    }
+
+    private static CorrectionMode ParseCorrectionMode(string? value)
+    {
+        return string.Equals(value, "Raw", StringComparison.OrdinalIgnoreCase)
+            ? CorrectionMode.Raw
+            : CorrectionMode.Corrected;
     }
 
 }
