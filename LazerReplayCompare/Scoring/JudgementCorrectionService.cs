@@ -15,6 +15,8 @@ internal static class JudgementCorrectionService
     private const int ScoreAwareCandidateLimit = 120;
     private const double ScoreAwarePriorityWeight = 180;
     private const double MaxComboDeltaWeight = 18;
+    private const double WindowBiasCorrectionMs = 850;
+    private const double WindowBiasPriorityWeight = 140;
 
     public static IReadOnlyList<ManiaJudgement> CorrectJudgementDistribution(IReadOnlyList<ManiaJudgement> judgements, Score score, double scoreMultiplier)
     {
@@ -152,9 +154,15 @@ internal static class JudgementCorrectionService
             working[index] = original;
 
             var priority = CorrectionPriority(correctionPriorities, index);
+            var windowBias = LocalConversionBias(working, index, source, target);
             var scoreImprovement = Math.Max(0, currentDelta - scoreDelta);
             var maxComboImprovement = Math.Max(0, currentMaxComboDelta - maxComboDelta);
-            var cost = scoreDelta + maxComboDelta * MaxComboDeltaWeight - priority * ScoreAwarePriorityWeight - scoreImprovement * 0.08 - maxComboImprovement * MaxComboDeltaWeight;
+            var cost = scoreDelta +
+                maxComboDelta * MaxComboDeltaWeight -
+                priority * ScoreAwarePriorityWeight -
+                windowBias * WindowBiasPriorityWeight -
+                scoreImprovement * 0.08 -
+                maxComboImprovement * MaxComboDeltaWeight;
 
             if (cost < bestCost)
             {
@@ -179,6 +187,7 @@ internal static class JudgementCorrectionService
         if (source == HitResult.Miss && target != HitResult.Miss)
         {
             return ordered
+                .ThenByDescending(index => LocalConversionBias(judgements, index, source, target))
                 .ThenByDescending(index => ComboMergePotential(judgements, index))
                 .ThenBy(index => Math.Abs(ManiaScoreCalculator.GetBaseScoreForResult(target) - ManiaScoreCalculator.GetBaseScoreForResult(source)))
                 .ThenBy(index => judgements[index].Time);
@@ -189,12 +198,14 @@ internal static class JudgementCorrectionService
             return (needMoreScore
                     ? ordered.ThenBy(index => ComboLengthAt(judgements, index))
                     : ordered.ThenByDescending(index => ComboLengthAt(judgements, index)))
+                .ThenByDescending(index => LocalConversionBias(judgements, index, source, target))
                 .ThenByDescending(index => judgements[index].Time);
         }
 
         return (needMoreScore
                 ? ordered.ThenByDescending(index => ComboLengthAt(judgements, index))
                 : ordered.ThenBy(index => ComboLengthAt(judgements, index)))
+            .ThenByDescending(index => LocalConversionBias(judgements, index, source, target))
             .ThenBy(index => judgements[index].Time);
     }
 
@@ -393,6 +404,56 @@ internal static class JudgementCorrectionService
     private static int ComboMergePotential(IReadOnlyList<ManiaJudgement> judgements, int missIndex)
     {
         return CountHitsLeft(judgements, missIndex) + CountHitsRight(judgements, missIndex) + 1;
+    }
+
+    private static double LocalConversionBias(IReadOnlyList<ManiaJudgement> judgements, int index, HitResult source, HitResult target)
+    {
+        var sourceScore = ManiaScoreCalculator.GetBaseScoreForResult(source);
+        var targetScore = ManiaScoreCalculator.GetBaseScoreForResult(target);
+        if (sourceScore == targetScore)
+            return 0;
+
+        var time = judgements[index].Time;
+        var start = time - WindowBiasCorrectionMs;
+        var end = time + WindowBiasCorrectionMs;
+        var sourceCount = 0;
+        var targetCount = 0;
+        var total = 0;
+        var scoreSum = 0;
+
+        for (var i = 0; i < judgements.Count; i++)
+        {
+            var judgement = judgements[i];
+            if (judgement.Time < start)
+                continue;
+            if (judgement.Time > end)
+                break;
+
+            total++;
+            scoreSum += ManiaScoreCalculator.GetBaseScoreForResult(judgement.Result);
+            if (judgement.Result == source)
+                sourceCount++;
+            else if (judgement.Result == target)
+                targetCount++;
+        }
+
+        if (total == 0)
+            return 0;
+
+        var sourceRatio = sourceCount / (double)total;
+        var targetRatio = targetCount / (double)total;
+        var averageScore = scoreSum / (double)total;
+        var normalizedAverage = averageScore / Math.Max(1, ManiaScoreCalculator.GetBaseScoreForResult(HitResult.Perfect));
+        var localSurplus = Math.Max(0, sourceRatio - targetRatio * 0.7);
+
+        if (targetScore < sourceScore)
+        {
+            var overGenerousScore = Math.Max(0, normalizedAverage - 0.82) * 2.5;
+            return localSurplus + overGenerousScore;
+        }
+
+        var underGenerousScore = Math.Max(0, 0.72 - normalizedAverage) * 2.5;
+        return localSurplus + underGenerousScore;
     }
 
     private static int ComputeMaxCombo(IReadOnlyList<ManiaJudgement> judgements)
