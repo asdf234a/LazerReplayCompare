@@ -67,6 +67,44 @@ public static class ModUtility
         return 1.0;
     }
 
+    public static double GetAdjustedOverallDifficulty(Score score, double baseOverallDifficulty)
+    {
+        var od = baseOverallDifficulty;
+
+        try
+        {
+            var mods = score.ScoreInfo.GetType().GetProperty("Mods")?.GetValue(score.ScoreInfo);
+            if (mods is not IEnumerable modsEnumerable)
+                return ClampDifficulty(od);
+
+            double? directOverallDifficulty = null;
+            foreach (var mod in modsEnumerable.Cast<object>())
+            {
+                var acronym = GetModAcronym(mod);
+                if (string.IsNullOrWhiteSpace(acronym))
+                    continue;
+
+                var adjusted = TryGetOverallDifficultySetting(mod);
+                if (adjusted.HasValue)
+                {
+                    directOverallDifficulty = adjusted.Value;
+                    continue;
+                }
+
+                od = ApplyDifficultyMod(acronym, od);
+            }
+
+            if (directOverallDifficulty.HasValue)
+                od = directOverallDifficulty.Value;
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+
+        return ClampDifficulty(od);
+    }
+
     public static bool HasMirrorMod(Score score)
     {
         try
@@ -145,6 +183,79 @@ public static class ModUtility
         }
 
         return null;
+    }
+
+    private static double ApplyDifficultyMod(string acronym, double od)
+    {
+        return acronym.ToUpperInvariant() switch
+        {
+            "HR" => ClampDifficulty(od * 1.4),
+            "EZ" => ClampDifficulty(od * 0.5),
+            _ => od,
+        };
+    }
+
+    private static double? TryGetOverallDifficultySetting(object mod)
+    {
+        try
+        {
+            var settingsObj = mod.GetType().GetProperty("Settings")?.GetValue(mod);
+            if (settingsObj is IDictionary dict)
+            {
+                foreach (DictionaryEntry entry in dict)
+                {
+                    if (IsOverallDifficultySetting(entry.Key?.ToString()) &&
+                        TryParseDifficulty(GetSettingValue(entry.Value), out var difficulty))
+                        return difficulty;
+                }
+            }
+            else if (settingsObj is IEnumerable enumerable)
+            {
+                foreach (var item in enumerable.Cast<object>())
+                {
+                    var key = item.GetType().GetProperty("Key")?.GetValue(item)?.ToString();
+                    if (!IsOverallDifficultySetting(key))
+                        continue;
+
+                    var raw = item.GetType().GetProperty("Value")?.GetValue(item);
+                    if (TryParseDifficulty(GetSettingValue(raw), out var difficulty))
+                        return difficulty;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+
+        return null;
+    }
+
+    private static bool IsOverallDifficultySetting(string? key)
+    {
+        var normalized = NormalizeSettingKey(key);
+        return normalized is "od" or "overalldifficulty";
+    }
+
+    private static string NormalizeSettingKey(string? key)
+    {
+        return Regex.Replace(key ?? string.Empty, @"[^a-zA-Z0-9]", string.Empty).ToLowerInvariant();
+    }
+
+    private static bool TryParseDifficulty(string? text, out double difficulty)
+    {
+        if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out difficulty))
+            return difficulty >= 0;
+
+        var match = Regex.Match(text ?? string.Empty, @"\d+(\.\d+)?");
+        return match.Success &&
+            double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out difficulty) &&
+            difficulty >= 0;
+    }
+
+    private static double ClampDifficulty(double difficulty)
+    {
+        return Math.Clamp(difficulty, 0, 10);
     }
 
     private static string? GetModAcronym(object mod)

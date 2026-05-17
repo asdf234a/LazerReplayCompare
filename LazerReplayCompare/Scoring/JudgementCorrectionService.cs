@@ -12,6 +12,9 @@ internal static class JudgementCorrectionService
     private const double VolatileCorrectionRatio = 0.28;
     private const double MinVolatileCorrectionScore = 8;
     private const double VolatilityPriorityWeight = 2.5;
+    private const int ScoreAwareCandidateLimit = 120;
+    private const double ScoreAwarePriorityWeight = 180;
+    private const double MaxComboDeltaWeight = 18;
 
     public static IReadOnlyList<ManiaJudgement> CorrectJudgementDistribution(IReadOnlyList<ManiaJudgement> judgements, Score score, double scoreMultiplier)
     {
@@ -46,7 +49,7 @@ internal static class JudgementCorrectionService
                 if (source == null)
                     return corrected;
 
-                var index = PickJudgementIndexToConvert(corrected, source.Value, target, needMoreScore, correctionPriorities);
+                var index = PickJudgementIndexToConvert(corrected, source.Value, target, targetScore, score.ScoreInfo.MaxCombo, scoreMultiplier, correctionPriorities);
                 if (index < 0)
                     return corrected;
 
@@ -121,35 +124,78 @@ internal static class JudgementCorrectionService
             .FirstOrDefault();
     }
 
-    private static int PickJudgementIndexToConvert(IReadOnlyList<ManiaJudgement> judgements, HitResult source, HitResult target, bool needMoreScore, Dictionary<int, double> correctionPriorities)
+    private static int PickJudgementIndexToConvert(IReadOnlyList<ManiaJudgement> judgements, HitResult source, HitResult target, long targetScore, int targetMaxCombo, double scoreMultiplier, Dictionary<int, double> correctionPriorities)
     {
+        var currentScore = ManiaScoreCalculator.ComputeFinalSummary(judgements, scoreMultiplier).Score;
+        var currentDelta = Math.Abs(currentScore - targetScore);
+        var currentMaxComboDelta = Math.Abs(ComputeMaxCombo(judgements) - targetMaxCombo);
         var indexes = Enumerable.Range(0, judgements.Count)
             .Where(index => judgements[index].Result == source && correctionPriorities.ContainsKey(index));
 
+        var candidates = OrderConversionCandidates(judgements, indexes, source, target, currentScore < targetScore, correctionPriorities)
+            .Take(ScoreAwareCandidateLimit)
+            .ToArray();
+
+        if (candidates.Length == 0)
+            return -1;
+
+        var working = judgements.ToArray();
+        var bestIndex = -1;
+        var bestCost = double.PositiveInfinity;
+
+        foreach (var index in candidates)
+        {
+            var original = working[index];
+            working[index] = original with { Result = target };
+            var scoreDelta = Math.Abs(ManiaScoreCalculator.ComputeFinalSummary(working, scoreMultiplier).Score - targetScore);
+            var maxComboDelta = Math.Abs(ComputeMaxCombo(working) - targetMaxCombo);
+            working[index] = original;
+
+            var priority = CorrectionPriority(correctionPriorities, index);
+            var scoreImprovement = Math.Max(0, currentDelta - scoreDelta);
+            var maxComboImprovement = Math.Max(0, currentMaxComboDelta - maxComboDelta);
+            var cost = scoreDelta + maxComboDelta * MaxComboDeltaWeight - priority * ScoreAwarePriorityWeight - scoreImprovement * 0.08 - maxComboImprovement * MaxComboDeltaWeight;
+
+            if (cost < bestCost)
+            {
+                bestCost = cost;
+                bestIndex = index;
+            }
+        }
+
+        return bestIndex;
+    }
+
+    private static IOrderedEnumerable<int> OrderConversionCandidates(
+        IReadOnlyList<ManiaJudgement> judgements,
+        IEnumerable<int> indexes,
+        HitResult source,
+        HitResult target,
+        bool needMoreScore,
+        Dictionary<int, double> correctionPriorities)
+    {
+        var ordered = indexes.OrderByDescending(index => CorrectionPriority(correctionPriorities, index));
+
         if (source == HitResult.Miss && target != HitResult.Miss)
         {
-            return indexes
-                .OrderByDescending(index => CorrectionPriority(correctionPriorities, index))
+            return ordered
                 .ThenByDescending(index => ComboMergePotential(judgements, index))
                 .ThenBy(index => Math.Abs(ManiaScoreCalculator.GetBaseScoreForResult(target) - ManiaScoreCalculator.GetBaseScoreForResult(source)))
-                .ThenBy(index => judgements[index].Time)
-                .FirstOrDefault(-1);
+                .ThenBy(index => judgements[index].Time);
         }
 
         if (target == HitResult.Miss && source != HitResult.Miss)
         {
-            return indexes
-                .OrderByDescending(index => CorrectionPriority(correctionPriorities, index))
-                .ThenBy(index => ComboLengthAt(judgements, index))
-                .ThenByDescending(index => judgements[index].Time)
-                .FirstOrDefault(-1);
+            return (needMoreScore
+                    ? ordered.ThenBy(index => ComboLengthAt(judgements, index))
+                    : ordered.ThenByDescending(index => ComboLengthAt(judgements, index)))
+                .ThenByDescending(index => judgements[index].Time);
         }
 
         return (needMoreScore
-                ? indexes.OrderByDescending(index => CorrectionPriority(correctionPriorities, index)).ThenByDescending(index => ComboLengthAt(judgements, index))
-                : indexes.OrderByDescending(index => CorrectionPriority(correctionPriorities, index)).ThenBy(index => ComboLengthAt(judgements, index)))
-            .ThenBy(index => judgements[index].Time)
-            .FirstOrDefault(-1);
+                ? ordered.ThenByDescending(index => ComboLengthAt(judgements, index))
+                : ordered.ThenBy(index => ComboLengthAt(judgements, index)))
+            .ThenBy(index => judgements[index].Time);
     }
 
     private static IReadOnlyList<ManiaJudgement> ImproveScoreWithSameDistribution(IReadOnlyList<ManiaJudgement> judgements, long targetScore, double scoreMultiplier, Dictionary<int, double> correctionPriorities)
@@ -347,6 +393,23 @@ internal static class JudgementCorrectionService
     private static int ComboMergePotential(IReadOnlyList<ManiaJudgement> judgements, int missIndex)
     {
         return CountHitsLeft(judgements, missIndex) + CountHitsRight(judgements, missIndex) + 1;
+    }
+
+    private static int ComputeMaxCombo(IReadOnlyList<ManiaJudgement> judgements)
+    {
+        var combo = 0;
+        var maxCombo = 0;
+        foreach (var judgement in judgements)
+        {
+            if (judgement.Result == HitResult.Miss)
+                combo = 0;
+            else
+                combo++;
+
+            maxCombo = Math.Max(maxCombo, combo);
+        }
+
+        return maxCombo;
     }
 
     private static int ComboLengthAt(IReadOnlyList<ManiaJudgement> judgements, int index)

@@ -26,9 +26,8 @@ public sealed class ManiaTimelineCalculator
 
         var safeRate = rate > 0 ? rate : 1.0;
         var keyPairs = ManiaReplayInputExtractor.ExtractKeyPairs(score, beatmap.Columns, ModUtility.HasMirrorMod(score));
-        var judgements = ShouldUseDenseHoldLookahead(beatmap)
-            ? Judge(beatmap, keyPairs, safeRate)
-            : JudgeRaw(beatmap, keyPairs, safeRate);
+        var adjustedOverallDifficulty = ModUtility.GetAdjustedOverallDifficulty(score, beatmap.OverallDifficulty);
+        var judgements = JudgeRaw(beatmap, keyPairs, safeRate, adjustedOverallDifficulty);
 
         if (judgements.Count == 0)
             return new List<ReplayTimelineFrame>();
@@ -40,33 +39,9 @@ public sealed class ManiaTimelineCalculator
         return ManiaScoreCalculator.ScoreJudgements(finalJudgements, scoreMultiplier);
     }
 
-    private static bool ShouldUseDenseHoldLookahead(ManiaBeatmap beatmap)
+    private static List<ManiaJudgement> JudgeRaw(ManiaBeatmap beatmap, (double press, double release)[][] keyPairs, double rate, double overallDifficulty)
     {
-        if (beatmap.Notes.Count < 1000)
-            return false;
-
-        var holdRatio = beatmap.Notes.Count(note => note.EndTime.HasValue) / (double)beatmap.Notes.Count;
-        if (holdRatio < DenseHoldRatioThreshold)
-            return false;
-
-        var sameColumnSpacings = new List<double>();
-        foreach (var group in beatmap.Notes.GroupBy(note => note.Column))
-        {
-            var notes = group.OrderBy(note => note.StartTime).ToArray();
-            for (var i = 1; i < notes.Length; i++)
-                sameColumnSpacings.Add(notes[i].StartTime - notes[i - 1].StartTime);
-        }
-
-        if (sameColumnSpacings.Count == 0)
-            return false;
-
-        sameColumnSpacings.Sort();
-        return sameColumnSpacings[sameColumnSpacings.Count / 2] <= DenseHoldMedianSpacingThreshold;
-    }
-
-    private static List<ManiaJudgement> JudgeRaw(ManiaBeatmap beatmap, (double press, double release)[][] keyPairs, double rate)
-    {
-        var windows = ManiaWindows.ForDifficulty(beatmap.OverallDifficulty, rate);
+        var windows = ManiaWindows.ForDifficulty(overallDifficulty, rate);
         var judgements = new List<ManiaJudgement>();
         var noteStates = CreateNoteStates(beatmap);
         var activeHoldByColumn = new NoteState?[beatmap.Columns];
@@ -96,17 +71,10 @@ public sealed class ManiaTimelineCalculator
                         continue;
                 }
 
+                note = SelectPressCandidate(columnNotes, pressCursorByColumn[keyEvent.Column], note, keyEvent, windows, inputEvents);
                 var offset = keyEvent.Time - note.Note.StartTime;
                 if (offset < -windows.Miss || Math.Abs(offset) > windows.Miss)
                     continue;
-
-                if (EnableLatePressShift &&
-                    offset > windows.Meh &&
-                    TryShiftLatePressToNextFront(columnNotes, ref pressCursorByColumn[keyEvent.Column], note, keyEvent, judgements, windows, out var shiftedNote))
-                {
-                    note = shiftedNote;
-                    offset = keyEvent.Time - note.Note.StartTime;
-                }
 
                 var result = windows.ResultFor(offset);
                 keyEvent.Consumed = true;
@@ -130,7 +98,7 @@ public sealed class ManiaTimelineCalculator
                         activeHoldByColumn[keyEvent.Column] = note;
                 }
 
-                pressCursorByColumn[keyEvent.Column]++;
+                AdvancePressCursor(columnNotes, ref pressCursorByColumn[keyEvent.Column]);
             }
             else
             {
@@ -378,6 +346,87 @@ public sealed class ManiaTimelineCalculator
         return cursor < notes.Count ? notes[cursor] : null;
     }
 
+    private static void AdvancePressCursor(IReadOnlyList<NoteState> notes, ref int cursor)
+    {
+        while (cursor < notes.Count && notes[cursor].HeadJudged)
+            cursor++;
+    }
+
+    private static NoteState SelectPressCandidate(
+        IReadOnlyList<NoteState> notes,
+        int cursor,
+        NoteState front,
+        RawInputEvent press,
+        ManiaWindows windows,
+        IReadOnlyList<RawInputEvent> inputEvents)
+    {
+        var pressTime = press.Time;
+        var frontOffset = pressTime - front.Note.StartTime;
+        if (Math.Abs(frontOffset) <= windows.Great)
+            return front;
+
+        var best = front;
+        var bestCost = CandidateCost(front, pressTime, 0);
+        var checkedCandidates = 0;
+
+        for (var i = cursor; i < notes.Count && checkedCandidates < PressLookaheadCandidateCount; i++)
+        {
+            var candidate = notes[i];
+            if (candidate.HeadJudged)
+                continue;
+
+            checkedCandidates++;
+            var offset = pressTime - candidate.Note.StartTime;
+            if (offset < -windows.Miss)
+                break;
+            if (Math.Abs(offset) > windows.Miss)
+                continue;
+
+            var distanceFromFront = checkedCandidates - 1;
+            var cost = CandidateCost(candidate, pressTime, distanceFromFront);
+            if (cost < bestCost)
+            {
+                best = candidate;
+                bestCost = cost;
+            }
+        }
+
+        if (ReferenceEquals(best, front))
+            return front;
+
+        var bestOffset = pressTime - best.Note.StartTime;
+        if (Math.Abs(bestOffset) > windows.Great)
+            return front;
+
+        var switchMargin = PressLookaheadSwitchMargin;
+        if (!HasAlternativePressForFront(front, press, windows, inputEvents))
+            switchMargin += OrphanFrontSwitchPenalty;
+
+        if (Math.Abs(bestOffset) + switchMargin >= Math.Abs(frontOffset))
+            return front;
+
+        return best;
+    }
+
+    private static double CandidateCost(NoteState note, double pressTime, int distanceFromFront)
+    {
+        return Math.Abs(pressTime - note.Note.StartTime) + distanceFromFront * PressLookaheadStepPenalty;
+    }
+
+    private static bool HasAlternativePressForFront(
+        NoteState front,
+        RawInputEvent currentPress,
+        ManiaWindows windows,
+        IReadOnlyList<RawInputEvent> inputEvents)
+    {
+        return inputEvents.Any(e =>
+            e.IsPress &&
+            !e.Consumed &&
+            e.Id != currentPress.Id &&
+            e.Column == currentPress.Column &&
+            Math.Abs(e.Time - front.Note.StartTime) <= windows.Miss);
+    }
+
     private static void ExpirePressQueueColumn(
         IReadOnlyList<NoteState> notes,
         ref int cursor,
@@ -472,52 +521,6 @@ public sealed class ManiaTimelineCalculator
                 activeHoldByColumn[note.Note.Column] = note;
         }
 
-        return true;
-    }
-
-    private static bool TryShiftLatePressToNextFront(
-        IReadOnlyList<NoteState> notes,
-        ref int cursor,
-        NoteState current,
-        RawInputEvent press,
-        List<ManiaJudgement> judgements,
-        ManiaWindows windows,
-        out NoteState shifted)
-    {
-        shifted = current;
-
-        if (current.HeadJudged || press.Time - current.Note.StartTime <= windows.Meh)
-            return false;
-
-        var nextIndex = cursor + 1;
-        while (nextIndex < notes.Count && notes[nextIndex].HeadJudged)
-            nextIndex++;
-
-        if (nextIndex >= notes.Count)
-            return false;
-
-        var next = notes[nextIndex];
-        var currentOffset = press.Time - current.Note.StartTime;
-        var nextOffset = press.Time - next.Note.StartTime;
-
-        if (nextOffset < -windows.Miss || Math.Abs(nextOffset) > windows.Meh)
-            return false;
-
-        if (Math.Abs(nextOffset) + LatePressShiftPreference >= Math.Abs(currentOffset))
-            return false;
-
-        current.HeadJudged = true;
-        current.HeadHit = false;
-        current.IsHolding = false;
-        judgements.Add(new ManiaJudgement(
-            Time: current.Note.StartTime + windows.Miss,
-            Column: current.Note.Column,
-            Result: HitResult.Miss,
-            ObjectTime: current.Note.StartTime,
-            Kind: current.Note.EndTime.HasValue ? JudgementKind.HoldHead : JudgementKind.Note));
-
-        cursor = nextIndex;
-        shifted = next;
         return true;
     }
 
@@ -699,11 +702,11 @@ public sealed class ManiaTimelineCalculator
 
     private const double TailReleaseLenience = 1.5;
     private const double LocalLookaheadWeight = 0.25;
-    private const bool EnableLatePressShift = true;
     private const double FrontEarlierPressPreference = 8;
-    private const double LatePressShiftPreference = 32;
-    private const double DenseHoldRatioThreshold = 0.12;
-    private const double DenseHoldMedianSpacingThreshold = 100;
+    private const int PressLookaheadCandidateCount = 3;
+    private const double PressLookaheadStepPenalty = 18;
+    private const double PressLookaheadSwitchMargin = 78;
+    private const double OrphanFrontSwitchPenalty = 5;
 
     private static List<ReplayTimelineFrame>? ScoreJudgementsWithLazerProcessor(IReadOnlyList<ManiaJudgement> judgements, Score score, string beatmapPath)
     {

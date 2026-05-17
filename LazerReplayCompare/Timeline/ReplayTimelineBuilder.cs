@@ -54,8 +54,8 @@ public sealed class ReplayTimelineBuilder
             var scoreMultiplier = GetScoreMultiplier(score);
             frames = maniaTimelineCalculator.Build(score, beatmapPath ?? string.Empty, finalRate, scoreMultiplier, correctionMode);
             var correctionLabel = correctionMode == CorrectionMode.Corrected
-                ? "density-limited-judgement-score-corrected-hybrid-press-shift"
-                : "raw-hybrid-press-shift";
+                ? "score-maxcombo-corrected-bounded-soft-continuity"
+                : "raw-bounded-soft-continuity";
             source = $"mania-simulated(rate={finalRate:F4},scoreMultiplier={scoreMultiplier:F4},matcher=lazer-event,{correctionLabel},totalFrames={totalFrames},withHeader={framesWithHeader})";
         }
 
