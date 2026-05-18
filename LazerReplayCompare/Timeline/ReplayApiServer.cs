@@ -8,22 +8,16 @@ public sealed class ReplayApiServer : IDisposable
 {
     private readonly Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays;
     private readonly Func<CorrectionMode> getDefaultCorrectionMode;
-    private readonly Func<bool> getDebugEnabled;
-    private readonly DebugComparisonService debugComparison;
     private readonly ReplayTimelineBuilder timelineBuilder = new();
     private readonly CancellationTokenSource cancellation = new();
     private TcpListener? listener;
 
     public ReplayApiServer(
         Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays,
-        Func<CorrectionMode> getDefaultCorrectionMode,
-        Func<bool> getDebugEnabled,
-        DebugComparisonService debugComparison)
+        Func<CorrectionMode> getDefaultCorrectionMode)
     {
         this.getReplays = getReplays;
         this.getDefaultCorrectionMode = getDefaultCorrectionMode;
-        this.getDebugEnabled = getDebugEnabled;
-        this.debugComparison = debugComparison;
     }
 
     public int Port { get; private set; }
@@ -121,52 +115,16 @@ public sealed class ReplayApiServer : IDisposable
                 return;
             }
 
-            if (uri.AbsolutePath == "/debug-state")
+            if (uri.AbsolutePath == "/state")
             {
                 var (md5, replayList, selectedReplay) = getReplays();
                 var replay = selectedReplay ?? replayList.FirstOrDefault();
                 WriteJson(stream, new
                 {
-                    enabled = getDebugEnabled(),
                     correctionMode = getDefaultCorrectionMode().ToString().ToLowerInvariant(),
                     beatmapMd5 = md5,
                     selectedReplay = replay,
-                    logPath = debugComparison.CurrentLogPath,
-                    majorLogPath = debugComparison.CurrentMajorLogPath,
-                    mismatchCount = debugComparison.MismatchCount,
                 });
-                return;
-            }
-
-            if (uri.AbsolutePath == "/debug-hit")
-            {
-                var query = ParseQuery(uri.Query);
-                if (!getDebugEnabled())
-                {
-                    WriteJson(stream, new { accepted = false, reason = "debug disabled" });
-                    return;
-                }
-
-                var correctionMode = ParseCorrectionMode(GetQueryValue(query, "correctionMode") ?? GetQueryValue(query, "correction") ?? GetQueryValue(query, "mode"), getDefaultCorrectionMode());
-                var request = DebugHitRequest.FromQuery(query, correctionMode);
-                var result = debugComparison.RecordHit(request);
-                WriteJson(stream, result);
-                return;
-            }
-
-            if (uri.AbsolutePath == "/debug-start")
-            {
-                var query = ParseQuery(uri.Query);
-                if (!getDebugEnabled())
-                {
-                    WriteJson(stream, new { accepted = false, reason = "debug disabled" });
-                    return;
-                }
-
-                var correctionMode = ParseCorrectionMode(GetQueryValue(query, "correctionMode") ?? GetQueryValue(query, "correction") ?? GetQueryValue(query, "mode"), getDefaultCorrectionMode());
-                var request = DebugRunRequest.FromQuery(query, correctionMode);
-                var result = debugComparison.StartRun(request);
-                WriteJson(stream, result);
                 return;
             }
 

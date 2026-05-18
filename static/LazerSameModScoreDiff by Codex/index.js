@@ -27,6 +27,7 @@ const cache = {
     replayPath: '',
     targetMode: '',
     correctionMode: 'corrected',
+    timelineBaseKey: '',
     loadBaseKey: '',
     loadKey: '',
     loading: false,
@@ -40,6 +41,8 @@ function chooseReplayTarget(replaysData) {
 // --- Frame lookup ---
 
 function getReplayScoreAtIndex(hitIndex) {
+    if (cache.timelineBaseKey !== getBaseKey()) return null;
+
     let lo = 0, hi = cache.replayFrames.length - 1, found = null;
     while (lo <= hi) {
         const mid = (lo + hi) >> 1;
@@ -61,6 +64,10 @@ function formatSigned(value) {
 
 function isPlaying() {
     return cache.state === 'play' || cache.state === 'playing';
+}
+
+function getBaseKey() {
+    return `${cache.beatmapChecksum}|${cache.osuPath}|${cache.modsKey}`;
 }
 
 function setDisplay(diff, visible) {
@@ -123,7 +130,7 @@ async function refreshReplayTarget() {
 async function loadTimelineInternal(forceTargetCheck) {
     if (!isPlaying() || cache.client !== 'lazer' || !cache.beatmapChecksum || !cache.osuPath || cache.loading) return;
 
-    const baseKey = `${cache.beatmapChecksum}|${cache.osuPath}|${cache.modsKey}`;
+    const baseKey = getBaseKey();
     if (!forceTargetCheck && baseKey === cache.loadBaseKey) return;
 
     cache.loading = true;
@@ -152,6 +159,7 @@ async function loadTimelineInternal(forceTargetCheck) {
         if (!target.replay) {
             cache.replayFrames = [];
             cache.replayPath = '';
+            cache.timelineBaseKey = '';
             cache.error = target.error;
             cache.loadBaseKey = baseKey;
             cache.loadKey = '';
@@ -174,7 +182,8 @@ async function loadTimelineInternal(forceTargetCheck) {
         updateDisplay();
 
         const timelineData = await fetchTimeline(target.replay.filePath, timelineRate, correctionMode);
-        applyTimeline(timelineData);
+        if (baseKey !== getBaseKey()) return;
+        applyTimeline(timelineData, baseKey);
         cache.replayPath = target.replay.filePath;
         cache.loadBaseKey = baseKey;
         cache.loadKey = key;
@@ -190,7 +199,7 @@ async function loadTimelineInternal(forceTargetCheck) {
 
 async function getTimelineMode() {
     try {
-        const res = await fetch(`http://${LAZER_COMPARE_HOST}/debug-state`);
+        const res = await fetch(`http://${LAZER_COMPARE_HOST}/state`);
         if (!res.ok) return cache.correctionMode;
         const data = await res.json();
         cache.correctionMode = data.correctionMode || cache.correctionMode;
@@ -212,7 +221,7 @@ async function fetchTimeline(filePath, rate, correction) {
     return timelineRes.json();
 }
 
-function applyTimeline(data) {
+function applyTimeline(data, baseKey) {
     const frames = (Array.isArray(data.frames) ? data.frames : [])
         .map((f) => ({
             index: Number(f.index),
@@ -225,6 +234,7 @@ function applyTimeline(data) {
         throw new Error('timeline empty');
 
     cache.replayFrames = frames;
+    cache.timelineBaseKey = baseKey;
 }
 
 // --- WebSocket ---

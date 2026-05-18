@@ -132,10 +132,6 @@
               <ComboBoxItem Content="Corrected" />
               <ComboBoxItem Content="Raw" />
             </ComboBox>
-            <CheckBox x:Name="DebugModeBox"
-                      Content="Debug"
-                      VerticalAlignment="Center"
-                      IsCheckedChanged="DebugModeChanged" />
           </StackPanel>
         </Grid>
 

@@ -26,10 +26,4 @@ public sealed class AppSettingsService
         Current.CorrectionMode = mode.ToString();
         Save();
     }
-
-    public void SetDebugMode(bool enabled)
-    {
-        Current.DebugMode = enabled;
-        Save();
-    }
 }

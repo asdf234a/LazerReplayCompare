@@ -17,3 +17,5 @@ settings/
 
 # osu/tosu local data
 .cache/
+
+debug-static/
