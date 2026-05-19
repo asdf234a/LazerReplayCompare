@@ -34,6 +34,7 @@ const state = {
     correctionMode: 'corrected',
     loadingKey: '',
     loadedKey: '',
+    targetKey: '',
     error: '',
 };
 
@@ -259,6 +260,7 @@ async function loadTimeline(force = false) {
         if (!target.replay) {
             state.error = target.error;
             state.loadedKey = currentBaseKey;
+            state.targetKey = '';
             return;
         }
 
@@ -270,17 +272,25 @@ async function loadTimeline(force = false) {
             ? replayRate
             : parseFloat(state.modsKey.split('|')[1]) || 1;
         const correction = await getCorrectionMode();
+        const targetKey = `${currentBaseKey}|${target.replay.filePath}|${rate.toFixed(4)}|${correction}`;
+
+        if (!force && state.targetKey === targetKey && state.replayBaseKey === currentBaseKey) {
+            state.loadedKey = currentBaseKey;
+            return;
+        }
 
         const raw = await fetchTimeline(target.replay.filePath, state.osuPath, rate, 'raw');
         if (currentBaseKey !== baseKey()) return;
         applyTimeline(raw, currentBaseKey, correction === 'corrected' ? ' (temporary)' : '');
         state.loadedKey = currentBaseKey;
+        state.targetKey = targetKey;
         render();
 
         if (correction === 'corrected') {
             const corrected = await fetchTimeline(target.replay.filePath, state.osuPath, rate, 'corrected');
             if (currentBaseKey !== baseKey()) return;
             applyTimeline(corrected, currentBaseKey);
+            state.targetKey = targetKey;
         }
     } catch (err) {
         if (currentBaseKey === baseKey()) {
@@ -301,6 +311,7 @@ function updateFromTosu(data) {
         state.beatmapChecksum = data.beatmap.checksum;
         state.hitIndex = 0;
         state.loadedKey = '';
+        state.targetKey = '';
         state.error = '';
     }
 
@@ -323,6 +334,7 @@ function updateFromTosu(data) {
         if (nextModsKey !== state.modsKey) {
             state.modsKey = nextModsKey;
             state.loadedKey = '';
+            state.targetKey = '';
             state.error = '';
         }
     }
@@ -361,5 +373,4 @@ function connectTosu() {
 }
 
 connectTosu();
-setInterval(() => loadTimeline(true), 2000);
 render();

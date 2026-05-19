@@ -31,21 +31,92 @@ body {
         0 0 0.25rem rgba(0, 0, 0, 0.95),
         0 0 0.75rem rgba(0, 0, 0, 0.75);
     font-variant-numeric: tabular-nums;
-    transition: opacity 140ms ease, color 120ms ease;
+    transition: opacity 140ms ease;
 }
 
 .scoreDiff.visible {
     opacity: 1;
 }
 
-.scoreDiff.positive {
+#diffValue {
+    display: inline-block;
+}
+
+.diffSign {
+    color: #ffffff;
+}
+
+.diffNumber {
+    color: #ffffff;
+}
+
+.digitStatic,
+.digitRoll {
+    display: inline-block;
+    width: 0.62em;
+    text-align: center;
+}
+
+.digitSeparator {
+    display: inline-block;
+    width: 0.3em;
+    text-align: center;
+}
+
+.digitRoll {
+    height: 1em;
+    overflow: hidden;
+    vertical-align: bottom;
+}
+
+.digitStack {
+    display: flex;
+    flex-direction: column;
+    height: 2em;
+    will-change: transform;
+}
+
+.digitRoll.up .digitStack {
+    animation: digitRollUp 190ms ease-out forwards;
+}
+
+.digitRoll.down .digitStack {
+    transform: translateY(-1em);
+    animation: digitRollDown 190ms ease-out forwards;
+}
+
+.digitStack span {
+    display: block;
+    height: 1em;
+    line-height: 1;
+}
+
+.scoreDiff.positive .diffSign {
     color: #77ff9a;
 }
 
-.scoreDiff.negative {
+.scoreDiff.negative .diffSign {
     color: #ff6f7f;
 }
 
 .scoreDiff.neutral {
     color: #ffffff;
+}
+
+@keyframes digitRollUp {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-1em);
+    }
+}
+
+@keyframes digitRollDown {
+    from {
+        transform: translateY(-1em);
+    }
+    to {
+        transform: translateY(0);
+    }
 }

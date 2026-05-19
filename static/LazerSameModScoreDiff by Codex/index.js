@@ -32,6 +32,10 @@ const cache = {
     loadKey: '',
     loading: false,
     error: '',
+    displayedDiff: 0,
+    hasDisplayedDiff: false,
+    displayedSign: '',
+    displayedValue: '0',
 };
 
 function chooseReplayTarget(replaysData) {
@@ -57,9 +61,10 @@ function getReplayScoreAtIndex(hitIndex) {
 
 function formatSigned(value) {
     const rounded = Math.round(Number(value) || 0);
-    if (rounded > 0) return `+${rounded.toLocaleString('en-US')}`;
-    if (rounded < 0) return `-${Math.abs(rounded).toLocaleString('en-US')}`;
-    return '0';
+    return {
+        sign: rounded > 0 ? '+' : rounded < 0 ? '-' : '',
+        value: Math.abs(rounded).toLocaleString('en-US'),
+    };
 }
 
 function isPlaying() {
@@ -71,30 +76,47 @@ function getBaseKey() {
 }
 
 function setDisplay(diff, visible) {
-    diffValueElement.textContent = formatSigned(diff);
+    const roundedDiff = Math.round(Number(diff) || 0);
+    const formatted = formatSigned(diff);
+    const direction = cache.hasDisplayedDiff && roundedDiff < cache.displayedDiff ? 'down' : 'up';
+    renderDiffValue(formatted, visible && cache.hasDisplayedDiff, direction);
+
+    cache.displayedDiff = roundedDiff;
+    cache.hasDisplayedDiff = visible;
+    cache.displayedSign = formatted.sign;
+    cache.displayedValue = formatted.value;
+
     if (!visible) {
         diffElement.className = 'scoreDiff';
-        diffElement.style.color = '';
         return;
     }
     diffElement.className = `scoreDiff visible ${diff > 0 ? 'positive' : diff < 0 ? 'negative' : 'neutral'}`;
-    diffElement.style.color = getDiffColor(diff);
 }
 
-function getDiffColor(diff) {
-    const value = Number(diff) || 0;
-    if (value === 0) return 'rgb(255, 255, 255)';
+function renderDiffValue(formatted, animate, direction) {
+    const previous = cache.displayedValue || formatted.value;
+    const current = formatted.value;
+    const offset = previous.length - current.length;
+    const parts = [`<span class="diffSign">${formatted.sign}</span><span class="diffNumber">`];
 
-    const spectrum = 3 + Math.min(1, Math.abs(value) / 10000) * 7;
-    const t = spectrum / 10;
-    const target = value > 0
-        ? { r: 119, g: 255, b: 154 }
-        : { r: 255, g: 111, b: 127 };
+    for (let i = 0; i < current.length; i++) {
+        const char = current[i];
+        const previousChar = previous[i + offset];
+        const shouldRoll = animate && /\d/.test(char) && /\d/.test(previousChar || '') && previousChar !== char;
 
-    const r = Math.round(255 + (target.r - 255) * t);
-    const g = Math.round(255 + (target.g - 255) * t);
-    const b = Math.round(255 + (target.b - 255) * t);
-    return `rgb(${r}, ${g}, ${b})`;
+        if (shouldRoll) {
+            parts.push(
+                `<span class="digitRoll ${direction}">` +
+                `<span class="digitStack"><span>${previousChar}</span><span>${char}</span></span>` +
+                `</span>`
+            );
+        } else {
+            parts.push(`<span class="${/\d/.test(char) ? 'digitStatic' : 'digitSeparator'}">${char}</span>`);
+        }
+    }
+
+    parts.push('</span>');
+    diffValueElement.innerHTML = parts.join('');
 }
 
 function updateDisplay() {
@@ -181,12 +203,23 @@ async function loadTimelineInternal(forceTargetCheck) {
         cache.replayPath = '';
         updateDisplay();
 
-        const timelineData = await fetchTimeline(target.replay.filePath, timelineRate, correctionMode);
+        const rawKey = `${baseKey}|${target.replay.filePath}|${timelineRate.toFixed(4)}|raw`;
+        const rawTimeline = await fetchTimeline(target.replay.filePath, timelineRate, 'raw');
         if (baseKey !== getBaseKey()) return;
-        applyTimeline(timelineData, baseKey);
+        applyTimeline(rawTimeline, baseKey);
         cache.replayPath = target.replay.filePath;
         cache.loadBaseKey = baseKey;
-        cache.loadKey = key;
+        cache.loadKey = rawKey;
+        updateDisplay();
+
+        if (correctionMode === 'corrected') {
+            const timelineData = await fetchTimeline(target.replay.filePath, timelineRate, correctionMode);
+            if (baseKey !== getBaseKey()) return;
+            applyTimeline(timelineData, baseKey);
+            cache.replayPath = target.replay.filePath;
+            cache.loadBaseKey = baseKey;
+            cache.loadKey = key;
+        }
     } catch (err) {
         cache.error = err.message;
         cache.loadKey = '';
