@@ -17,6 +17,12 @@ internal static class JudgementCorrectionService
     private const double MaxComboDeltaWeight = 18;
     private const double WindowBiasCorrectionMs = 850;
     private const double WindowBiasPriorityWeight = 140;
+    private const double ScoreDeltaCostWeight = 0.38;
+    private const double MisjudgeProbabilityCostWeight = 950;
+    private const double LocalShapePenaltyWeight = 520;
+    private const double KindConstraintPenaltyWeight = 760;
+    private const double SwapLocalPenaltyWeight = 220;
+    private const long AggressiveCorrectionScoreDelta = 2500;
 
     public static IReadOnlyList<ManiaJudgement> CorrectJudgementDistribution(IReadOnlyList<ManiaJudgement> judgements, Score score, double scoreMultiplier)
     {
@@ -131,8 +137,10 @@ internal static class JudgementCorrectionService
         var currentScore = ManiaScoreCalculator.ComputeFinalSummary(judgements, scoreMultiplier).Score;
         var currentDelta = Math.Abs(currentScore - targetScore);
         var currentMaxComboDelta = Math.Abs(ComputeMaxCombo(judgements) - targetMaxCombo);
+        var useConservativePlausibility = currentDelta <= AggressiveCorrectionScoreDelta;
         var indexes = Enumerable.Range(0, judgements.Count)
-            .Where(index => judgements[index].Result == source && correctionPriorities.ContainsKey(index));
+            .Where(index => judgements[index].Result == source &&
+                (!useConservativePlausibility || IsPlausibleConversion(judgements[index], source, target)));
 
         var candidates = OrderConversionCandidates(judgements, indexes, source, target, currentScore < targetScore, correctionPriorities)
             .Take(ScoreAwareCandidateLimit)
@@ -155,12 +163,18 @@ internal static class JudgementCorrectionService
 
             var priority = CorrectionPriority(correctionPriorities, index);
             var windowBias = LocalConversionBias(working, index, source, target);
+            var misjudgeProbability = MisjudgeProbability(working, index, source, target, priority);
+            var localShapePenalty = LocalShapePenalty(working, index, source, target);
+            var kindConstraintPenalty = KindConstraintPenalty(working[index], source, target);
             var scoreImprovement = Math.Max(0, currentDelta - scoreDelta);
             var maxComboImprovement = Math.Max(0, currentMaxComboDelta - maxComboDelta);
-            var cost = scoreDelta +
+            var cost = scoreDelta * ScoreDeltaCostWeight +
                 maxComboDelta * MaxComboDeltaWeight -
                 priority * ScoreAwarePriorityWeight -
                 windowBias * WindowBiasPriorityWeight -
+                misjudgeProbability * MisjudgeProbabilityCostWeight +
+                localShapePenalty * LocalShapePenaltyWeight +
+                kindConstraintPenalty * KindConstraintPenaltyWeight -
                 scoreImprovement * 0.08 -
                 maxComboImprovement * MaxComboDeltaWeight;
 
@@ -187,6 +201,7 @@ internal static class JudgementCorrectionService
         if (source == HitResult.Miss && target != HitResult.Miss)
         {
             return ordered
+                .ThenByDescending(index => MisjudgeProbability(judgements, index, source, target, CorrectionPriority(correctionPriorities, index)))
                 .ThenByDescending(index => LocalConversionBias(judgements, index, source, target))
                 .ThenByDescending(index => ComboMergePotential(judgements, index))
                 .ThenBy(index => Math.Abs(ManiaScoreCalculator.GetBaseScoreForResult(target) - ManiaScoreCalculator.GetBaseScoreForResult(source)))
@@ -198,6 +213,7 @@ internal static class JudgementCorrectionService
             return (needMoreScore
                     ? ordered.ThenBy(index => ComboLengthAt(judgements, index))
                     : ordered.ThenByDescending(index => ComboLengthAt(judgements, index)))
+                .ThenByDescending(index => MisjudgeProbability(judgements, index, source, target, CorrectionPriority(correctionPriorities, index)))
                 .ThenByDescending(index => LocalConversionBias(judgements, index, source, target))
                 .ThenByDescending(index => judgements[index].Time);
         }
@@ -205,6 +221,7 @@ internal static class JudgementCorrectionService
         return (needMoreScore
                 ? ordered.ThenByDescending(index => ComboLengthAt(judgements, index))
                 : ordered.ThenBy(index => ComboLengthAt(judgements, index)))
+            .ThenByDescending(index => MisjudgeProbability(judgements, index, source, target, CorrectionPriority(correctionPriorities, index)))
             .ThenByDescending(index => LocalConversionBias(judgements, index, source, target))
             .ThenBy(index => judgements[index].Time);
     }
@@ -219,6 +236,7 @@ internal static class JudgementCorrectionService
         if (bestDelta <= 300)
             return corrected;
 
+        var bestCost = (double)bestDelta;
         for (var pass = 0; pass < 10; pass++)
         {
             var candidateIndexes = PickScoreSwapCandidates(corrected, correctionPriorities);
@@ -232,12 +250,19 @@ internal static class JudgementCorrectionService
                     if (left >= right || corrected[left].Result == corrected[right].Result)
                         continue;
 
+                    if (!IsPlausibleConversion(corrected[left], corrected[left].Result, corrected[right].Result) ||
+                        !IsPlausibleConversion(corrected[right], corrected[right].Result, corrected[left].Result))
+                        continue;
+
                     (corrected[left], corrected[right]) = (corrected[right], corrected[left]);
                     var delta = Math.Abs(ManiaScoreCalculator.ComputeFinalSummary(corrected, scoreMultiplier).Score - targetScore);
+                    var localPenalty = SwapLocalShapePenalty(corrected, left, right);
+                    var cost = delta + localPenalty * SwapLocalPenaltyWeight;
                     (corrected[left], corrected[right]) = (corrected[right], corrected[left]);
 
-                    if (delta < bestDelta)
+                    if (cost < bestCost)
                     {
+                        bestCost = cost;
                         bestDelta = delta;
                         bestLeft = left;
                         bestRight = right;
@@ -454,6 +479,177 @@ internal static class JudgementCorrectionService
 
         var underGenerousScore = Math.Max(0, 0.72 - normalizedAverage) * 2.5;
         return localSurplus + underGenerousScore;
+    }
+
+    private static double MisjudgeProbability(IReadOnlyList<ManiaJudgement> judgements, int index, HitResult source, HitResult target, double priority)
+    {
+        var judgement = judgements[index];
+        var offset = Math.Abs(judgement.Time - judgement.ObjectTime);
+        var boundaryScore = BoundaryUncertainty(offset, source);
+        var kindScore = KindUncertainty(judgement.Kind, source, target);
+        var localScore = Math.Clamp(priority / 8.0, 0, 1);
+        var jumpPenalty = Math.Clamp((ResultDistance(source, target) - 1) * 0.18, 0, 0.65);
+        var localBias = Math.Clamp(LocalConversionBias(judgements, index, source, target) / 3.0, 0, 1);
+
+        return Math.Clamp(
+            boundaryScore * 0.42 +
+            kindScore * 0.18 +
+            localScore * 0.22 +
+            localBias * 0.18 -
+            jumpPenalty,
+            0,
+            1);
+    }
+
+    private static double BoundaryUncertainty(double offset, HitResult source)
+    {
+        var boundaries = new[]
+        {
+            22.5,
+            64.5,
+            97.5,
+            127.5,
+            151.5,
+            188.5,
+        };
+
+        var nearestDistance = boundaries.Min(boundary => Math.Abs(offset - boundary));
+        var edgeScore = 1 - Math.Clamp(nearestDistance / 22.0, 0, 1);
+
+        if (source == HitResult.Miss)
+        {
+            var missBoundary = Math.Abs(offset - boundaries[^1]);
+            return Math.Clamp(1 - missBoundary / 85.0, 0.18, 1);
+        }
+
+        return Math.Clamp(edgeScore, 0.1, 1);
+    }
+
+    private static double KindUncertainty(JudgementKind kind, HitResult source, HitResult target)
+    {
+        var baseScore = kind switch
+        {
+            JudgementKind.HoldTail => 0.72,
+            JudgementKind.HoldHead => 0.62,
+            _ => 0.54,
+        };
+
+        if (kind == JudgementKind.HoldTail && ResultDistance(source, target) > 2)
+            baseScore -= 0.22;
+
+        if (target == HitResult.Miss && kind == JudgementKind.HoldTail)
+            baseScore -= 0.12;
+
+        return Math.Clamp(baseScore, 0, 1);
+    }
+
+    private static double LocalShapePenalty(IReadOnlyList<ManiaJudgement> judgements, int index, HitResult source, HitResult target)
+    {
+        var time = judgements[index].Time;
+        var start = time - WindowBiasCorrectionMs;
+        var end = time + WindowBiasCorrectionMs;
+        var sourceCount = 0;
+        var targetCount = 0;
+        var total = 0;
+        var sameNeighbor = 0;
+
+        for (var i = 0; i < judgements.Count; i++)
+        {
+            var judgement = judgements[i];
+            if (judgement.Time < start)
+                continue;
+            if (judgement.Time > end)
+                break;
+
+            total++;
+            if (judgement.Result == source)
+                sourceCount++;
+            else if (judgement.Result == target)
+                targetCount++;
+        }
+
+        if (index > 0 && judgements[index - 1].Result == target)
+            sameNeighbor++;
+        if (index + 1 < judgements.Count && judgements[index + 1].Result == target)
+            sameNeighbor++;
+
+        if (total == 0)
+            return 0;
+
+        var targetRatio = targetCount / (double)total;
+        var sourceRatio = sourceCount / (double)total;
+        var isolatedPenalty = sameNeighbor == 0 && ResultDistance(source, target) > 1 ? 0.35 : 0;
+        var distortionPenalty = Math.Max(0, targetRatio - sourceRatio) * 0.8;
+
+        return distortionPenalty + isolatedPenalty;
+    }
+
+    private static double KindConstraintPenalty(ManiaJudgement judgement, HitResult source, HitResult target)
+    {
+        var distance = ResultDistance(source, target);
+        var penalty = 0d;
+
+        if (distance >= 3)
+            penalty += 0.55;
+
+        if (judgement.Kind == JudgementKind.HoldTail)
+        {
+            if (distance >= 2)
+                penalty += 0.25;
+            if (target == HitResult.Perfect &&
+                ManiaScoreCalculator.GetBaseScoreForResult(source) <= ManiaScoreCalculator.GetBaseScoreForResult(HitResult.Meh))
+                penalty += 0.35;
+        }
+
+        if (judgement.Kind == JudgementKind.HoldHead && target == HitResult.Perfect && source == HitResult.Miss)
+            penalty += 0.28;
+
+        return Math.Clamp(penalty, 0, 1.4);
+    }
+
+    private static bool IsPlausibleConversion(ManiaJudgement judgement, HitResult source, HitResult target)
+    {
+        var sourceScore = ManiaScoreCalculator.GetBaseScoreForResult(source);
+        var targetScore = ManiaScoreCalculator.GetBaseScoreForResult(target);
+        var distance = ResultDistance(source, target);
+        if (distance == 0)
+            return true;
+
+        var offset = Math.Abs(judgement.Time - judgement.ObjectTime);
+
+        if (targetScore < sourceScore)
+        {
+            if (target == HitResult.Miss && source == HitResult.Perfect && offset <= (judgement.Kind == JudgementKind.HoldTail ? 64 : 35))
+                return false;
+            if (target == HitResult.Miss && source == HitResult.Great && offset <= 42)
+                return false;
+        }
+        else
+        {
+            if (source == HitResult.Miss && offset > 230)
+                return false;
+            if (source == HitResult.Miss && target == HitResult.Perfect)
+                return false;
+        }
+
+        return true;
+    }
+
+    private static double SwapLocalShapePenalty(IReadOnlyList<ManiaJudgement> judgements, int left, int right)
+    {
+        var leftPenalty = LocalShapePenalty(judgements, left, judgements[right].Result, judgements[left].Result);
+        var rightPenalty = LocalShapePenalty(judgements, right, judgements[left].Result, judgements[right].Result);
+        return leftPenalty + rightPenalty;
+    }
+
+    private static int ResultDistance(HitResult left, HitResult right)
+    {
+        var leftIndex = Array.IndexOf(ManiaScoreCalculator.JudgementResults, left);
+        var rightIndex = Array.IndexOf(ManiaScoreCalculator.JudgementResults, right);
+        if (leftIndex < 0 || rightIndex < 0)
+            return 0;
+
+        return Math.Abs(leftIndex - rightIndex);
     }
 
     private static int ComputeMaxCombo(IReadOnlyList<ManiaJudgement> judgements)

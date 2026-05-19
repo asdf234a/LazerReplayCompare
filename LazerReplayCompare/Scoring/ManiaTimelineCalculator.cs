@@ -46,7 +46,7 @@ public sealed class ManiaTimelineCalculator
         var noteStates = CreateNoteStates(beatmap);
         var activeHoldByColumn = new NoteState?[beatmap.Columns];
         var pressCursorByColumn = new int[beatmap.Columns];
-        var inputEvents = CreateRawInputEvents(keyPairs);
+        var inputEvents = CreateRawInputEvents(keyPairs, noteStates);
 
         foreach (var keyEvent in inputEvents)
         {
@@ -283,7 +283,7 @@ public sealed class ManiaTimelineCalculator
             .ToList();
     }
 
-    private static List<RawInputEvent> CreateRawInputEvents((double press, double release)[][] keyPairs)
+    private static List<RawInputEvent> CreateRawInputEvents((double press, double release)[][] keyPairs, IReadOnlyList<NoteState>[] noteStates)
     {
         var events = new List<RawInputEvent>();
         var id = 0;
@@ -301,8 +301,29 @@ public sealed class ManiaTimelineCalculator
         return events
             .OrderBy(e => e.Time)
             .ThenBy(e => e.IsPress ? 1 : 0)
+            .ThenBy(e => GetInputTieBreakDistance(e, noteStates))
             .ThenBy(e => e.Column)
             .ToList();
+    }
+
+    private static double GetInputTieBreakDistance(RawInputEvent inputEvent, IReadOnlyList<NoteState>[] noteStates)
+    {
+        if (inputEvent.Column < 0 || inputEvent.Column >= noteStates.Length)
+            return double.PositiveInfinity;
+
+        var notes = noteStates[inputEvent.Column];
+        if (inputEvent.IsPress)
+        {
+            var note = notes.FirstOrDefault(note => !note.HeadJudged);
+            return note == null ? double.PositiveInfinity : Math.Abs(inputEvent.Time - note.Note.StartTime);
+        }
+
+        var tail = notes
+            .Where(note => note.Note.EndTime.HasValue && !note.TailJudged)
+            .OrderBy(note => Math.Abs(inputEvent.Time - note.Note.EndTime!.Value))
+            .FirstOrDefault();
+
+        return tail == null ? double.PositiveInfinity : Math.Abs(inputEvent.Time - tail.Note.EndTime!.Value);
     }
 
     private static NoteState? FindBestPressCandidate(IReadOnlyList<NoteState> notes, double pressTime, double? nextPressTime, ManiaWindows windows)
@@ -365,8 +386,9 @@ public sealed class ManiaTimelineCalculator
         if (Math.Abs(frontOffset) <= windows.Great)
             return front;
 
+        var profile = GetPressMatchingProfile(notes, cursor, pressTime, windows);
         var best = front;
-        var bestCost = CandidateCost(front, pressTime, 0);
+        var bestCost = CandidateCost(front, pressTime, 0, profile);
         var checkedCandidates = 0;
 
         for (var i = cursor; i < notes.Count && checkedCandidates < PressLookaheadCandidateCount; i++)
@@ -383,7 +405,7 @@ public sealed class ManiaTimelineCalculator
                 continue;
 
             var distanceFromFront = checkedCandidates - 1;
-            var cost = CandidateCost(candidate, pressTime, distanceFromFront);
+            var cost = CandidateCost(candidate, pressTime, distanceFromFront, profile);
             if (cost < bestCost)
             {
                 best = candidate;
@@ -398,9 +420,9 @@ public sealed class ManiaTimelineCalculator
         if (Math.Abs(bestOffset) > windows.Great)
             return front;
 
-        var switchMargin = PressLookaheadSwitchMargin;
-        if (!HasAlternativePressForFront(front, press, windows, inputEvents))
-            switchMargin += OrphanFrontSwitchPenalty;
+        var switchMargin = profile.SwitchMargin;
+        if (!HasGoodAlternativePressForFront(front, press, windows, inputEvents, Math.Abs(frontOffset)))
+            switchMargin += profile.OrphanPenalty;
 
         if (Math.Abs(bestOffset) + switchMargin >= Math.Abs(frontOffset))
             return front;
@@ -408,23 +430,65 @@ public sealed class ManiaTimelineCalculator
         return best;
     }
 
-    private static double CandidateCost(NoteState note, double pressTime, int distanceFromFront)
+    private static double CandidateCost(NoteState note, double pressTime, int distanceFromFront, PressMatchingProfile profile)
     {
-        return Math.Abs(pressTime - note.Note.StartTime) + distanceFromFront * PressLookaheadStepPenalty;
+        return Math.Abs(pressTime - note.Note.StartTime) + distanceFromFront * profile.StepPenalty;
     }
 
-    private static bool HasAlternativePressForFront(
+    private static bool HasGoodAlternativePressForFront(
         NoteState front,
         RawInputEvent currentPress,
         ManiaWindows windows,
-        IReadOnlyList<RawInputEvent> inputEvents)
+        IReadOnlyList<RawInputEvent> inputEvents,
+        double currentFrontOffsetAbs)
     {
+        var maxAcceptableOffset = Math.Min(windows.Good, currentFrontOffsetAbs + AlternativePressQualitySlack);
+
         return inputEvents.Any(e =>
             e.IsPress &&
             !e.Consumed &&
             e.Id != currentPress.Id &&
             e.Column == currentPress.Column &&
-            Math.Abs(e.Time - front.Note.StartTime) <= windows.Miss);
+            Math.Abs(e.Time - front.Note.StartTime) <= maxAcceptableOffset);
+    }
+
+    private static PressMatchingProfile GetPressMatchingProfile(IReadOnlyList<NoteState> notes, int cursor, double pressTime, ManiaWindows windows)
+    {
+        var nearby = 0;
+        var first = double.PositiveInfinity;
+        var last = double.NegativeInfinity;
+
+        for (var i = Math.Max(0, cursor - 1); i < notes.Count; i++)
+        {
+            var note = notes[i];
+            if (note.HeadJudged)
+                continue;
+
+            var distance = Math.Abs(note.Note.StartTime - pressTime);
+            if (distance > DensityWindow)
+            {
+                if (note.Note.StartTime > pressTime)
+                    break;
+
+                continue;
+            }
+
+            nearby++;
+            first = Math.Min(first, note.Note.StartTime);
+            last = Math.Max(last, note.Note.StartTime);
+        }
+
+        var span = double.IsPositiveInfinity(first) ? DensityWindow : Math.Max(1, last - first);
+        var notesPerSecond = nearby / span * 1000;
+        var density = Math.Clamp((notesPerSecond - 12) / 18, 0, 1);
+        var odPressure = Math.Clamp((windows.Miss - windows.Meh) / 40, 0, 1);
+        var pressure = Math.Clamp(density * 0.85 + odPressure * 0.15, 0, 1);
+
+        return new PressMatchingProfile(
+            StepPenalty: PressLookaheadStepPenalty + pressure * 10,
+            SwitchMargin: PressLookaheadSwitchMargin + pressure * 24,
+            FrontEarlierPreference: FrontEarlierPressPreference + pressure * 5,
+            OrphanPenalty: OrphanFrontSwitchPenalty + pressure * 8);
     }
 
     private static void ExpirePressQueueColumn(
@@ -497,7 +561,8 @@ public sealed class ManiaTimelineCalculator
             return false;
 
         var earlierOffset = earlierPress.Time - note.Note.StartTime;
-        if (Math.Abs(earlierOffset) > Math.Abs(currentOffset) - FrontEarlierPressPreference)
+        var profile = GetPressMatchingProfile(notes, IndexOfNote(notes, note), currentPress.Time, windows);
+        if (Math.Abs(earlierOffset) > Math.Abs(currentOffset) - profile.FrontEarlierPreference)
             return false;
 
         var result = windows.ResultFor(earlierOffset);
@@ -539,7 +604,8 @@ public sealed class ManiaTimelineCalculator
             .Where(e => e.IsPress &&
                 !e.Consumed &&
                 e.Column == note.Note.Column &&
-                Math.Abs(e.Time - note.Note.StartTime) <= windows.Miss)
+                Math.Abs(e.Time - note.Note.StartTime) <= windows.Miss &&
+                !IsPressBetterFitForLaterObject(notes, note, e, windows))
             .OrderBy(e => Math.Abs(e.Time - note.Note.StartTime))
             .ThenBy(e => e.Time)
             .FirstOrDefault();
@@ -571,6 +637,46 @@ public sealed class ManiaTimelineCalculator
         }
 
         return true;
+    }
+
+    private static bool IsPressBetterFitForLaterObject(IReadOnlyList<NoteState> notes, NoteState note, RawInputEvent press, ManiaWindows windows)
+    {
+        var currentOffset = Math.Abs(press.Time - note.Note.StartTime);
+        var index = IndexOfNote(notes, note);
+        if (index < 0)
+            return false;
+
+        for (var i = index + 1; i < notes.Count && i <= index + RescueLaterObjectCheckCount; i++)
+        {
+            var later = notes[i];
+            if (later.HeadJudged)
+                continue;
+
+            var laterOffset = Math.Abs(press.Time - later.Note.StartTime);
+            if (laterOffset > windows.Miss)
+            {
+                if (later.Note.StartTime > press.Time + windows.Miss)
+                    break;
+
+                continue;
+            }
+
+            if (laterOffset + RescueLaterObjectMargin < currentOffset)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static int IndexOfNote(IReadOnlyList<NoteState> notes, NoteState note)
+    {
+        for (var i = 0; i < notes.Count; i++)
+        {
+            if (ReferenceEquals(notes[i], note))
+                return i;
+        }
+
+        return -1;
     }
 
     private static bool HasEarlierUnjudgedPressObject(IReadOnlyList<NoteState> notes, NoteState note)
@@ -707,6 +813,16 @@ public sealed class ManiaTimelineCalculator
     private const double PressLookaheadStepPenalty = 18;
     private const double PressLookaheadSwitchMargin = 78;
     private const double OrphanFrontSwitchPenalty = 5;
+    private const double AlternativePressQualitySlack = 10;
+    private const double DensityWindow = 450;
+    private const int RescueLaterObjectCheckCount = 2;
+    private const double RescueLaterObjectMargin = 12;
+
+    private readonly record struct PressMatchingProfile(
+        double StepPenalty,
+        double SwitchMargin,
+        double FrontEarlierPreference,
+        double OrphanPenalty);
 
     private static List<ReplayTimelineFrame>? ScoreJudgementsWithLazerProcessor(IReadOnlyList<ManiaJudgement> judgements, Score score, string beatmapPath)
     {
