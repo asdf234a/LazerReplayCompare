@@ -73,7 +73,7 @@ public sealed class ManiaTimelineCalculator
 
                 note = SelectPressCandidate(columnNotes, pressCursorByColumn[keyEvent.Column], note, keyEvent, windows, inputEvents);
                 var offset = keyEvent.Time - note.Note.StartTime;
-                if (offset < -windows.Miss || Math.Abs(offset) > windows.Miss)
+                if (!CanConsumePress(offset, windows))
                     continue;
 
                 var result = windows.ResultFor(offset);
@@ -106,14 +106,17 @@ public sealed class ManiaTimelineCalculator
                     continue;
 
                 var note = activeHoldByColumn[keyEvent.Column] ??
-                    FindTailReleaseCandidate(noteStates[keyEvent.Column], keyEvent.Time, windows);
+                    FindTailReleaseCandidate(noteStates[keyEvent.Column], keyEvent, windows, inputEvents);
                 if (note == null || note.TailJudged || !note.Note.EndTime.HasValue)
                     continue;
 
                 if (keyEvent.Time < note.Note.EndTime.Value - windows.Miss * TailReleaseLenience)
                 {
                     note.BodyBroken = true;
+                    note.BodyBreakTime = keyEvent.Time;
                     note.IsHolding = false;
+                    keyEvent.Consumed = true;
+                    keyEvent.ConsumedByObjectId = note.Id;
                     if (ReferenceEquals(activeHoldByColumn[keyEvent.Column], note))
                         activeHoldByColumn[keyEvent.Column] = null;
                     continue;
@@ -292,9 +295,10 @@ public sealed class ManiaTimelineCalculator
         {
             foreach (var pair in keyPairs[c])
             {
-                events.Add(new RawInputEvent(++id, pair.press, c, true));
+                var pairId = ++id;
+                events.Add(new RawInputEvent(++id, pair.press, c, true, pairId));
                 if (!double.IsPositiveInfinity(pair.release))
-                    events.Add(new RawInputEvent(++id, pair.release, c, false));
+                    events.Add(new RawInputEvent(++id, pair.release, c, false, pairId));
             }
         }
 
@@ -360,57 +364,21 @@ public sealed class ManiaTimelineCalculator
         ManiaWindows windows,
         IReadOnlyList<RawInputEvent> inputEvents)
     {
-        var pressTime = press.Time;
-        var frontOffset = pressTime - front.Note.StartTime;
-        if (Math.Abs(frontOffset) <= windows.Great)
-            return front;
-
-        var best = front;
-        var bestCost = CandidateCost(front, pressTime, 0);
-        var checkedCandidates = 0;
-
-        for (var i = cursor; i < notes.Count && checkedCandidates < PressLookaheadCandidateCount; i++)
-        {
-            var candidate = notes[i];
-            if (candidate.HeadJudged)
-                continue;
-
-            checkedCandidates++;
-            var offset = pressTime - candidate.Note.StartTime;
-            if (offset < -windows.Miss)
-                break;
-            if (Math.Abs(offset) > windows.Miss)
-                continue;
-
-            var distanceFromFront = checkedCandidates - 1;
-            var cost = CandidateCost(candidate, pressTime, distanceFromFront);
-            if (cost < bestCost)
-            {
-                best = candidate;
-                bestCost = cost;
-            }
-        }
-
-        if (ReferenceEquals(best, front))
-            return front;
-
-        var bestOffset = pressTime - best.Note.StartTime;
-        if (Math.Abs(bestOffset) > windows.Great)
-            return front;
-
-        var switchMargin = PressLookaheadSwitchMargin;
-        if (!HasAlternativePressForFront(front, press, windows, inputEvents))
-            switchMargin += OrphanFrontSwitchPenalty;
-
-        if (Math.Abs(bestOffset) + switchMargin >= Math.Abs(frontOffset))
-            return front;
-
-        return best;
+        // This raw path intentionally keeps press assignment front-first.
+        // Looking ahead to a nicer candidate makes the simulated replay too optimistic.
+        return front;
     }
 
     private static double CandidateCost(NoteState note, double pressTime, int distanceFromFront)
     {
         return Math.Abs(pressTime - note.Note.StartTime) + distanceFromFront * PressLookaheadStepPenalty;
+    }
+
+    private static bool CanConsumePress(double offset, ManiaWindows windows)
+    {
+        return offset < 0
+            ? offset >= -windows.Miss
+            : offset <= windows.Meh;
     }
 
     private static bool HasAlternativePressForFront(
@@ -424,7 +392,7 @@ public sealed class ManiaTimelineCalculator
             !e.Consumed &&
             e.Id != currentPress.Id &&
             e.Column == currentPress.Column &&
-            Math.Abs(e.Time - front.Note.StartTime) <= windows.Miss);
+            CanConsumePress(e.Time - front.Note.StartTime, windows));
     }
 
     private static void ExpirePressQueueColumn(
@@ -445,10 +413,12 @@ public sealed class ManiaTimelineCalculator
                 continue;
             }
 
-            if (time <= note.Note.StartTime + windows.Miss)
+            var nextPressObjectTime = NextUnjudgedPressObjectTime(notes, cursor);
+            var expireTime = Math.Min(note.Note.StartTime + windows.Miss, nextPressObjectTime ?? double.PositiveInfinity);
+            if (time < expireTime)
                 break;
 
-            if (TryRescueWithUnconsumedPress(notes, note, judgements, windows, inputEvents, activeHoldByColumn))
+            if (TryRescueWithUnconsumedPress(notes, note, judgements, windows, inputEvents, activeHoldByColumn, nextPressObjectTime))
             {
                 cursor++;
                 continue;
@@ -467,6 +437,17 @@ public sealed class ManiaTimelineCalculator
         }
     }
 
+    private static double? NextUnjudgedPressObjectTime(IReadOnlyList<NoteState> notes, int cursor)
+    {
+        for (var i = cursor + 1; i < notes.Count; i++)
+        {
+            if (!notes[i].HeadJudged)
+                return notes[i].Note.StartTime;
+        }
+
+        return null;
+    }
+
     private static bool TryConsumeFrontWithEarlierPress(
         IReadOnlyList<NoteState> notes,
         NoteState note,
@@ -480,7 +461,7 @@ public sealed class ManiaTimelineCalculator
             return false;
 
         var currentOffset = currentPress.Time - note.Note.StartTime;
-        if (currentOffset <= 0 || Math.Abs(currentOffset) > windows.Miss)
+        if (currentOffset <= 0 || !CanConsumePress(currentOffset, windows))
             return false;
 
         var earlierPress = inputEvents
@@ -488,7 +469,7 @@ public sealed class ManiaTimelineCalculator
                 !e.Consumed &&
                 e.Column == note.Note.Column &&
                 e.Time < currentPress.Time &&
-                Math.Abs(e.Time - note.Note.StartTime) <= windows.Miss)
+                CanConsumePress(e.Time - note.Note.StartTime, windows))
             .OrderBy(e => Math.Abs(e.Time - note.Note.StartTime))
             .ThenByDescending(e => e.Time)
             .FirstOrDefault();
@@ -530,7 +511,8 @@ public sealed class ManiaTimelineCalculator
         List<ManiaJudgement> judgements,
         ManiaWindows windows,
         IReadOnlyList<RawInputEvent> inputEvents,
-        NoteState?[] activeHoldByColumn)
+        NoteState?[] activeHoldByColumn,
+        double? nextPressObjectTime)
     {
         if (note.HeadJudged || HasEarlierUnjudgedPressObject(notes, note))
             return false;
@@ -539,7 +521,8 @@ public sealed class ManiaTimelineCalculator
             .Where(e => e.IsPress &&
                 !e.Consumed &&
                 e.Column == note.Note.Column &&
-                Math.Abs(e.Time - note.Note.StartTime) <= windows.Miss)
+                (!nextPressObjectTime.HasValue || e.Time < nextPressObjectTime.Value) &&
+                CanConsumePress(e.Time - note.Note.StartTime, windows))
             .OrderBy(e => Math.Abs(e.Time - note.Note.StartTime))
             .ThenBy(e => e.Time)
             .FirstOrDefault();
@@ -595,7 +578,9 @@ public sealed class ManiaTimelineCalculator
                 continue;
 
             if (time > note.Note.EndTime.Value + windows.Miss * TailReleaseLenience)
+            {
                 ApplyTailJudgement(note, judgements, note.Note.EndTime.Value + windows.Miss * TailReleaseLenience, windows, forceMiss: true);
+            }
         }
     }
 
@@ -638,6 +623,49 @@ public sealed class ManiaTimelineCalculator
             .OrderBy(note => note.HeadHit ? 0 : 1)
             .ThenBy(note => Math.Abs(releaseTime - note.Note.EndTime!.Value))
             .FirstOrDefault();
+    }
+
+    private static NoteState? FindTailReleaseCandidate(
+        IReadOnlyList<NoteState> notes,
+        RawInputEvent release,
+        ManiaWindows windows,
+        IReadOnlyList<RawInputEvent> inputEvents)
+    {
+        return notes
+            .Where(note =>
+            {
+                if (!note.Note.EndTime.HasValue || note.TailJudged)
+                    return false;
+
+                var endTime = note.Note.EndTime.Value;
+                if (release.Time < endTime - windows.Miss * TailReleaseLenience ||
+                    release.Time > endTime + windows.Miss * TailReleaseLenience)
+                    return false;
+
+                if (!note.HeadJudged && !note.PressTime.HasValue)
+                    return false;
+
+                return IsReleasePairAvailableForTail(note, release, inputEvents);
+            })
+            .Where(note => !note.BodyBroken || release.Time >= note.Note.EndTime!.Value - windows.Miss * TailReleaseLenience)
+            .OrderBy(note => note.HeadHit ? 0 : 1)
+            .ThenBy(note => Math.Abs(release.Time - note.Note.EndTime!.Value))
+            .FirstOrDefault();
+    }
+
+    private static bool IsReleasePairAvailableForTail(NoteState note, RawInputEvent release, IReadOnlyList<RawInputEvent> inputEvents)
+    {
+        var pairedPress = inputEvents.FirstOrDefault(e => e.PairId == release.PairId && e.IsPress);
+        if (pairedPress == null)
+            return true;
+
+        if (note.BodyBroken)
+        {
+            var breakTime = note.BodyBreakTime ?? note.PressTime ?? note.Note.StartTime;
+            return pairedPress.Time > breakTime;
+        }
+
+        return !pairedPress.Consumed || pairedPress.ConsumedByObjectId == note.Id;
     }
 
     private static double LocalLookaheadCost(IReadOnlyList<NoteState> notes, NoteState candidate, double pressTime, double? nextPressTime, ManiaWindows windows)
@@ -802,12 +830,13 @@ public sealed class ManiaTimelineCalculator
     private sealed record KeyEvent(double Time, int Column, bool IsPress, double? NextPressTime);
     private sealed record LegacyKeyEvent(double Time, int Column, bool IsPress);
 
-    private sealed class RawInputEvent(int id, double time, int column, bool isPress)
+    private sealed class RawInputEvent(int id, double time, int column, bool isPress, int pairId)
     {
         public int Id { get; } = id;
         public double Time { get; } = time;
         public int Column { get; } = column;
         public bool IsPress { get; } = isPress;
+        public int PairId { get; } = pairId;
         public bool Consumed { get; set; }
         public int? ConsumedByObjectId { get; set; }
     }
@@ -824,6 +853,7 @@ public sealed class ManiaTimelineCalculator
         public bool TailConsumed { get; set; }
         public bool IsHolding { get; set; }
         public bool BodyBroken { get; set; }
+        public double? BodyBreakTime { get; set; }
         public double? PressTime { get; set; }
     }
 
