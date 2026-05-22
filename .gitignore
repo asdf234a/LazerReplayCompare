@@ -4,6 +4,8 @@ obj/
 publish/
 publish-*/
 release-*/
+release/
+analysis-data/
 *.user
 *.suo
 .vs/

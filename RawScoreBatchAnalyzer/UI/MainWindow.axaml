@@ -1,0 +1,103 @@
+<Window
+    x:Class="RawScoreBatchAnalyzer.UI.MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Raw Score Batch Analyzer"
+    Width="980"
+    Height="680"
+    MinWidth="820"
+    MinHeight="560"
+    Background="#08111F">
+  <Window.Styles>
+    <Style Selector="TextBlock.heading">
+      <Setter Property="FontSize" Value="24" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#F8FAFC" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="#94A3B8" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="#0E1A2B" />
+      <Setter Property="Foreground" Value="#E2E8F0" />
+      <Setter Property="BorderBrush" Value="#263D63" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="10,8" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="14,8" />
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#0D192C" />
+      <Setter Property="BorderBrush" Value="#233A60" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="18" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24" RowSpacing="18">
+    <StackPanel Grid.Row="0" Spacing="4">
+      <TextBlock Classes="heading" Text="Raw Score Batch Analyzer" />
+      <TextBlock Classes="muted" Text="Analyze many osu!lazer .osr files using the Raw calculator from the currently checked-out LazerReplayCompare source." />
+    </StackPanel>
+
+    <Border Grid.Row="1" Classes="card">
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="170,*,Auto" RowSpacing="12" ColumnSpacing="10">
+        <TextBlock Grid.Row="0" Grid.Column="0" Classes="muted" VerticalAlignment="Center" Text="client.realm" />
+        <TextBox Grid.Row="0" Grid.Column="1" x:Name="RealmPathBox" PlaceholderText="...\osu-lazer\client.realm" />
+        <Button Grid.Row="0" Grid.Column="2" x:Name="BrowseRealmButton" Content="Browse" />
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Classes="muted" VerticalAlignment="Center" Text="files folder" />
+        <TextBox Grid.Row="1" Grid.Column="1" x:Name="FilesRootBox" PlaceholderText="...\osu-lazer\files" />
+        <Button Grid.Row="1" Grid.Column="2" x:Name="BrowseFilesButton" Content="Browse" />
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Classes="muted" VerticalAlignment="Center" Text="OSR folder" />
+        <TextBox Grid.Row="2" Grid.Column="1" x:Name="ReplayFolderBox" PlaceholderText="...\lazerexport\replay" />
+        <Button Grid.Row="2" Grid.Column="2" x:Name="BrowseReplayButton" Content="Browse" />
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Classes="muted" VerticalAlignment="Center" Text="Output CSV" />
+        <TextBox Grid.Row="3" Grid.Column="1" x:Name="OutputCsvBox" />
+        <Button Grid.Row="3" Grid.Column="2" x:Name="BrowseOutputButton" Content="Browse" />
+
+        <StackPanel Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12">
+          <CheckBox x:Name="RecursiveBox" Content="Include subfolders" Foreground="#E2E8F0" IsChecked="True" />
+          <TextBlock Classes="muted" VerticalAlignment="Center" Text="Threads" />
+          <NumericUpDown x:Name="ThreadCountBox" Minimum="1" Maximum="64" Width="96" Value="0" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="2" ColumnDefinitions="2*,*" ColumnSpacing="18">
+      <Border Grid.Column="0" Classes="card">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+          <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" Text="Progress" />
+          <ProgressBar x:Name="ProgressBar" Grid.Row="1" Minimum="0" Maximum="100" Value="0" />
+          <TextBox x:Name="LogBox" Grid.Row="2" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" />
+          <TextBlock x:Name="CurrentFileLabel" Grid.Row="3" Classes="muted" Text="-" TextTrimming="CharacterEllipsis" />
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="1" Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" Text="Status" />
+          <TextBlock x:Name="TotalLabel" Classes="muted" Text="Total: -" />
+          <TextBlock x:Name="ProcessedLabel" Classes="muted" Text="Processed: -" />
+          <TextBlock x:Name="SuccessLabel" Classes="muted" Text="Success: -" />
+          <TextBlock x:Name="SkippedLabel" Classes="muted" Text="Skipped: -" />
+          <TextBlock x:Name="FailedLabel" Classes="muted" Text="Failed: -" />
+          <TextBlock x:Name="SpeedLabel" Classes="muted" Text="Speed: -" />
+          <Separator />
+          <TextBlock Classes="muted" Text="Version source" />
+          <TextBlock x:Name="SourceLabel" Foreground="#E2E8F0" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+      <Button x:Name="AnalyzeButton" Content="Analyze" Background="#2563EB" Foreground="White" />
+      <Button x:Name="CancelButton" Content="Cancel" IsEnabled="False" />
+    </StackPanel>
+  </Grid>
+</Window>

@@ -18,12 +18,19 @@ internal static class ManiaScoreCalculator
 
     public static List<ReplayTimelineFrame> ScoreJudgements(IReadOnlyList<ManiaJudgement> judgements, double scoreMultiplier)
     {
+        return ScoreJudgementsWithSource(judgements, scoreMultiplier)
+            .Select(scored => scored.Frame)
+            .ToList();
+    }
+
+    internal static List<ManiaScoredJudgement> ScoreJudgementsWithSource(IReadOnlyList<ManiaJudgement> judgements, double scoreMultiplier)
+    {
         var safeScoreMultiplier = scoreMultiplier > 0 ? scoreMultiplier : 1.0;
         var maximumComboPortion = 0d;
         for (var combo = 1; combo <= judgements.Count; combo++)
             maximumComboPortion += GetComboScoreChange(HitResult.Perfect, combo);
 
-        var frames = new List<ReplayTimelineFrame>(judgements.Count);
+        var frames = new List<ManiaScoredJudgement>(judgements.Count);
         var hits = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             ["Miss"] = 0,
@@ -65,7 +72,7 @@ internal static class ManiaScoreCalculator
             var rawScore = 150000 * comboProgress + 850000 * Math.Pow(accuracy, 2 + 2 * accuracy) * accuracyProgress;
             var score = (long)Math.Round(rawScore * safeScoreMultiplier);
 
-            frames.Add(new ReplayTimelineFrame(
+            var frame = new ReplayTimelineFrame(
                 Time: judgement.Time,
                 Index: frames.Count + 1,
                 Score: score,
@@ -78,7 +85,8 @@ internal static class ManiaScoreCalculator
                     Kind: judgement.Kind.ToString(),
                     ObjectTime: judgement.ObjectTime,
                     Offset: judgement.Time - judgement.ObjectTime,
-                    Result: judgement.Result.ToString())));
+                    Result: judgement.Result.ToString()));
+            frames.Add(new ManiaScoredJudgement(judgement, frame));
         }
 
         return frames;

@@ -46,6 +46,9 @@ public static class ManiaReplayInputExtractor
     private static bool[] GetPressedColumns(object frame, int columns, bool mirrorColumns)
     {
         var pressed = new bool[columns];
+
+        // Replay frames come from osu! assemblies at runtime; reflection keeps this tool
+        // tolerant of minor ruleset type changes while still reading mania Key1..KeyN actions.
         var actions = frame.GetType().GetField("Actions")?.GetValue(frame) as IEnumerable;
         if (actions == null)
             return pressed;

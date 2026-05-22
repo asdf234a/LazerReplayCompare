@@ -34,6 +34,8 @@ const state = {
     correctionMode: 'corrected',
     loadingKey: '',
     loadedKey: '',
+    loadedStateKey: '',
+    checkingState: false,
     targetKey: '',
     error: '',
 };
@@ -205,6 +207,37 @@ async function getCorrectionMode() {
     return state.correctionMode;
 }
 
+async function checkTimelineState(force = false) {
+    if (!isPlaying() || state.client !== 'lazer' || !state.beatmapChecksum || !state.osuPath || state.checkingState) return;
+
+    state.checkingState = true;
+    try {
+        const data = await fetchJson('/state');
+        state.correctionMode = data.correctionMode || state.correctionMode;
+
+        if (data.beatmapMd5 !== state.beatmapChecksum) {
+            state.loadedStateKey = '';
+            state.loadedKey = '';
+            state.targetKey = '';
+            state.replayFrames = [];
+            state.replayBaseKey = '';
+            render();
+            return;
+        }
+
+        const timelineStateKey = `${baseKey()}|${data.timelineKey || data.selectedReplayKey || ''}|${data.replayListVersion || ''}`;
+        if (!force && timelineStateKey === state.loadedStateKey && state.replayBaseKey === baseKey() && state.replayFrames.length > 0)
+            return;
+
+        await loadTimeline(true, timelineStateKey, data.correctionMode || state.correctionMode);
+    } catch (err) {
+        state.error = err.message || String(err);
+        render();
+    } finally {
+        state.checkingState = false;
+    }
+}
+
 async function fetchTimeline(replayPath, osuPath, rate, correction) {
     const query = new URLSearchParams({
         osr: replayPath,
@@ -235,7 +268,7 @@ function applyTimeline(data, key, sourceSuffix = '') {
     state.timelineTotalNotes = Number(data.totalNotes || 0);
 }
 
-async function loadTimeline(force = false) {
+async function loadTimeline(force = false, timelineStateKey = '', correctionOverride = '') {
     if (!isPlaying() || state.client !== 'lazer' || !state.beatmapChecksum || !state.osuPath) return;
 
     const currentBaseKey = baseKey();
@@ -271,7 +304,7 @@ async function loadTimeline(force = false) {
         const rate = target.mode === 'SELECTED'
             ? replayRate
             : parseFloat(state.modsKey.split('|')[1]) || 1;
-        const correction = await getCorrectionMode();
+        const correction = correctionOverride || await getCorrectionMode();
         const targetKey = `${currentBaseKey}|${target.replay.filePath}|${rate.toFixed(4)}|${correction}`;
 
         if (!force && state.targetKey === targetKey && state.replayBaseKey === currentBaseKey) {
@@ -283,6 +316,7 @@ async function loadTimeline(force = false) {
         if (currentBaseKey !== baseKey()) return;
         applyTimeline(raw, currentBaseKey, correction === 'corrected' ? ' (temporary)' : '');
         state.loadedKey = currentBaseKey;
+        state.loadedStateKey = timelineStateKey || targetKey;
         state.targetKey = targetKey;
         render();
 
@@ -291,6 +325,7 @@ async function loadTimeline(force = false) {
             if (currentBaseKey !== baseKey()) return;
             applyTimeline(corrected, currentBaseKey);
             state.targetKey = targetKey;
+            state.loadedStateKey = timelineStateKey || targetKey;
         }
     } catch (err) {
         if (currentBaseKey === baseKey()) {
@@ -311,6 +346,7 @@ function updateFromTosu(data) {
         state.beatmapChecksum = data.beatmap.checksum;
         state.hitIndex = 0;
         state.loadedKey = '';
+        state.loadedStateKey = '';
         state.targetKey = '';
         state.error = '';
     }
@@ -334,6 +370,7 @@ function updateFromTosu(data) {
         if (nextModsKey !== state.modsKey) {
             state.modsKey = nextModsKey;
             state.loadedKey = '';
+            state.loadedStateKey = '';
             state.targetKey = '';
             state.error = '';
         }
@@ -361,7 +398,7 @@ function connectTosu() {
             const data = JSON.parse(event.data);
             if (data.error) return;
             updateFromTosu(data);
-            loadTimeline();
+            if (state.replayBaseKey !== baseKey() || state.replayFrames.length === 0) checkTimelineState();
             render();
         } catch (err) {
             console.error('[LazerReplayCompareLive]', err);
@@ -373,4 +410,5 @@ function connectTosu() {
 }
 
 connectTosu();
+setInterval(checkTimelineState, 2000);
 render();

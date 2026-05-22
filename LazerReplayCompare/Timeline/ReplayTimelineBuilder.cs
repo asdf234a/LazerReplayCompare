@@ -9,7 +9,12 @@ public sealed class ReplayTimelineBuilder
 {
     private readonly ManiaTimelineCalculator maniaTimelineCalculator = new();
 
-    public ReplayTimelineResponse Build(string replayPath, string? beatmapPath, double rate = 0, CorrectionMode correctionMode = CorrectionMode.Corrected)
+    public ReplayTimelineResponse Build(
+        string replayPath,
+        string? beatmapPath,
+        double rate = 0,
+        CorrectionMode correctionMode = CorrectionMode.Corrected,
+        JudgementScoreOrder scoreOrder = JudgementScoreOrder.JudgementTime)
     {
         if (string.IsNullOrWhiteSpace(replayPath))
             throw new ArgumentException("Missing osr path.", nameof(replayPath));
@@ -52,7 +57,7 @@ public sealed class ReplayTimelineBuilder
             var detectedRate = ModUtility.GetPlaybackRate(score);
             var finalRate = rate > 0 ? rate : detectedRate;
             var scoreMultiplier = GetScoreMultiplier(score);
-            frames = maniaTimelineCalculator.Build(score, beatmapPath ?? string.Empty, finalRate, scoreMultiplier, correctionMode);
+            frames = maniaTimelineCalculator.Build(score, beatmapPath ?? string.Empty, finalRate, scoreMultiplier, correctionMode, scoreOrder);
             var correctionLabel = correctionMode == CorrectionMode.Corrected
                 ? "score-maxcombo-corrected-bounded-soft-continuity"
                 : "raw-bounded-soft-continuity";

@@ -117,14 +117,7 @@ public sealed class ReplayApiServer : IDisposable
 
             if (uri.AbsolutePath == "/state")
             {
-                var (md5, replayList, selectedReplay) = getReplays();
-                var replay = selectedReplay ?? replayList.FirstOrDefault();
-                WriteJson(stream, new
-                {
-                    correctionMode = getDefaultCorrectionMode().ToString().ToLowerInvariant(),
-                    beatmapMd5 = md5,
-                    selectedReplay = replay,
-                });
+                WriteJson(stream, BuildState());
                 return;
             }
 
@@ -148,6 +141,32 @@ public sealed class ReplayApiServer : IDisposable
             return CorrectionMode.Raw;
 
         return CorrectionMode.Corrected;
+    }
+
+    private object BuildState()
+    {
+        var (md5, replayList, selectedReplay) = getReplays();
+        var replay = selectedReplay ?? replayList.FirstOrDefault();
+        var correctionMode = getDefaultCorrectionMode().ToString().ToLowerInvariant();
+        var replayListVersion = replayList.Count == 0
+            ? "0"
+            : $"{replayList.Count}:{replayList.Max(replay => replay.Timestamp)}";
+        var selectedReplayKey = replay == null
+            ? string.Empty
+            : $"{replay.FilePath}|{replay.Score}|{replay.Timestamp}|{replay.ModsKey}";
+        var timelineKey = $"{md5}|{selectedReplayKey}|{correctionMode}|{replayListVersion}";
+
+        return new
+        {
+            correctionMode,
+            beatmapMd5 = md5,
+            selectedReplay = replay,
+            replayCount = replayList.Count,
+            replayListVersion,
+            selectedReplayKey,
+            timelineKey,
+            isReady = !string.IsNullOrWhiteSpace(md5) && replay != null,
+        };
     }
 
     private static void WriteJson(Stream stream, object value, int statusCode = 200)

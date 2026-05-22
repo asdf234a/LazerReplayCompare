@@ -30,6 +30,8 @@ const cache = {
     timelineBaseKey: '',
     loadBaseKey: '',
     loadKey: '',
+    loadedStateKey: '',
+    checkingState: false,
     loading: false,
     error: '',
     displayedDiff: 0,
@@ -149,7 +151,40 @@ async function refreshReplayTarget() {
     return loadTimelineInternal(true);
 }
 
-async function loadTimelineInternal(forceTargetCheck) {
+async function checkTimelineState(force = false) {
+    if (!isPlaying() || cache.client !== 'lazer' || !cache.beatmapChecksum || !cache.osuPath || cache.checkingState) return;
+
+    cache.checkingState = true;
+    try {
+        const res = await fetch(`http://${LAZER_COMPARE_HOST}/state`);
+        if (!res.ok) throw new Error(`/state ${res.status}`);
+        const data = await res.json();
+        cache.correctionMode = data.correctionMode || cache.correctionMode;
+
+        if (data.beatmapMd5 !== cache.beatmapChecksum) {
+            cache.loadedStateKey = '';
+            cache.loadKey = '';
+            cache.loadBaseKey = '';
+            cache.timelineBaseKey = '';
+            cache.replayFrames = [];
+            updateDisplay();
+            return;
+        }
+
+        const stateKey = `${getBaseKey()}|${data.timelineKey || data.selectedReplayKey || ''}|${data.replayListVersion || ''}`;
+        if (!force && stateKey === cache.loadedStateKey && cache.timelineBaseKey === getBaseKey() && cache.replayFrames.length > 0)
+            return;
+
+        await loadTimelineInternal(true, stateKey, data.correctionMode || cache.correctionMode);
+    } catch (err) {
+        cache.error = err.message || String(err);
+        updateDisplay();
+    } finally {
+        cache.checkingState = false;
+    }
+}
+
+async function loadTimelineInternal(forceTargetCheck, stateKey = '', correctionOverride = '') {
     if (!isPlaying() || cache.client !== 'lazer' || !cache.beatmapChecksum || !cache.osuPath || cache.loading) return;
 
     const baseKey = getBaseKey();
@@ -193,7 +228,7 @@ async function loadTimelineInternal(forceTargetCheck) {
         const timelineRate = target.mode === 'selected'
             ? replayRate
             : parseFloat(cache.modsKey.split('|')[1]) || 1;
-        const correctionMode = await getTimelineMode();
+        const correctionMode = correctionOverride || await getTimelineMode();
         const key = `${baseKey}|${target.replay.filePath}|${timelineRate.toFixed(4)}|${correctionMode}`;
         if (key === cache.loadKey && cache.replayFrames.length > 0) {
             cache.loadBaseKey = baseKey;
@@ -210,6 +245,7 @@ async function loadTimelineInternal(forceTargetCheck) {
         cache.replayPath = target.replay.filePath;
         cache.loadBaseKey = baseKey;
         cache.loadKey = rawKey;
+        cache.loadedStateKey = stateKey || rawKey;
         updateDisplay();
 
         if (correctionMode === 'corrected') {
@@ -219,6 +255,7 @@ async function loadTimelineInternal(forceTargetCheck) {
             cache.replayPath = target.replay.filePath;
             cache.loadBaseKey = baseKey;
             cache.loadKey = key;
+            cache.loadedStateKey = stateKey || key;
         }
     } catch (err) {
         cache.error = err.message;
@@ -303,6 +340,7 @@ function createSocket() {
                     cache.hitIndex = 0;
                     cache.loadKey = '';
                     cache.loadBaseKey = '';
+                    cache.loadedStateKey = '';
                 }
 
                 if (data.folders?.songs) cache.songsFolder = data.folders.songs;
@@ -321,11 +359,12 @@ function createSocket() {
                         cache.modsKey = nextKey;
                         cache.loadKey = '';
                         cache.loadBaseKey = '';
+                        cache.loadedStateKey = '';
                     }
                 }
 
                 updateOsuPath(cache);
-                loadTimeline();
+                if (cache.timelineBaseKey !== getBaseKey() || cache.replayFrames.length === 0) checkTimelineState();
                 updateDisplay();
             } catch (err) {
                 console.error('[LazerSameModScoreDiff]', err);
@@ -345,5 +384,5 @@ function createSocket() {
 }
 
 createSocket();
-setInterval(refreshReplayTarget, 2000);
+setInterval(checkTimelineState, 2000);
 updateDisplay();

@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OsuLazerCurrentPath Condition="'$(OsuLazerCurrentPath)' == ''">$(LocalAppData)\osulazer\current</OsuLazerCurrentPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LazerReplayCompare\LazerReplayCompare.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="osu.Framework">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Framework.dll</HintPath>
+    </Reference>
+    <Reference Include="Realm">
+      <HintPath>$(OsuLazerCurrentPath)\Realm.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game.Rulesets.Mania">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.Rulesets.Mania.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(OsuLazerCurrentPath)\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Text.Json">
+      <HintPath>$(OsuLazerCurrentPath)\System.Text.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.Diagnostics.DiagnosticSource">
+      <HintPath>$(OsuLazerCurrentPath)\System.Diagnostics.DiagnosticSource.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.Threading.Channels">
+      <HintPath>$(OsuLazerCurrentPath)\System.Threading.Channels.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.Text.Encodings.Web">
+      <HintPath>$(OsuLazerCurrentPath)\System.Text.Encodings.Web.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <None Include="$(OsuLazerCurrentPath)\realm-wrappers.dll">
+      <Link>realm-wrappers.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.0.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.0.3" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.3" />
+    <PackageReference Include="System.IO.Pipelines" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>
