@@ -97,7 +97,7 @@
   <Grid RowDefinitions="Auto,*" Margin="26" RowSpacing="22">
     <Border Grid.Row="0" Classes="card" Padding="20">
       <Grid RowDefinitions="Auto,Auto" RowSpacing="18">
-        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
           <Canvas Width="44" Height="44" VerticalAlignment="Center">
             <Path Stroke="{DynamicResource AccentBlueBrush}"
                   StrokeThickness="2.5"
@@ -116,26 +116,9 @@
                        Classes="muted" />
           </StackPanel>
 
-          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-            <TextBlock Text="Theme" Classes="muted" VerticalAlignment="Center" />
-            <ComboBox x:Name="ThemeBox"
-                      Width="116"
-                      SelectionChanged="ThemeSelectionChanged">
-              <ComboBoxItem Content="System" />
-              <ComboBoxItem Content="Dark" />
-              <ComboBoxItem Content="Light" />
-            </ComboBox>
-            <TextBlock Text="Timeline" Classes="muted" VerticalAlignment="Center" Margin="12,0,0,0" />
-            <ComboBox x:Name="CorrectionModeBox"
-                      Width="126"
-                      SelectionChanged="CorrectionModeSelectionChanged">
-              <ComboBoxItem Content="Corrected" />
-              <ComboBoxItem Content="Raw" />
-            </ComboBox>
-          </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1" RowDefinitions="Auto,Auto" RowSpacing="16">
+        <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
           <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
             <TextBlock Text="osu!lazer folder"
                        FontWeight="SemiBold"
@@ -187,6 +170,55 @@
               </StackPanel>
             </Border>
           </StackPanel>
+
+          <Border Grid.Row="2" Classes="badge">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10">
+              <TextBlock Text="Settings" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="Theme" Classes="muted" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="2"
+                        x:Name="ThemeBox"
+                        Width="116"
+                        SelectionChanged="ThemeSelectionChanged">
+                <ComboBoxItem Content="System" />
+                <ComboBoxItem Content="Dark" />
+                <ComboBoxItem Content="Light" />
+              </ComboBox>
+              <TextBlock Grid.Column="3" Text="Timeline" Classes="muted" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="4"
+                        x:Name="CorrectionModeBox"
+                        Width="126"
+                        SelectionChanged="CorrectionModeSelectionChanged">
+                <ComboBoxItem Content="Corrected" />
+                <ComboBoxItem Content="Raw" />
+              </ComboBox>
+              <TextBlock Grid.Column="5" Text="Main" Classes="muted" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="6"
+                        x:Name="MainMetricBox"
+                        Width="132"
+                        SelectionChanged="MainMetricSelectionChanged">
+                <ComboBoxItem Content="Score" Tag="Score" />
+                <ComboBoxItem Content="Acc" Tag="Acc" />
+                <ComboBoxItem Content="BMS" Tag="Bms" />
+                <ComboBoxItem Content="PPacc" Tag="PpAcc" />
+                <ComboBoxItem Content="PPscore" Tag="PpScore" />
+                <ComboBoxItem Content="V1acc" Tag="V1Acc" />
+              </ComboBox>
+              <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Sub" Classes="muted" VerticalAlignment="Center" />
+                <ComboBox x:Name="SubMetricBox"
+                          Width="132"
+                          SelectionChanged="SubMetricSelectionChanged">
+                  <ComboBoxItem Content="Score" Tag="Score" />
+                  <ComboBoxItem Content="Acc" Tag="Acc" />
+                  <ComboBoxItem Content="BMS" Tag="Bms" />
+                  <ComboBoxItem Content="PPacc" Tag="PpAcc" />
+                  <ComboBoxItem Content="PPscore" Tag="PpScore" />
+                  <ComboBoxItem Content="V1acc" Tag="V1Acc" />
+                  <ComboBoxItem Content="Off" Tag="Off" />
+                </ComboBox>
+              </StackPanel>
+            </Grid>
+          </Border>
         </Grid>
       </Grid>
     </Border>

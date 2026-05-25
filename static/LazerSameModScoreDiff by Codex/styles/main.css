@@ -42,6 +42,18 @@ body {
     display: inline-block;
 }
 
+.subValue {
+    display: block;
+    margin-top: 0.22rem;
+    font-size: 0.54em;
+    line-height: 1;
+    opacity: 0.92;
+}
+
+.metricPrefix {
+    color: #ffffff;
+}
+
 .diffSign {
     color: #ffffff;
 }
@@ -63,34 +75,6 @@ body {
     text-align: center;
 }
 
-.digitRoll {
-    height: 1em;
-    overflow: hidden;
-    vertical-align: bottom;
-}
-
-.digitStack {
-    display: flex;
-    flex-direction: column;
-    height: 2em;
-    will-change: transform;
-}
-
-.digitRoll.up .digitStack {
-    animation: digitRollUp 190ms ease-out forwards;
-}
-
-.digitRoll.down .digitStack {
-    transform: translateY(-1em);
-    animation: digitRollDown 190ms ease-out forwards;
-}
-
-.digitStack span {
-    display: block;
-    height: 1em;
-    line-height: 1;
-}
-
 .scoreDiff.positive .diffSign {
     color: #77ff9a;
 }
@@ -101,22 +85,4 @@ body {
 
 .scoreDiff.neutral {
     color: #ffffff;
-}
-
-@keyframes digitRollUp {
-    from {
-        transform: translateY(0);
-    }
-    to {
-        transform: translateY(-1em);
-    }
-}
-
-@keyframes digitRollDown {
-    from {
-        transform: translateY(-1em);
-    }
-    to {
-        transform: translateY(0);
-    }
 }

@@ -19,6 +19,7 @@ const state = {
     beatmapFile: '',
     osuPath: '',
     modsKey: 'NM|1.0000',
+    livePlayer: 'PLAYER',
     score: 0,
     accuracy: 0,
     combo: 0,
@@ -32,27 +33,32 @@ const state = {
     timelineSource: '',
     timelineTotalNotes: 0,
     correctionMode: 'corrected',
+    displayMetrics: {
+        main: 'Score',
+        sub: 'Acc',
+    },
     loadingKey: '',
     loadedKey: '',
     loadedStateKey: '',
     checkingState: false,
     targetKey: '',
+    noReplayKey: '',
     error: '',
 };
 
 const HIT_ROWS = [
-    ['Perfect', 'P'],
-    ['Great', 'Gr'],
-    ['Good', 'Gd'],
-    ['Ok', 'Ok'],
-    ['Meh', 'Me'],
-    ['Miss', 'Mi'],
+    ['Perfect', '320'],
+    ['Great', '300'],
+    ['Good', '200'],
+    ['Ok', '100'],
+    ['Meh', '50'],
+    ['Miss', 'Miss'],
 ];
 
 const HIT_ALIASES = {
-    Perfect: ['perfect', 'geki', 'Geki'],
+    Perfect: ['perfect', 'geki', 'Geki', '320'],
     Great: ['great', '300'],
-    Good: ['good', 'katu', 'Katu'],
+    Good: ['good', 'katu', 'Katu', '200'],
     Ok: ['ok', '100'],
     Meh: ['meh', '50'],
     Miss: ['miss', '0'],
@@ -99,6 +105,152 @@ function hitValue(hits, key) {
     return 0;
 }
 
+function ppAccuracy(hits) {
+    const total =
+        hitValue(hits, 'Perfect') +
+        hitValue(hits, 'Great') +
+        hitValue(hits, 'Good') +
+        hitValue(hits, 'Ok') +
+        hitValue(hits, 'Meh') +
+        hitValue(hits, 'Miss');
+
+    if (total <= 0) return 0;
+
+    const value =
+        hitValue(hits, 'Perfect') * 100 +
+        hitValue(hits, 'Great') * 93.75 +
+        hitValue(hits, 'Good') * 62.5 +
+        hitValue(hits, 'Ok') * 31.25 +
+        hitValue(hits, 'Meh') * 15.625;
+
+    return value / total;
+}
+
+function v1Accuracy(hits) {
+    const total =
+        hitValue(hits, 'Perfect') +
+        hitValue(hits, 'Great') +
+        hitValue(hits, 'Good') +
+        hitValue(hits, 'Ok') +
+        hitValue(hits, 'Meh') +
+        hitValue(hits, 'Miss');
+
+    if (total <= 0) return 0;
+
+    const value =
+        hitValue(hits, 'Perfect') * 100 +
+        hitValue(hits, 'Great') * 100 +
+        hitValue(hits, 'Good') * (200 / 3) +
+        hitValue(hits, 'Ok') * (100 / 3) +
+        hitValue(hits, 'Meh') * (50 / 3);
+
+    return value / total;
+}
+
+function ppScore(hits) {
+    return Math.round(
+        hitValue(hits, 'Perfect') * 100 +
+        hitValue(hits, 'Great') * 93.75 +
+        hitValue(hits, 'Good') * 62.5 +
+        hitValue(hits, 'Ok') * 31.25 +
+        hitValue(hits, 'Meh') * 15.625
+    );
+}
+
+function bmsScore(hits) {
+    return hitValue(hits, 'Perfect') * 2 + hitValue(hits, 'Great');
+}
+
+function normalizeMetric(metric, fallback = 'Score') {
+    const value = String(metric || '').toLowerCase();
+    if (value === 'scorediff' || value === 'score') return 'Score';
+    if (value === 'accuracydiff' || value === 'accuracy' || value === 'acc') return 'Acc';
+    if (value === 'bms' || value === 'bmsscore') return 'Bms';
+    if (value === 'judgediff' || value === 'judge' || value === 'ppacc') return 'PpAcc';
+    if (value === 'ppscore') return 'PpScore';
+    if (value === 'v1acc') return 'V1Acc';
+    if (value === 'off' || value === 'none') return 'Off';
+    return fallback;
+}
+
+function updateDisplayMetrics(data) {
+    if (!data?.displayMetrics) return;
+    state.displayMetrics.main = normalizeMetric(data.displayMetrics.main, state.displayMetrics.main);
+    state.displayMetrics.sub = normalizeMetric(data.displayMetrics.sub, state.displayMetrics.sub);
+}
+
+function metricValue(metric, frame) {
+    const key = normalizeMetric(metric);
+    if (!frame) return { text: '-', className: 'neutral', hidden: key === 'Off' };
+
+    let value = 0;
+    let text = '0';
+
+    if (key === 'PpAcc') {
+        value = ppAccuracy(state.hits) - ppAccuracy(frame.hits);
+        text = `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+    } else if (key === 'V1Acc') {
+        value = v1Accuracy(state.hits) - v1Accuracy(frame.hits);
+        text = `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+    } else if (key === 'PpScore') {
+        value = ppScore(state.hits) - ppScore(frame.hits);
+        text = fmtDiff(value);
+    } else if (key === 'Bms') {
+        value = bmsScore(state.hits) - bmsScore(frame.hits);
+        text = fmtDiff(value);
+    } else if (key === 'Acc') {
+        value = state.accuracy - frame.accuracy;
+        text = fmtAccDiff(value);
+    } else if (key === 'Off') {
+        return { text: '', className: 'neutral', hidden: true };
+    } else {
+        value = state.score - frame.score;
+        text = fmtDiff(value);
+    }
+
+    return {
+        text,
+        className: value > 0 ? 'positive' : value < 0 ? 'negative' : 'neutral',
+        hidden: false,
+    };
+}
+
+function metricAbsoluteValue(metric, source) {
+    const key = normalizeMetric(metric);
+    if (!source || key === 'Off') return { text: '-', hidden: key === 'Off' };
+
+    const hits = source.hits || {};
+    if (key === 'PpAcc') return { text: `${ppAccuracy(hits).toFixed(2)}%`, hidden: false };
+    if (key === 'V1Acc') return { text: `${v1Accuracy(hits).toFixed(2)}%`, hidden: false };
+    if (key === 'PpScore') return { text: fmtScore(ppScore(hits)), hidden: false };
+    if (key === 'Bms') return { text: fmtScore(bmsScore(hits)), hidden: false };
+    if (key === 'Acc') return { text: fmtAcc(source.accuracy), hidden: false };
+    return { text: fmtScore(source.score), hidden: false };
+}
+
+function liveMetricSource() {
+    return {
+        score: state.score,
+        accuracy: state.accuracy,
+        hits: state.hits,
+    };
+}
+
+function renderSideMetrics(frame) {
+    const liveSource = liveMetricSource();
+    const liveMain = metricAbsoluteValue(state.displayMetrics.main, liveSource);
+    const liveSub = metricAbsoluteValue(state.displayMetrics.sub, liveSource);
+    const replayMain = metricAbsoluteValue(state.displayMetrics.main, frame);
+    const replaySub = metricAbsoluteValue(state.displayMetrics.sub, frame);
+
+    $('liveScore').textContent = liveMain.text;
+    $('liveAcc').textContent = liveSub.hidden ? '' : liveSub.text;
+    $('liveAcc').style.display = liveSub.hidden ? 'none' : '';
+    $('replayScore').textContent = replayMain.text;
+    $('replayAcc').textContent = replaySub.hidden ? '' : replaySub.text;
+    $('replayAcc').style.display = replaySub.hidden ? 'none' : '';
+}
+
 function findReplayFrame(hitIndex) {
     if (state.replayBaseKey !== baseKey()) return null;
 
@@ -120,7 +272,7 @@ function findReplayFrame(hitIndex) {
     return found;
 }
 
-function renderHits(liveHits, replayHits) {
+function renderHits(liveHits, replayHits, showReplay = true) {
     const grid = $('hitsGrid');
 
     for (let i = 0; i < HIT_ROWS.length; i++) {
@@ -138,10 +290,14 @@ function renderHits(liveHits, replayHits) {
         }
 
         row.children[0].textContent = label;
-        row.children[1].textContent = live;
-        row.children[2].textContent = diff === 0 ? '' : `${diff > 0 ? '+' : ''}${diff}`;
-        row.children[2].className = `hit-diff-val ${diff > 0 ? 'positive' : diff < 0 ? 'negative' : ''}`;
-        row.children[3].textContent = replay;
+        if (showReplay && diff !== 0) {
+            row.children[1].innerHTML = `${live} <span class="hit-inline-diff ${diff > 0 ? 'positive' : 'negative'}">(${diff > 0 ? '+' : ''}${diff})</span>`;
+        } else {
+            row.children[1].textContent = live;
+        }
+        row.children[2].textContent = '';
+        row.children[2].className = `hit-diff-val ${showReplay ? diff > 0 ? 'positive' : diff < 0 ? 'negative' : '' : ''}`;
+        row.children[3].textContent = showReplay ? replay : '';
     }
 }
 
@@ -150,45 +306,47 @@ function render() {
     $('panel').className = `panel${visible ? ' visible' : ''}`;
     if (!visible) return;
 
-    $('liveScore').textContent = fmtScore(state.score);
-    $('liveAcc').textContent = fmtAcc(state.accuracy);
     $('liveCombo').textContent = `x${state.combo}`;
     $('replayPlayer').textContent = state.replayPlayer || 'REPLAY';
     $('replayLabel').textContent = state.replayMods || '-';
     $('targetMode').textContent = state.targetMode || 'AUTO BEST';
+    $('livePlayer').textContent = state.livePlayer || 'PLAYER';
+    $('liveLabel').textContent = state.modsKey.split('|')[0] || 'NM';
 
     const frame = findReplayFrame(state.hitIndex);
+    renderSideMetrics(frame);
     if (!frame) {
-        $('replayScore').textContent = '-';
-        $('replayAcc').textContent = '-';
         $('replayCombo').textContent = '-';
-        $('scoreDiff').textContent = state.loadingKey ? '...' : state.error ? '!' : '-';
+        $('scoreDiff').textContent = '-';
         $('scoreDiff').className = 'score-diff neutral';
         $('accDiff').textContent = '-';
         $('accDiff').className = 'acc-diff';
-        $('hitsGrid').style.display = 'none';
+        $('accDiff').style.display = state.displayMetrics.sub === 'Off' ? 'none' : '';
+        renderHits(state.hits, null, false);
+        $('hitsGrid').style.display = '';
     } else {
-        const scoreDiff = state.score - frame.score;
-        const accDiff = state.accuracy - frame.accuracy;
+        const mainMetric = metricValue(state.displayMetrics.main, frame);
+        const subMetric = metricValue(state.displayMetrics.sub, frame);
 
-        $('replayScore').textContent = fmtScore(frame.score);
-        $('replayAcc').textContent = fmtAcc(frame.accuracy);
         $('replayCombo').textContent = `x${frame.combo}`;
-        $('scoreDiff').textContent = fmtDiff(scoreDiff);
-        $('scoreDiff').className = `score-diff ${scoreDiff > 0 ? 'positive' : scoreDiff < 0 ? 'negative' : 'neutral'}`;
-        $('accDiff').textContent = fmtAccDiff(accDiff);
-        $('accDiff').className = `acc-diff ${accDiff > 0 ? 'positive' : accDiff < 0 ? 'negative' : 'neutral'}`;
+        $('scoreDiff').textContent = mainMetric.text;
+        $('scoreDiff').className = `score-diff ${mainMetric.className}`;
+        $('accDiff').textContent = subMetric.text;
+        $('accDiff').className = `acc-diff ${subMetric.className}`;
+        $('accDiff').style.display = subMetric.hidden ? 'none' : '';
         renderHits(state.hits, frame.hits);
         $('hitsGrid').style.display = '';
     }
 
-    $('timelineInfo').textContent = state.loadingKey
-        ? 'loading...'
-        : state.error
-            ? `error: ${state.error}`
-            : state.timelineSource && state.replayBaseKey === baseKey()
-                ? `${state.timelineSource} - ${state.timelineTotalNotes} notes`
-                : '-';
+    $('timelineInfo').textContent = state.timelineSource && state.replayBaseKey === baseKey()
+        ? `${state.timelineSource} - ${state.timelineTotalNotes} notes`
+        : state.loadingKey
+            ? 'loading...'
+            : state.noReplayKey === baseKey()
+                ? 'no replay'
+                : state.error
+                    ? `error: ${state.error}`
+                    : '-';
 }
 
 async function fetchJson(path) {
@@ -201,6 +359,7 @@ async function getCorrectionMode() {
     try {
         const data = await fetchJson('/state');
         state.correctionMode = data.correctionMode || state.correctionMode;
+        updateDisplayMetrics(data);
     } catch {
         // Keep the previous mode while the app is starting.
     }
@@ -214,6 +373,7 @@ async function checkTimelineState(force = false) {
     try {
         const data = await fetchJson('/state');
         state.correctionMode = data.correctionMode || state.correctionMode;
+        updateDisplayMetrics(data);
 
         if (data.beatmapMd5 !== state.beatmapChecksum) {
             state.loadedStateKey = '';
@@ -226,8 +386,10 @@ async function checkTimelineState(force = false) {
         }
 
         const timelineStateKey = `${baseKey()}|${data.timelineKey || data.selectedReplayKey || ''}|${data.replayListVersion || ''}`;
-        if (!force && timelineStateKey === state.loadedStateKey && state.replayBaseKey === baseKey() && state.replayFrames.length > 0)
+        if (!force && timelineStateKey === state.loadedStateKey && (state.replayBaseKey === baseKey() || state.noReplayKey === baseKey())) {
+            render();
             return;
+        }
 
         await loadTimeline(true, timelineStateKey, data.correctionMode || state.correctionMode);
     } catch (err) {
@@ -284,6 +446,7 @@ async function loadTimeline(force = false, timelineStateKey = '', correctionOver
         if (replays.beatmapMd5 !== state.beatmapChecksum) {
             state.loadedKey = '';
             state.loadingKey = '';
+            state.noReplayKey = '';
             render();
             return;
         }
@@ -291,12 +454,21 @@ async function loadTimeline(force = false, timelineStateKey = '', correctionOver
         const target = chooseReplayTarget(replays, state.modsKey, 'SELECTED', 'AUTO BEST');
         state.targetMode = target.mode;
         if (!target.replay) {
-            state.error = target.error;
+            state.error = '';
             state.loadedKey = currentBaseKey;
+            state.loadedStateKey = timelineStateKey || `${currentBaseKey}|no-replay`;
             state.targetKey = '';
+            state.noReplayKey = currentBaseKey;
+            state.replayFrames = [];
+            state.replayBaseKey = '';
+            state.timelineSource = '';
+            state.timelineTotalNotes = 0;
+            state.replayPlayer = 'NO REPLAY';
+            state.replayMods = state.modsKey.split('|')[0] || 'NM';
             return;
         }
 
+        state.noReplayKey = '';
         state.replayPlayer = target.replay.player || 'unknown';
         state.replayMods = target.replay.modsText || getReplayModsKey(target.replay);
 
@@ -341,6 +513,13 @@ async function loadTimeline(force = false, timelineStateKey = '', correctionOver
 function updateFromTosu(data) {
     if (data.client != null) state.client = data.client;
     if (data.state?.name != null) state.gameState = data.state.name;
+    if (data.profile != null) {
+        state.livePlayer = data.profile.username ||
+            data.profile.name ||
+            data.profile.user?.username ||
+            data.profile.user?.name ||
+            state.livePlayer;
+    }
 
     if (data.beatmap?.checksum && data.beatmap.checksum !== state.beatmapChecksum) {
         state.beatmapChecksum = data.beatmap.checksum;
@@ -348,6 +527,7 @@ function updateFromTosu(data) {
         state.loadedKey = '';
         state.loadedStateKey = '';
         state.targetKey = '';
+        state.noReplayKey = '';
         state.error = '';
     }
 
@@ -372,6 +552,7 @@ function updateFromTosu(data) {
             state.loadedKey = '';
             state.loadedStateKey = '';
             state.targetKey = '';
+            state.noReplayKey = '';
             state.error = '';
         }
     }
@@ -389,6 +570,7 @@ function connectTosu() {
             { field: 'files', keys: ['beatmap'] },
             { field: 'folders', keys: ['songs', 'beatmap'] },
             { field: 'play', keys: ['score', 'accuracy', 'hits', 'combo', 'mods'] },
+            { field: 'profile', keys: ['username', 'name', 'user'] },
             { field: 'state', keys: ['name'] },
         ])}`);
     });
@@ -398,7 +580,7 @@ function connectTosu() {
             const data = JSON.parse(event.data);
             if (data.error) return;
             updateFromTosu(data);
-            if (state.replayBaseKey !== baseKey() || state.replayFrames.length === 0) checkTimelineState();
+            if (state.replayBaseKey !== baseKey() && state.noReplayKey !== baseKey()) checkTimelineState();
             render();
         } catch (err) {
             console.error('[LazerReplayCompareLive]', err);

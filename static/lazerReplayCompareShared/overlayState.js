@@ -76,6 +76,16 @@ export function isSameRate(replay, currentModsKey) {
     return Math.abs(replayRate - currentRate) <= RATE_EPSILON;
 }
 
+export function hasClassicMode(modsKey) {
+    const mods = String(modsKey || '').split('|')[0].split('+').map(normalizeAcronym);
+    return mods.includes('CL') || mods.includes('CLASSIC');
+}
+
+export function isAutoCompatibleReplay(replay, currentModsKey) {
+    return isSameRate(replay, currentModsKey) &&
+        hasClassicMode(getReplayModsKey(replay)) === hasClassicMode(currentModsKey);
+}
+
 export function chooseReplayTarget(replaysData, currentModsKey, selectedMode, autoMode) {
     const replays = Array.isArray(replaysData.replays) ? replaysData.replays : [];
     const selected = replaysData.selectedReplay;
@@ -85,7 +95,7 @@ export function chooseReplayTarget(replaysData, currentModsKey, selectedMode, au
     }
 
     const replay = replays
-        .filter((entry) => isSameRate(entry, currentModsKey))
+        .filter((entry) => isAutoCompatibleReplay(entry, currentModsKey))
         .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0] ?? null;
 
     return { replay, mode: autoMode, error: replay ? '' : 'no same-rate replay' };

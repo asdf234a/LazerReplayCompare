@@ -8,7 +8,7 @@ body {
     user-select: none;
     background: transparent;
     font-family: "Segoe UI", Arial, sans-serif;
-    font-size: 14px;
+    font-size: 21px;
     color: #fff;
 }
 
@@ -19,9 +19,10 @@ body {
     top: 0;
     left: 0;
     background: rgba(0, 0, 0, 0.72);
-    padding: 10px 14px 8px;
-    border-radius: 8px;
-    min-width: 300px;
+    padding: 13px 15px 10px;
+    border-radius: 12px;
+    min-width: 0;
+    width: fit-content;
     opacity: 0;
     transition: opacity 150ms ease;
     font-variant-numeric: tabular-nums;
@@ -35,11 +36,13 @@ body {
 /* Header */
 
 .panel-header {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 112px 64px 112px;
     align-items: center;
-    margin-bottom: 8px;
-    font-size: 10px;
+    justify-content: center;
+    gap: 3px 8px;
+    margin-bottom: 10px;
+    font-size: 14px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: #888;
@@ -47,16 +50,26 @@ body {
 
 .vs {
     color: #555;
+    text-align: center;
+}
+
+.replay-target,
+.live-target {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    max-width: 108px;
+    line-height: 1.2;
 }
 
 .replay-target {
-    display: flex;
-    flex-direction: column;
     align-items: flex-end;
-    min-width: 0;
-    max-width: 150px;
     text-align: right;
-    line-height: 1.2;
+}
+
+.live-target {
+    align-items: flex-start;
+    text-align: left;
 }
 
 .replay-player,
@@ -89,49 +102,59 @@ body {
 
 .compare-row {
     display: grid;
-    grid-template-columns: 1fr 72px 1fr;
+    grid-template-columns: 112px 64px 112px;
     align-items: center;
-    gap: 2px 6px;
-    margin-bottom: 6px;
+    justify-content: center;
+    gap: 3px 8px;
+    margin-bottom: 10px;
 }
 
 .col-live {
-    text-align: right;
+    text-align: left;
+    min-width: 0;
 }
 
 .col-diff {
     text-align: center;
+    min-width: 0;
+    transform: translateY(-0.36rem);
 }
 
 .col-replay {
-    text-align: left;
+    text-align: right;
+    min-width: 0;
 }
 
 .score {
-    font-size: 1.45rem;
+    font-size: 1.12rem;
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1.08;
+    white-space: nowrap;
 }
 
 .acc {
-    font-size: 0.82rem;
-    color: #bbb;
-    margin-top: 1px;
+    font-size: 0.8rem;
+    color: #d0d0d0;
+    font-weight: 650;
+    margin-top: 2px;
 }
 
 .combo {
-    font-size: 0.78rem;
-    color: #999;
+    font-size: 0.72rem;
+    color: #aaa;
+    font-weight: 600;
 }
 
 .score-diff {
-    font-size: 1.05rem;
+    font-size: 1rem;
     font-weight: 700;
-    line-height: 1.2;
+    line-height: 1.08;
+    white-space: nowrap;
 }
 
 .acc-diff {
     font-size: 0.72rem;
+    font-weight: 650;
     margin-top: 2px;
     color: #999;
 }
@@ -154,8 +177,8 @@ body {
 
 .hits-grid {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding-top: 5px;
-    margin-top: 2px;
+    padding-top: 8px;
+    margin-top: 3px;
     display: flex;
     flex-direction: column;
     gap: 1px;
@@ -163,15 +186,20 @@ body {
 
 .hit-cell {
     display: grid;
-    grid-template-columns: 18px 1fr 32px 1fr;
-    font-size: 0.75rem;
-    line-height: 1.5;
+    grid-template-columns: 112px 64px 112px;
+    gap: 3px 8px;
+    justify-content: center;
+    font-size: 0.82rem;
+    line-height: 1.45;
     align-items: center;
 }
 
 .hit-label {
     color: #777;
-    font-size: 0.68rem;
+    font-size: 0.74rem;
+    text-align: center;
+    grid-column: 2;
+    grid-row: 1;
 }
 
 .hit-cell.miss .hit-label {
@@ -179,14 +207,20 @@ body {
 }
 
 .hit-live {
-    text-align: right;
+    text-align: left;
     color: #ddd;
+    font-weight: 600;
+    grid-column: 3;
+    grid-row: 1;
+}
+
+.hit-inline-diff {
+    font-size: 0.78em;
+    font-weight: 700;
 }
 
 .hit-diff-val {
-    text-align: center;
-    font-size: 0.68rem;
-    color: #555;
+    display: none;
 }
 
 .hit-diff-val.positive {
@@ -198,17 +232,20 @@ body {
 }
 
 .hit-replay {
-    text-align: left;
+    text-align: right;
     color: #aaa;
-    padding-left: 4px;
+    padding-left: 0;
+    font-weight: 600;
+    grid-column: 1;
+    grid-row: 1;
 }
 
 /* Timeline info */
 
 .timeline-info {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
-    margin-top: 6px;
-    padding-top: 4px;
+    margin-top: 9px;
+    padding-top: 6px;
     font-size: 0.65rem;
     color: #555;
     font-family: "Consolas", monospace;

@@ -8,16 +8,19 @@ public sealed class ReplayApiServer : IDisposable
 {
     private readonly Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays;
     private readonly Func<CorrectionMode> getDefaultCorrectionMode;
+    private readonly Func<(string MainMetric, string SubMetric)> getOverlayMetrics;
     private readonly ReplayTimelineBuilder timelineBuilder = new();
     private readonly CancellationTokenSource cancellation = new();
     private TcpListener? listener;
 
     public ReplayApiServer(
         Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays,
-        Func<CorrectionMode> getDefaultCorrectionMode)
+        Func<CorrectionMode> getDefaultCorrectionMode,
+        Func<(string MainMetric, string SubMetric)> getOverlayMetrics)
     {
         this.getReplays = getReplays;
         this.getDefaultCorrectionMode = getDefaultCorrectionMode;
+        this.getOverlayMetrics = getOverlayMetrics;
     }
 
     public int Port { get; private set; }
@@ -148,6 +151,7 @@ public sealed class ReplayApiServer : IDisposable
         var (md5, replayList, selectedReplay) = getReplays();
         var replay = selectedReplay ?? replayList.FirstOrDefault();
         var correctionMode = getDefaultCorrectionMode().ToString().ToLowerInvariant();
+        var metrics = getOverlayMetrics();
         var replayListVersion = replayList.Count == 0
             ? "0"
             : $"{replayList.Count}:{replayList.Max(replay => replay.Timestamp)}";
@@ -159,6 +163,11 @@ public sealed class ReplayApiServer : IDisposable
         return new
         {
             correctionMode,
+            displayMetrics = new
+            {
+                main = metrics.MainMetric,
+                sub = metrics.SubMetric,
+            },
             beatmapMd5 = md5,
             selectedReplay = replay,
             replayCount = replayList.Count,

@@ -29,6 +29,8 @@ public sealed partial class MainWindow : Window
     private Button refreshButton = null!;
     private ComboBox themeBox = null!;
     private ComboBox correctionModeBox = null!;
+    private ComboBox mainMetricBox = null!;
+    private ComboBox subMetricBox = null!;
     private ListBox replayList = null!;
     private TextBlock statusLabel = null!;
     private TextBlock beatmapLabel = null!;
@@ -55,7 +57,7 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
-        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode);
+        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, GetOverlayMetrics);
 
         InitializeComponent();
         DataContext = viewModel;
@@ -112,6 +114,8 @@ public sealed partial class MainWindow : Window
         refreshButton = this.FindControl<Button>("RefreshButton")!;
         themeBox = this.FindControl<ComboBox>("ThemeBox")!;
         correctionModeBox = this.FindControl<ComboBox>("CorrectionModeBox")!;
+        mainMetricBox = this.FindControl<ComboBox>("MainMetricBox")!;
+        subMetricBox = this.FindControl<ComboBox>("SubMetricBox")!;
         replayList = this.FindControl<ListBox>("ReplayList")!;
         statusLabel = this.FindControl<TextBlock>("StatusLabel")!;
         beatmapLabel = this.FindControl<TextBlock>("BeatmapLabel")!;
@@ -144,12 +148,20 @@ public sealed partial class MainWindow : Window
         ThemeService.Apply(this, theme);
         var correctionMode = ParseCorrectionMode(settingsService.Current.CorrectionMode);
         correctionModeBox.SelectedIndex = correctionMode == CorrectionMode.Raw ? 1 : 0;
+        mainMetricBox.SelectedIndex = MetricToIndex(settingsService.Current.MainMetric, allowOff: false);
+        subMetricBox.SelectedIndex = MetricToIndex(settingsService.Current.SubMetric, allowOff: true);
         UpdateSelectedReplayDetails(null);
     }
 
     private CorrectionMode GetCurrentCorrectionMode()
     {
         return ParseCorrectionMode(settingsService.Current.CorrectionMode);
+    }
+
+    private (string MainMetric, string SubMetric) GetOverlayMetrics()
+    {
+        return (NormalizeMetric(settingsService.Current.MainMetric, "Score"),
+            NormalizeMetric(settingsService.Current.SubMetric, "Acc", allowOff: true));
     }
 
     private (string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay) GetCurrentReplays()
@@ -213,6 +225,24 @@ public sealed partial class MainWindow : Window
 
         settingsService.SetCorrectionMode(ParseCorrectionMode(value));
         statusLabel.Text = $"Timeline mode: {value}";
+    }
+
+    private void MainMetricSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (mainMetricBox.SelectedItem is not ComboBoxItem item || item.Tag is not string value)
+            return;
+
+        settingsService.SetMainMetric(NormalizeMetric(value, "Score"));
+        statusLabel.Text = $"Overlay main metric: {item.Content}";
+    }
+
+    private void SubMetricSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (subMetricBox.SelectedItem is not ComboBoxItem item || item.Tag is not string value)
+            return;
+
+        settingsService.SetSubMetric(NormalizeMetric(value, "Acc", allowOff: true));
+        statusLabel.Text = $"Overlay sub metric: {item.Content}";
     }
 
     private void OnSnapshotReceived(TosuSnapshot snapshot)
@@ -469,6 +499,45 @@ public sealed partial class MainWindow : Window
         return string.Equals(value, "Raw", StringComparison.OrdinalIgnoreCase)
             ? CorrectionMode.Raw
             : CorrectionMode.Corrected;
+    }
+
+    private static string NormalizeMetric(string? value, string fallback, bool allowOff = false)
+    {
+        if (allowOff && string.Equals(value, "Off", StringComparison.OrdinalIgnoreCase))
+            return "Off";
+        if (string.Equals(value, "Score", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "ScoreDiff", StringComparison.OrdinalIgnoreCase))
+            return "Score";
+        if (string.Equals(value, "Acc", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "AccuracyDiff", StringComparison.OrdinalIgnoreCase))
+            return "Acc";
+        if (string.Equals(value, "Bms", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "BmsScore", StringComparison.OrdinalIgnoreCase))
+            return "Bms";
+        if (string.Equals(value, "PpAcc", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "JudgeDiff", StringComparison.OrdinalIgnoreCase))
+            return "PpAcc";
+        if (string.Equals(value, "PpScore", StringComparison.OrdinalIgnoreCase))
+            return "PpScore";
+        if (string.Equals(value, "V1Acc", StringComparison.OrdinalIgnoreCase))
+            return "V1Acc";
+        return fallback;
+    }
+
+    private static int MetricToIndex(string? value, bool allowOff)
+    {
+        var metric = NormalizeMetric(value, allowOff ? "Off" : "Score", allowOff);
+        return metric switch
+        {
+            "Score" => 0,
+            "Acc" => 1,
+            "Bms" => 2,
+            "PpAcc" => 3,
+            "PpScore" => 4,
+            "V1Acc" => 5,
+            "Off" when allowOff => 6,
+            _ => 0,
+        };
     }
 
 }

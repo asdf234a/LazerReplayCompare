@@ -26,4 +26,16 @@ public sealed class AppSettingsService
         Current.CorrectionMode = mode.ToString();
         Save();
     }
+
+    public void SetMainMetric(string metric)
+    {
+        Current.MainMetric = string.IsNullOrWhiteSpace(metric) ? "Score" : metric;
+        Save();
+    }
+
+    public void SetSubMetric(string metric)
+    {
+        Current.SubMetric = string.IsNullOrWhiteSpace(metric) ? "Off" : metric;
+        Save();
+    }
 }

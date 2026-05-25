@@ -12,29 +12,33 @@
 <body>
     <div id="panel" class="panel">
         <div class="panel-header">
-            <span>LIVE</span>
-            <span class="vs">vs</span>
             <div class="replay-target">
                 <span id="targetMode" class="target-mode">AUTO BEST</span>
                 <span id="replayPlayer" class="replay-player">REPLAY</span>
                 <span id="replayLabel" class="replay-mods">-</span>
             </div>
+            <span class="vs">vs</span>
+            <div class="live-target">
+                <span class="target-mode">LIVE</span>
+                <span id="livePlayer" class="replay-player">PLAYER</span>
+                <span id="liveLabel" class="replay-mods">NM</span>
+            </div>
         </div>
 
         <div class="compare-row">
-            <div class="col col-live">
-                <div id="liveScore" class="score">0</div>
-                <div id="liveAcc" class="acc">0.00%</div>
-                <div id="liveCombo" class="combo">x0</div>
+            <div class="col col-replay">
+                <div id="replayScore" class="score">-</div>
+                <div id="replayAcc" class="acc">-</div>
+                <div id="replayCombo" class="combo">-</div>
             </div>
             <div class="col col-diff">
                 <div id="scoreDiff" class="score-diff neutral">+0</div>
                 <div id="accDiff" class="acc-diff">+0.00%</div>
             </div>
-            <div class="col col-replay">
-                <div id="replayScore" class="score">-</div>
-                <div id="replayAcc" class="acc">-</div>
-                <div id="replayCombo" class="combo">-</div>
+            <div class="col col-live">
+                <div id="liveScore" class="score">0</div>
+                <div id="liveAcc" class="acc">0.00%</div>
+                <div id="liveCombo" class="combo">x0</div>
             </div>
         </div>
 
