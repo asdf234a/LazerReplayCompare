@@ -7,7 +7,7 @@ namespace LazerReplayCompare;
 
 public sealed class ReplayFinder
 {
-    private const ulong CurrentRealmSchemaVersion = 51;
+    private const ulong CurrentRealmSchemaVersion = 52;
 
     private readonly object sync = new();
 
