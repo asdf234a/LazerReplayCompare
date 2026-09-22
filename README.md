@@ -19,7 +19,7 @@ Download `LazerReplayCompare.exe` from the latest release:
 
 https://github.com/asdf234a/LazerReplayCompare/releases/latest
 
-You may need the .NET 8 Desktop Runtime installed on Windows.
+You need the .NET 10 Desktop Runtime installed on Windows: https://dotnet.microsoft.com/download/dotnet/10.0
 
 ## How To Use
 

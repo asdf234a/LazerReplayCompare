@@ -29,7 +29,7 @@ It reads osu!lazer's `client.realm` and `files` storage, finds replay files for 
 ## Requirements
 
 - Windows
-- .NET 8 Runtime or SDK
+- .NET 10 SDK (to build) / .NET 10 Desktop Runtime (to run)
 - osu!lazer
 - tosu
 
@@ -179,4 +179,4 @@ This is more stable than comparing by timestamp because it compares the current 
 ## Notes
 
 - If `/timeline` returns a `source` containing `density-limited-judgement-score-corrected`, the timeline came from the simulator. It adjusts simulated judgements only in likely error sections: broad high-density regions and short windows where judgements swing sharply toward lower results. Correction candidates are prioritized by volatility first and density second, while scores are still produced only through the osu!mania scoring formula.
-- Build warnings about `System.Text.Json`, `System.Diagnostics.DiagnosticSource`, or similar assemblies can appear because osu!lazer ships newer DLLs than the installed .NET 8 reference assemblies. These warnings are expected if the build still finishes with `0 errors`.
+- Build warnings about `System.Text.Json`, `System.Diagnostics.DiagnosticSource`, or similar assemblies can appear because osu!lazer ships newer DLLs than the installed .NET 10 reference assemblies. These warnings are expected if the build still finishes with `0 errors`.

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -8,6 +8,11 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);publish\**</DefaultItemExcludes>
     <OsuLazerCurrentPath Condition="'$(OsuLazerCurrentPath)' == ''">$(LocalAppData)\osulazer\current</OsuLazerCurrentPath>
     <ApplicationIcon>LazerReplayCompare.ico</ApplicationIcon>
+    <DebugType>none</DebugType>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- Do not copy .pdb/.xml files that sit next to the referenced osu!lazer assemblies. -->
+    <AllowedReferenceRelatedFileExtensions>.none</AllowedReferenceRelatedFileExtensions>
   </PropertyGroup>
 
   <ItemGroup>
@@ -64,5 +69,22 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.3" />
     <PackageReference Include="System.IO.Pipelines" Version="10.0.0" />
   </ItemGroup>
+
+  <!--
+    osu.Game.Resources.dll (~125MB of skins/audio/textures) is pulled in transitively by osu.Game.dll,
+    but this app never renders osu! resources, so drop it from the build and publish output.
+  -->
+  <Target Name="RemoveOsuGameResources" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)' == 'osu.Game.Resources'" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Native debug symbols (libSkiaSharp.pdb etc.) ship with the NuGet packages; they are not needed at runtime. -->
+  <Target Name="RemoveNativeSymbolsFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
 
 </Project>
