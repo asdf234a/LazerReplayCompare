@@ -106,18 +106,19 @@ internal sealed class ManiaTimelineCalculator
                 {
                     // Give up on an exact match: close as much of the count gap as the widest candidate set allows, keeping
                     // the score as close to the recorded one as possible.
-                    applyResults(processor, simulator.Results, applied, new Dictionary<int, HitResult>());
-                    var widest = new BoundaryCorrector.TimingUncertainty(widened_uncertainties[^1], widened_uncertainties[^1]);
-                    var approx = BoundaryCorrector.Solve(simulator.Results, applied, processor, info.Statistics, info.TotalScore, widest, approximate: true);
-                    if (approx.Approximate && approx.Flips.Count > 0)
+                    var approx = approximateCorrection(playable, columns, replayFrames, gameplayStartTime, simulator.Results, processor, applied, info);
+                    if (approx is { } best)
                     {
-                        frames = applyResults(processor, simulator.Results, applied, approx.Flips);
-                        label = $"approx-corrected(flips={approx.Flips.Count},dS={processor.TotalScore.Value - info.TotalScore})";
+                        frames = applyResults(processor, best.results, applied, best.flips);
+                        var dS = processor.TotalScore.Value - info.TotalScore;
+                        label = best.gap == 0 && dS == 0
+                            ? $"boundary-corrected(flips={best.flips.Count + best.changes},meh-miss={best.changes},widened=±{best.width}ms)"
+                            : $"approx-corrected(flips={best.flips.Count + best.changes},hitΔ={best.gap},dS={dS},±{best.width}ms)";
                     }
                     else
                     {
                         frames = applyResults(processor, simulator.Results, applied, new Dictionary<int, HitResult>());
-                        label = $"raw(boundary:{approx.Note})";
+                        label = $"raw(boundary:{corrected.outcome.Note})";
                     }
                 }
             }
@@ -161,6 +162,66 @@ internal sealed class ManiaTimelineCalculator
     /// <summary>Timing errors (±ms) tried when the rounding-only candidates admit no exact solution.</summary>
     private static readonly double[] widened_uncertainties = { 1.0, 1.5, 2.0 };
 
+    /// <summary>Timing errors (±ms) the approximate correction may assume, nearest judgements to a boundary first.</summary>
+    private static readonly double[] approximate_uncertainties = { 2, 4, 8, 16 };
+
+    private const int max_approximate_miss_variants = 12;
+
+    /// <summary>
+    /// Last resort when no exact solution exists: tries the raw simulation and Meh↔Miss / edge-press variants, each with
+    /// increasingly wide flip candidates, and keeps the result with the smallest statistics gap, then the smallest score
+    /// difference. Returns null when nothing improves on the raw simulation.
+    /// </summary>
+    private static (IReadOnlyList<LazerManiaReplaySimulator.Judged> results, Dictionary<int, HitResult> flips, int changes, int gap, double width)? approximateCorrection(
+        IBeatmap playable,
+        int columns,
+        List<ManiaReplayFrame> replayFrames,
+        double gameplayStartTime,
+        IReadOnlyList<LazerManiaReplaySimulator.Judged> raw,
+        ScoreProcessor processor,
+        List<JudgementResult> applied,
+        ScoreInfo info)
+    {
+        int gapNow() => gap_statistics.Sum(r => Math.Abs(processor.Statistics.GetValueOrDefault(r) - info.Statistics.GetValueOrDefault(r)));
+
+        applyResults(processor, raw, applied, new Dictionary<int, HitResult>());
+        (int gap, long dS) bestKey = (gapNow(), Math.Abs(processor.TotalScore.Value - info.TotalScore));
+        (IReadOnlyList<LazerManiaReplaySimulator.Judged> results, Dictionary<int, HitResult> flips, int changes, int gap, double width)? best = null;
+
+        void consider(IReadOnlyList<LazerManiaReplaySimulator.Judged> results, int changes, double width)
+        {
+            // The processor holds `results` here.
+            var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore, new BoundaryCorrector.TimingUncertainty(width, width), approximate: true);
+            var flips = outcome.Flips;
+            applyResults(processor, results, applied, flips);
+            var key = (gapNow(), Math.Abs(processor.TotalScore.Value - info.TotalScore));
+            if (key.CompareTo(bestKey) < 0)
+            {
+                bestKey = key;
+                best = (results, flips, changes, key.Item1, width);
+            }
+        }
+
+        foreach (var width in approximate_uncertainties)
+        {
+            applyResults(processor, raw, applied, new Dictionary<int, HitResult>());
+            consider(raw, 0, width);
+            if (bestKey == (0, 0)) break;
+
+            var variants = mehMissVariants(playable, columns, replayFrames, gameplayStartTime, raw, processor, applied, info,
+                new BoundaryCorrector.TimingUncertainty(width, width), max_approximate_miss_variants).ToList();
+            foreach (var (results, changes) in variants)
+            {
+                applyResults(processor, results, applied, new Dictionary<int, HitResult>());
+                consider(results, changes, width);
+            }
+
+            if (bestKey == (0, 0)) break;
+        }
+
+        return best;
+    }
+
     private const int max_meh_miss_flips = 3;
     private const int max_meh_miss_attempts = 48;
 
@@ -183,10 +244,41 @@ internal sealed class ManiaTimelineCalculator
         ScoreInfo info,
         BoundaryCorrector.TimingUncertainty uncertainty)
     {
+        foreach (var (variant, changes) in mehMissVariants(playable, columns, replayFrames, gameplayStartTime, results, processor, applied, info, uncertainty, max_meh_miss_attempts))
+        {
+            if (processor.HighestCombo.Value != info.MaxCombo)
+                continue;
+            if (hold_statistics.Any(r => processor.Statistics.GetValueOrDefault(r) != info.Statistics.GetValueOrDefault(r)))
+                continue;
+
+            var outcome = BoundaryCorrector.Solve(variant, applied, processor, info.Statistics, info.TotalScore, uncertainty);
+            if (outcome.Exact)
+                return (variant, outcome, changes);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Re-simulations with Meh↔Miss flips (and ignored edge presses) forced, most likely first. The processor holds each
+    /// yielded variant's results while the caller inspects it.
+    /// </summary>
+    private static IEnumerable<(IReadOnlyList<LazerManiaReplaySimulator.Judged> results, int changes)> mehMissVariants(
+        IBeatmap playable,
+        int columns,
+        List<ManiaReplayFrame> replayFrames,
+        double gameplayStartTime,
+        IReadOnlyList<LazerManiaReplaySimulator.Judged> results,
+        ScoreProcessor processor,
+        List<JudgementResult> applied,
+        ScoreInfo info,
+        BoundaryCorrector.TimingUncertainty uncertainty,
+        int maxAttempts)
+    {
         var missGap = info.Statistics.GetValueOrDefault(HitResult.Miss) - results.Count(r => r.Type == HitResult.Miss);
         var count = Math.Abs(missGap);
         if (count == 0 || count > max_meh_miss_flips)
-            return null;
+            yield break;
 
         var from = missGap > 0 ? HitResult.Meh : HitResult.Miss;
         var to = missGap > 0 ? HitResult.Miss : HitResult.Meh;
@@ -207,7 +299,7 @@ internal sealed class ManiaTimelineCalculator
         }
 
         if (candidates.Count == 0)
-            return null;
+            yield break;
 
         // Ignoring an early press can cascade (the freed later press changes which object the next press reaches), so
         // fewer changes than the miss gap may already close it.
@@ -215,7 +307,7 @@ internal sealed class ManiaTimelineCalculator
             .SelectMany(k => combinations(candidates, k)
                              .Where(set => set.Select(c => c.judged.HitObject).Distinct().Count() == set.Count)
                              .OrderByDescending(set => set.Aggregate(1.0, (p, c) => p * c.probability))
-                             .Take(max_meh_miss_attempts));
+                             .Take(maxAttempts));
 
         foreach (var set in attempts)
         {
@@ -226,18 +318,8 @@ internal sealed class ManiaTimelineCalculator
             };
             simulator.Run(replayFrames, gameplayStartTime);
             applyResults(processor, simulator.Results, applied, new Dictionary<int, HitResult>());
-
-            if (processor.HighestCombo.Value != info.MaxCombo)
-                continue;
-            if (hold_statistics.Any(r => processor.Statistics.GetValueOrDefault(r) != info.Statistics.GetValueOrDefault(r)))
-                continue;
-
-            var outcome = BoundaryCorrector.Solve(simulator.Results, applied, processor, info.Statistics, info.TotalScore, uncertainty);
-            if (outcome.Exact)
-                return (simulator.Results, outcome, set.Count);
+            yield return (simulator.Results, set.Count);
         }
-
-        return null;
     }
 
     private const double timing_nudge = 0.4;
