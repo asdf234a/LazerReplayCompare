@@ -168,22 +168,37 @@ internal sealed class ManiaTimelineCalculator
         var to = missGap > 0 ? HitResult.Miss : HitResult.Meh;
         var candidates = results
             .Where(r => r.Type == from)
-            .Select(r => (judged: r, probability: BoundaryCorrector.FlipProbability(r, to, uncertainty)))
+            .Select(r => (judged: r, to, probability: BoundaryCorrector.FlipProbability(r, to, uncertainty)))
             .Where(c => c.probability > 0)
             .ToList();
-        if (candidates.Count < count)
+
+        // An early press stored on the miss window's edge may really have come just before the window opened. Lazer then
+        // ignored it, and a later press could still hit the note.
+        if (missGap < 0)
+        {
+            candidates.AddRange(results
+                                .Where(r => r.Type == HitResult.Miss && r.Offset < 0)
+                                .Select(r => (judged: r, to: HitResult.None, probability: BoundaryCorrector.FlipProbability(r, HitResult.None, uncertainty)))
+                                .Where(c => c.probability > 0));
+        }
+
+        if (candidates.Count == 0)
             return null;
 
-        var attempts = combinations(candidates, count)
-            .OrderByDescending(set => set.Aggregate(1.0, (p, c) => p * c.probability))
-            .Take(max_meh_miss_attempts);
+        // Ignoring an early press can cascade (the freed later press changes which object the next press reaches), so
+        // fewer changes than the miss gap may already close it.
+        var attempts = Enumerable.Range(1, count)
+            .SelectMany(k => combinations(candidates, k)
+                             .Where(set => set.Select(c => c.judged.HitObject).Distinct().Count() == set.Count)
+                             .OrderByDescending(set => set.Aggregate(1.0, (p, c) => p * c.probability))
+                             .Take(max_meh_miss_attempts));
 
         foreach (var set in attempts)
         {
             var simulator = new LazerManiaReplaySimulator(playable, columns)
             {
                 LiveFrameInterval = LiveFrameIntervalFor(info),
-                ForcedResults = set.ToDictionary(c => c.judged.HitObject, _ => to),
+                ForcedResults = set.ToDictionary(c => c.judged.HitObject, c => c.to),
             };
             simulator.Run(replayFrames, gameplayStartTime);
             applyResults(processor, simulator.Results, applied, new Dictionary<int, HitResult>());
@@ -195,7 +210,7 @@ internal sealed class ManiaTimelineCalculator
 
             var outcome = BoundaryCorrector.Solve(simulator.Results, applied, processor, info.Statistics, info.TotalScore, uncertainty);
             if (outcome.Exact)
-                return (simulator.Results, outcome, count);
+                return (simulator.Results, outcome, set.Count);
         }
 
         return null;

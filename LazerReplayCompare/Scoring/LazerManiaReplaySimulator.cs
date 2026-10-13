@@ -222,7 +222,7 @@ internal sealed class LazerManiaReplaySimulator
         if (now > tail.StartTime && !tail.HitWindows.CanBeHit(now - tail.StartTime)) return false;
 
         // beginHoldAt
-        if (now - o.Head!.HitObject.StartTime >= -windows(o.Head).WindowFor(HitResult.Miss))
+        if (now - o.Head!.HitObject.StartTime >= -windows(o.Head).WindowFor(HitResult.Miss) && !ignoresPress(o.Head, now - o.Head.HitObject.StartTime))
             o.Holding = true;
 
         if (o.Head.Judged) return false;
@@ -287,16 +287,24 @@ internal sealed class LazerManiaReplaySimulator
             return;
         }
         var result = windows(e).ResultFor(offset);
-        if (result == HitResult.None) return;
+        if (result == HitResult.None || ignoresPress(e, offset * scale)) return;
         pendingOffset = (offset * scale, scale, capped(HitResult.Perfect) != HitResult.Perfect);
         apply(owner, e, capped(result));
         pendingOffset = null;
     }
 
+    /// <summary>
+    /// A <see cref="HitResult.None"/> entry in <see cref="ForcedResults"/> marks a press that only lands inside the miss
+    /// window because of millisecond rounding: such a press is ignored, as if it came just before the window opened.
+    /// </summary>
+    private bool ignoresPress(Entity e, double offset)
+        => ForcedResults != null && ForcedResults.TryGetValue(e.HitObject, out var forced) && forced == HitResult.None
+           && windows(e).ResultFor(offset) == HitResult.Miss;
+
     private void apply(Obj owner, Entity e, HitResult type)
     {
         if (e.Judged) return;
-        if (pendingOffset != null && ForcedResults != null && ForcedResults.TryGetValue(e.HitObject, out var forced))
+        if (pendingOffset != null && ForcedResults != null && ForcedResults.TryGetValue(e.HitObject, out var forced) && forced != HitResult.None)
             type = forced;
         e.Judged = true;
         e.Type = type;
