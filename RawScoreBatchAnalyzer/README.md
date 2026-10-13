@@ -23,14 +23,17 @@ git switch experiment/raw-correction-tuning
 
 ## Output
 
-The CSV contains one row per replay, including:
+Each replay is decoded once and simulated once with the lazer replay port (the same judgement code path osu!lazer uses
+for playback, scored with lazer's own score processor). The CSV contains one row per replay, including:
 
 - replay and beatmap path
-- final OSR score and Raw score
-- score delta and normalized score delta
-- final accuracy delta
-- judgement count deltas
-- max combo delta
-- status and error message
+- recorded score (`OsrScore`, the lazer score; for stable replays lazer's conversion of the stable score)
+- `Raw*`: the port's result, exactly as osu!lazer plays the replay back
+- `Corrected*`: the result after boundary correction (sub-millisecond judgement flips that reproduce the recorded
+  statistics and score; equal to Raw for stable replays)
+- score, accuracy, judgement-count and max-combo deltas for both, plus `RawHitDelta` / `CorrectedHitDelta`
+  (sum of absolute per-judgement count differences)
+- `IsLegacy` (stable replay: its statistics count one judgement per hold note, so count deltas are not comparable)
+- `Correction` label, status and error message
 
 Only osu!mania replays are analyzed. Other modes are skipped.

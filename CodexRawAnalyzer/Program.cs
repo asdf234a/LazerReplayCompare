@@ -82,18 +82,19 @@ static void PrintReportSummary(string csvPath, string label)
     Console.WriteLine($"[{label}] meanAbsAccuracy={absAccuracy.Average():F6}, accuracyBias={rows.Average(row => Number(row, "AccuracyDelta")):F6}");
     Console.WriteLine($"[{label}] meanAbsMiss={absMiss.Average():F3}, missBias={rows.Average(row => Number(row, "MissDelta")):F3}, totalAbsCombo={absCombo.Sum():F0}");
 
-    if (rows[0].ContainsKey("CommitScoreDelta"))
+    if (rows[0].ContainsKey("CorrectedScoreDelta"))
     {
-        var commitAbsScores = rows.Select(row => Math.Abs(Number(row, "CommitScoreDelta"))).ToArray();
-        var commitAbsAccuracy = rows.Select(row => Math.Abs(Number(row, "CommitAccuracyDelta"))).ToArray();
-        var commitAbsCombo = rows.Select(row => Math.Abs(Number(row, "CommitMaxComboDelta"))).ToArray();
-        var scoreImproved = rows.Count(row => Math.Abs(Number(row, "CommitScoreDelta")) < Math.Abs(Number(row, "ScoreDelta")));
-        var scoreWorsened = rows.Count(row => Math.Abs(Number(row, "CommitScoreDelta")) > Math.Abs(Number(row, "ScoreDelta")));
+        var correctedAbsScores = rows.Select(row => Math.Abs(Number(row, "CorrectedScoreDelta"))).ToArray();
+        var correctedAbsAccuracy = rows.Select(row => Math.Abs(Number(row, "CorrectedAccuracyDelta"))).ToArray();
+        var correctedAbsCombo = rows.Select(row => Math.Abs(Number(row, "CorrectedMaxComboDelta"))).ToArray();
+        var exact = rows.Count(row => Number(row, "CorrectedScoreDelta") == 0 && Number(row, "CorrectedHitDelta") == 0);
+        var scoreImproved = rows.Count(row => Math.Abs(Number(row, "CorrectedScoreDelta")) < Math.Abs(Number(row, "ScoreDelta")));
+        var scoreWorsened = rows.Count(row => Math.Abs(Number(row, "CorrectedScoreDelta")) > Math.Abs(Number(row, "ScoreDelta")));
         var scoreSame = rows.Length - scoreImproved - scoreWorsened;
 
-        Console.WriteLine($"[{label}/commit] meanAbsScore={commitAbsScores.Average():F2}, medianAbsScore={Median(commitAbsScores):F2}, p90AbsScore={Percentile(commitAbsScores, 0.90):F2}, scoreBias={rows.Average(row => Number(row, "CommitScoreDelta")):F2}");
-        Console.WriteLine($"[{label}/commit] meanAbsAccuracy={commitAbsAccuracy.Average():F6}, accuracyBias={rows.Average(row => Number(row, "CommitAccuracyDelta")):F6}, totalAbsCombo={commitAbsCombo.Sum():F0}");
-        Console.WriteLine($"[{label}/commit-vs-time] ScoreDelta improved={scoreImproved}, worsened={scoreWorsened}, same={scoreSame}, totalAbsTime={absScores.Sum():F2}, totalAbsCommit={commitAbsScores.Sum():F2}");
+        Console.WriteLine($"[{label}/corrected] meanAbsScore={correctedAbsScores.Average():F2}, medianAbsScore={Median(correctedAbsScores):F2}, p90AbsScore={Percentile(correctedAbsScores, 0.90):F2}, scoreBias={rows.Average(row => Number(row, "CorrectedScoreDelta")):F2}");
+        Console.WriteLine($"[{label}/corrected] meanAbsAccuracy={correctedAbsAccuracy.Average():F6}, accuracyBias={rows.Average(row => Number(row, "CorrectedAccuracyDelta")):F6}, totalAbsCombo={correctedAbsCombo.Sum():F0}, exact={exact}/{rows.Length}");
+        Console.WriteLine($"[{label}/corrected-vs-raw] ScoreDelta improved={scoreImproved}, worsened={scoreWorsened}, same={scoreSame}, totalAbsRaw={absScores.Sum():F2}, totalAbsCorrected={correctedAbsScores.Sum():F2}");
     }
 }
 

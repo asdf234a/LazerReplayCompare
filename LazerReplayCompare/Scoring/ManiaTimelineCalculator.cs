@@ -10,7 +10,7 @@ using osu.Game.Scoring;
 
 namespace LazerReplayCompare;
 
-internal sealed record ManiaTimelineResult(List<ReplayTimelineFrame> Frames, string Label, double ScoreMultiplier);
+internal sealed record ManiaTimelineResult(List<ReplayTimelineFrame> Frames, List<ReplayTimelineFrame> RawFrames, string Label, double ScoreMultiplier);
 
 /// <summary>
 /// Builds a score timeline for an osu!mania replay without frame headers by replaying it through
@@ -35,7 +35,7 @@ internal sealed class ManiaTimelineCalculator
         var ruleset = new ManiaRuleset();
         var playable = new FlatWorkingBeatmap(beatmapPath).GetPlayableBeatmap(ruleset.RulesetInfo, info.Mods);
         if (playable.HitObjects.Count == 0)
-            return new ManiaTimelineResult(new List<ReplayTimelineFrame>(), "lazer-port(empty)", 1);
+            return new ManiaTimelineResult(new List<ReplayTimelineFrame>(), new List<ReplayTimelineFrame>(), "lazer-port(empty)", 1);
 
         var simulator = new LazerManiaReplaySimulator(playable, ((ManiaBeatmap)playable).TotalColumns);
         simulator.Run(
@@ -47,7 +47,8 @@ internal sealed class ManiaTimelineCalculator
         processor.Mods.Value = info.Mods;
         processor.ApplyBeatmap(playable);
         var applied = new List<JudgementResult>(results.Count);
-        var frames = applyResults(processor, results, applied, new Dictionary<int, HitResult>());
+        var rawFrames = applyResults(processor, results, applied, new Dictionary<int, HitResult>());
+        var frames = rawFrames;
         var scoreMultiplier = getScoreMultiplier(processor);
 
         var label = "raw";
@@ -74,7 +75,7 @@ internal sealed class ManiaTimelineCalculator
             }
         }
 
-        return new ManiaTimelineResult(frames, label, scoreMultiplier);
+        return new ManiaTimelineResult(frames, rawFrames, label, scoreMultiplier);
     }
 
     /// <summary>

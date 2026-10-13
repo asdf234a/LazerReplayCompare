@@ -12,8 +12,6 @@ namespace RawScoreBatchAnalyzer.Analysis;
 
 public sealed class RawReplayAnalyzer
 {
-    private readonly ReplayTimelineBuilder timelineBuilder = new();
-
     public async Task<AnalysisSummary> AnalyzeAsync(
         AnalysisOptions options,
         IProgress<AnalysisProgress> progress,
@@ -135,23 +133,26 @@ public sealed class RawReplayAnalyzer
                 return Error(replayPath, "skipped", "Only osu!mania replays are supported.");
 
             var replayMods = GetReplayMods(source);
-            var rate = ModUtility.GetPlaybackRate(replayMods);
-            if (Math.Abs(rate - 1.0) < 0.0001)
-                rate = ModUtility.GetPlaybackRate(source);
-            var raw = timelineBuilder.Build(replayPath, beatmapPath, rate, CorrectionMode.Raw);
-            var commitRaw = timelineBuilder.Build(replayPath, beatmapPath, rate, CorrectionMode.Raw, JudgementScoreOrder.CommitTime);
-            var lastFrame = raw.Frames.LastOrDefault();
-            var lastCommitFrame = commitRaw.Frames.LastOrDefault();
-            if (lastFrame == null)
-                return Error(replayPath, "failed", "Raw timeline is empty.");
-            if (lastCommitFrame == null)
-                return Error(replayPath, "failed", "Commit-order raw timeline is empty.");
+            var rate = ModUtility.GetPlaybackRate(source);
+
+            // One decode + one simulation per replay: the lazer port gives the raw result and the boundary-corrected one.
+            var simulation = ManiaReplaySimulation.Run(source, beatmapPath);
+            var raw = simulation.RawFinal;
+            var corrected = simulation.CorrectedFinal;
 
             var scoreInfo = source.ScoreInfo;
-            var rawHits = lastFrame.Hits;
-            var rawScore = lastFrame.Score;
+            // Recorded lazer score (for stable replays this is lazer's conversion of the stable score).
+            var osrScore = scoreInfo.TotalScore;
             var osrAccuracy = scoreInfo.Accuracy;
-            var rawAccuracy = lastFrame.Accuracy;
+            var osrHits = new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["Perfect"] = header.CountGeki,
+                ["Great"] = header.Count300,
+                ["Good"] = header.CountKatu,
+                ["Ok"] = header.Count100,
+                ["Meh"] = header.Count50,
+                ["Miss"] = header.CountMiss,
+            };
 
             return new ReplayAnalysisResult(
                 ReplayFile: replayPath,
@@ -161,37 +162,41 @@ public sealed class RawReplayAnalyzer
                 Mods: ModUtility.FormatModsText(replayMods),
                 Rate: rate,
                 Ruleset: "mania",
-                OsrScore: header.TotalScore,
-                RawScore: rawScore,
-                ScoreDelta: rawScore - header.TotalScore,
-                ScoreDeltaRatio: header.TotalScore != 0 ? Math.Abs(rawScore - header.TotalScore) / (double)Math.Abs(header.TotalScore) : 0,
-                CommitRawScore: lastCommitFrame.Score,
-                CommitScoreDelta: lastCommitFrame.Score - header.TotalScore,
-                CommitScoreDeltaRatio: header.TotalScore != 0 ? Math.Abs(lastCommitFrame.Score - header.TotalScore) / (double)Math.Abs(header.TotalScore) : 0,
+                OsrScore: osrScore,
+                RawScore: raw.Score,
+                ScoreDelta: raw.Score - osrScore,
+                ScoreDeltaRatio: DeltaRatio(raw.Score, osrScore),
+                CorrectedScore: corrected.Score,
+                CorrectedScoreDelta: corrected.Score - osrScore,
+                CorrectedScoreDeltaRatio: DeltaRatio(corrected.Score, osrScore),
                 OsrAccuracy: osrAccuracy,
-                RawAccuracy: rawAccuracy,
-                AccuracyDelta: rawAccuracy - osrAccuracy,
-                CommitRawAccuracy: lastCommitFrame.Accuracy,
-                CommitAccuracyDelta: lastCommitFrame.Accuracy - osrAccuracy,
+                RawAccuracy: raw.Accuracy,
+                AccuracyDelta: raw.Accuracy - osrAccuracy,
+                CorrectedAccuracy: corrected.Accuracy,
+                CorrectedAccuracyDelta: corrected.Accuracy - osrAccuracy,
                 OsrPerfect: header.CountGeki,
-                RawPerfect: Hit(rawHits, "Perfect"),
+                RawPerfect: Hit(raw.Hits, "Perfect"),
                 OsrGreat: header.Count300,
-                RawGreat: Hit(rawHits, "Great"),
+                RawGreat: Hit(raw.Hits, "Great"),
                 OsrGood: header.CountKatu,
-                RawGood: Hit(rawHits, "Good"),
+                RawGood: Hit(raw.Hits, "Good"),
                 OsrOk: header.Count100,
-                RawOk: Hit(rawHits, "Ok"),
+                RawOk: Hit(raw.Hits, "Ok"),
                 OsrMeh: header.Count50,
-                RawMeh: Hit(rawHits, "Meh"),
+                RawMeh: Hit(raw.Hits, "Meh"),
                 OsrMiss: header.CountMiss,
-                RawMiss: Hit(rawHits, "Miss"),
-                MissDelta: Hit(rawHits, "Miss") - header.CountMiss,
+                RawMiss: Hit(raw.Hits, "Miss"),
+                MissDelta: Hit(raw.Hits, "Miss") - header.CountMiss,
                 OsrMaxCombo: header.MaxCombo,
-                RawMaxCombo: lastFrame.MaxCombo,
-                MaxComboDelta: lastFrame.MaxCombo - header.MaxCombo,
-                CommitRawMaxCombo: lastCommitFrame.MaxCombo,
-                CommitMaxComboDelta: lastCommitFrame.MaxCombo - header.MaxCombo,
-                NoteCount: raw.TotalNotes,
+                RawMaxCombo: raw.MaxCombo,
+                MaxComboDelta: raw.MaxCombo - header.MaxCombo,
+                CorrectedMaxCombo: corrected.MaxCombo,
+                CorrectedMaxComboDelta: corrected.MaxCombo - header.MaxCombo,
+                RawHitDelta: HitDelta(raw.Hits, osrHits),
+                CorrectedHitDelta: HitDelta(corrected.Hits, osrHits),
+                IsLegacy: scoreInfo.LegacyTotalScore != null,
+                Correction: simulation.Correction,
+                NoteCount: simulation.JudgementCount,
                 Status: "ok",
                 Error: string.Empty);
         }
@@ -226,6 +231,16 @@ public sealed class RawReplayAnalyzer
     private static int Hit(IReadOnlyDictionary<string, int> hits, string key)
     {
         return hits.TryGetValue(key, out var value) ? value : 0;
+    }
+
+    private static int HitDelta(IReadOnlyDictionary<string, int> simulated, IReadOnlyDictionary<string, int> recorded)
+    {
+        return recorded.Keys.Sum(key => Math.Abs(Hit(simulated, key) - Hit(recorded, key)));
+    }
+
+    private static double DeltaRatio(long value, long reference)
+    {
+        return reference != 0 ? Math.Abs(value - reference) / (double)Math.Abs(reference) : 0;
     }
 
     private static string? GetStringProperty(object source, string name)
@@ -345,14 +360,14 @@ public sealed class RawReplayAnalyzer
             RawScore: 0,
             ScoreDelta: 0,
             ScoreDeltaRatio: 0,
-            CommitRawScore: 0,
-            CommitScoreDelta: 0,
-            CommitScoreDeltaRatio: 0,
+            CorrectedScore: 0,
+            CorrectedScoreDelta: 0,
+            CorrectedScoreDeltaRatio: 0,
             OsrAccuracy: 0,
             RawAccuracy: 0,
             AccuracyDelta: 0,
-            CommitRawAccuracy: 0,
-            CommitAccuracyDelta: 0,
+            CorrectedAccuracy: 0,
+            CorrectedAccuracyDelta: 0,
             OsrPerfect: 0,
             RawPerfect: 0,
             OsrGreat: 0,
@@ -369,8 +384,12 @@ public sealed class RawReplayAnalyzer
             OsrMaxCombo: 0,
             RawMaxCombo: 0,
             MaxComboDelta: 0,
-            CommitRawMaxCombo: 0,
-            CommitMaxComboDelta: 0,
+            CorrectedMaxCombo: 0,
+            CorrectedMaxComboDelta: 0,
+            RawHitDelta: 0,
+            CorrectedHitDelta: 0,
+            IsLegacy: false,
+            Correction: string.Empty,
             NoteCount: 0,
             Status: status,
             Error: error);
