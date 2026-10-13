@@ -45,7 +45,7 @@ internal sealed class ManiaTimelineCalculator
         var columns = ((ManiaBeatmap)playable).TotalColumns;
         var replayFrames = score.Replay.Frames.OfType<ManiaReplayFrame>().OrderBy(frame => frame.Time).ToList();
         var gameplayStartTime = playable.HitObjects[0].StartTime - 2000;
-        var simulator = new LazerManiaReplaySimulator(playable, columns);
+        var simulator = new LazerManiaReplaySimulator(playable, columns) { LiveFrameInterval = LiveFrameIntervalFor(info) };
         simulator.Run(replayFrames, gameplayStartTime);
         var results = simulator.Results;
 
@@ -108,6 +108,24 @@ internal sealed class ManiaTimelineCalculator
         return new ManiaTimelineResult(frames, rawFrames, label, scoreMultiplier);
     }
 
+    /// <summary>
+    /// Replays recorded before osu!lazer 2025.530 only contain frames where the input changed (plus a 60Hz heartbeat),
+    /// so playing them back skips the live updates in which expired objects were missed before the next input arrived.
+    /// </summary>
+    internal static double? LiveFrameIntervalFor(ScoreInfo info)
+        => info.LegacyTotalScore == null && PreRoundingManiaHitWindows.IsBefore(info, (2025, 530)) ? LiveFrameInterval : null;
+
+    /// <summary>
+    /// How long before an input the emulated live update runs. Results are identical for anything up to ~0.25ms;
+    /// LRC_LIVE_FRAME overrides it ("off" disables the emulation).
+    /// </summary>
+    internal static double? LiveFrameInterval = Environment.GetEnvironmentVariable("LRC_LIVE_FRAME") switch
+    {
+        "off" => null,
+        { } value when double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var live) => live,
+        _ => 0.1,
+    };
+
     /// <summary>Timing uncertainty assumed for replays set before osu!lazer 2025.710 (experimental).</summary>
     internal static BoundaryCorrector.TimingUncertainty OldReplayUncertainty = parseUncertainty(Environment.GetEnvironmentVariable("LRC_OLD_UNCERTAINTY")) ?? BoundaryCorrector.TimingUncertainty.Rounding;
 
@@ -164,6 +182,7 @@ internal sealed class ManiaTimelineCalculator
         {
             var simulator = new LazerManiaReplaySimulator(playable, columns)
             {
+                LiveFrameInterval = LiveFrameIntervalFor(info),
                 ForcedResults = set.ToDictionary(c => c.judged.HitObject, _ => to),
             };
             simulator.Run(replayFrames, gameplayStartTime);
@@ -216,7 +235,7 @@ internal sealed class ManiaTimelineCalculator
 
         IReadOnlyList<LazerManiaReplaySimulator.Judged> simulate(List<ManiaReplayFrame> frames)
         {
-            var simulator = new LazerManiaReplaySimulator(playable, columns);
+            var simulator = new LazerManiaReplaySimulator(playable, columns) { LiveFrameInterval = LiveFrameIntervalFor(info) };
             simulator.Run(frames, gameplayStartTime);
             return simulator.Results;
         }

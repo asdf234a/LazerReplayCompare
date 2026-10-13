@@ -49,19 +49,20 @@ internal sealed class PreRoundingManiaHitWindows : HitWindows
     /// client version when available and falls back to the play date (as ManiaScoreMultiplierCalculator does).
     /// </summary>
     public static bool AppliesTo(ScoreInfo score)
-    {
-        if (score.LegacyTotalScore != null)
-            return false;
+        => score.LegacyTotalScore == null && IsBefore(score, FIRST_ROUNDED_RELEASE);
 
+    /// <summary>Whether the score was set on an osu!lazer release older than <paramref name="release"/> (year, MDD).</summary>
+    public static bool IsBefore(ScoreInfo score, (int Year, int MonthDay) release)
+    {
         var clientVersion = score.ClientVersion;
         if (!string.IsNullOrEmpty(clientVersion))
         {
             var pieces = clientVersion.Split('.', '-');
             if (pieces.Length >= 2 && int.TryParse(pieces[0], out var year) && int.TryParse(pieces[1], out var monthDay))
-                return (year, monthDay).CompareTo(FIRST_ROUNDED_RELEASE) < 0;
+                return (year, monthDay).CompareTo(release) < 0;
         }
 
-        return score.Date < new DateTimeOffset(FIRST_ROUNDED_RELEASE.Year, 7, 10, 0, 0, 0, TimeSpan.Zero);
+        return score.Date < new DateTimeOffset(release.Year, release.MonthDay / 100, release.MonthDay % 100, 0, 0, 0, TimeSpan.Zero);
     }
 
     /// <summary>Replaces the hit windows of every note, hold head and hold tail with the pre-2025.710 ones.</summary>

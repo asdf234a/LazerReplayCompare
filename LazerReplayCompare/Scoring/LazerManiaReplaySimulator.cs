@@ -88,6 +88,12 @@ internal sealed class LazerManiaReplaySimulator
         firstActive = new int[columnCount];
     }
 
+    /// <summary>
+    /// When set, an extra update this many milliseconds before every input change emulates the live gameplay frame that
+    /// preceded it (see <see cref="Run"/>). Null replays exactly like osu!lazer's replay player.
+    /// </summary>
+    public double? LiveFrameInterval { get; init; }
+
     public void Run(IReadOnlyList<ManiaReplayFrame> frames, double gameplayStartTime, double hostStep = 50)
     {
         // Emulates GameplayClockContainer → FrameStabilityContainer → FramedReplayInputHandler.
@@ -112,7 +118,18 @@ internal sealed class LazerManiaReplaySimulator
                 else if (Math.Abs(manual - proposed) > sixty * 1.2) proposed = Math.Min(proposed, manual + sixty);
 
                 // SetFrameFromTime: advance at most one frame and land exactly on it.
-                if (frameTime(frameIndex + 1) <= proposed) { proposed = frameTime(frameIndex + 1); frameIndex++; }
+                if (frameTime(frameIndex + 1) <= proposed)
+                {
+                    proposed = frameTime(frameIndex + 1);
+                    frameIndex++;
+
+                    // Live gameplay keeps updating between inputs, so objects whose window ran out are already
+                    // missed when the next input arrives. Replays recorded before 2025.530 carry no frame for those
+                    // judgements; emulate the live frame that preceded this input.
+                    if (LiveFrameInterval is double live && frameIndex > 0 && proposed - live > manual &&
+                        !frames[frameIndex].Actions.SequenceEqual(frames[frameIndex - 1].Actions))
+                        step(proposed - live, frames[frameIndex - 1].Actions, lastPressed);
+                }
                 proposed = Math.Clamp(proposed, frameTime(frameIndex), frameTime(frameIndex + 1));
 
                 manual = proposed;
