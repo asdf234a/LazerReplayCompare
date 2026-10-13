@@ -53,7 +53,7 @@ dotnet run --project .\LazerReplayCompare
 
 - `LazerReplayCompare.Core` - class library with the replay scoring code: `.osr` decoding, the drawable-free osu!lazer mania replay simulator, boundary/approximate correction and score timelines (`ReplayTimelineBuilder`, `ManiaReplaySimulation`). It has no UI dependencies. By default it compiles against the installed osu!lazer (`OsuLazerCurrentPath`); build with `-p:OsuReference=NuGet` to use the `ppy.osu.Game` NuGet packages instead.
 - `LazerReplayCompare` - the Avalonia app, overlay API server and tosu integration; references the library.
-- `RawScoreBatchAnalyzer`, `CodexRawAnalyzer` - batch analysis tools; reference the library (not the app).
+- `RawScoreBatchAnalyzer` - batch analysis tool (one CSV row per replay); references the library, not the app.
 
 ## Build Release
 
