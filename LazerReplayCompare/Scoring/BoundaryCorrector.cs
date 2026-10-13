@@ -12,7 +12,26 @@ namespace LazerReplayCompare;
 internal static class BoundaryCorrector
 {
     public sealed record Candidate(int Index, HitResult From, HitResult To, double Probability, double DeltaBase, double DeltaCombo, double Time);
-    public sealed record Outcome(Dictionary<int, HitResult> Flips, long Score, int ExactSolutions, int Candidates, long ElapsedMs, string Note);
+    public sealed record Outcome(Dictionary<int, HitResult> Flips, long Score, int ExactSolutions, int Candidates, long ElapsedMs, string Note)
+    {
+        public bool Exact => Flips.Count > 0 || Note == "already exact";
+    }
+
+    /// <summary>
+    /// Fraction of the ±0.5ms rounding interval around a user-triggered judgement's offset in which it would have been
+    /// judged as <paramref name="to"/> instead (0 when not user-triggered).
+    /// </summary>
+    public static double FlipProbability(LazerManiaReplaySimulator.Judged r, HitResult to)
+    {
+        if (r.Offset is not double off) return 0;
+        var w = r.HitObject.HitWindows;
+        HitResult judge(double o) { var x = w.ResultFor(o / r.Scale); return r.CapAtMeh && x > HitResult.Meh ? HitResult.Meh : x; }
+        if (judge(off - 0.4999) != to && judge(off + 0.4999) != to) return 0;
+        const int n = 1000;
+        int hits = 0;
+        for (int s = 0; s < n; s++) if (judge(off - 0.5 + (s + 0.5) / n) == to) hits++;
+        return hits / (double)n;
+    }
 
     private static readonly HitResult[] kinds = [HitResult.Perfect, HitResult.Great, HitResult.Good, HitResult.Ok, HitResult.Meh];
 

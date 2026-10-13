@@ -56,6 +56,13 @@ internal sealed class LazerManiaReplaySimulator
 
     public IReadOnlyList<Judged> Results => results;
 
+    /// <summary>
+    /// User-triggered judgements to override (keyed by hit object). The override replaces the result at the moment it is
+    /// applied, so everything downstream (OrderedHitPolicy, hold note state, tail capping) reacts exactly as it would have
+    /// had the input landed on the other side of a window boundary.
+    /// </summary>
+    public IReadOnlyDictionary<HitObject, HitResult>? ForcedResults { get; init; }
+
     public LazerManiaReplaySimulator(IBeatmap playable, int columnCount)
     {
         columns = Enumerable.Range(0, columnCount).Select(_ => new List<Obj>()).ToArray();
@@ -272,6 +279,8 @@ internal sealed class LazerManiaReplaySimulator
     private void apply(Obj owner, Entity e, HitResult type)
     {
         if (e.Judged) return;
+        if (pendingOffset != null && ForcedResults != null && ForcedResults.TryGetValue(e.HitObject, out var forced))
+            type = forced;
         e.Judged = true;
         e.Type = type;
         results.Add(pendingOffset is { } po ? new Judged(now, e.HitObject, type, po.offset, po.scale, po.cap) : new Judged(now, e.HitObject, type));
