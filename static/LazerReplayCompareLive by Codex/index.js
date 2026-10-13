@@ -33,6 +33,8 @@ const state = {
     timelineSource: '',
     timelineTotalNotes: 0,
     correctionMode: 'corrected',
+    scaleMetric: '',
+    scaleFactor: 1,
     displayMetrics: {
         main: 'Score',
         sub: 'Acc',
@@ -179,6 +181,11 @@ function updateDisplayMetrics(data) {
     state.displayMetrics.sub = normalizeMetric(data.displayMetrics.sub, state.displayMetrics.sub);
 }
 
+// Scaled timelines rescale score/accuracy on the server; hit-based metrics carry a factor instead.
+function frameScale(key) {
+    return state.scaleMetric === key ? state.scaleFactor : 1;
+}
+
 function metricValue(metric, frame) {
     const key = normalizeMetric(metric);
     if (!frame) return { text: '-', className: 'neutral', hidden: key === 'Off' };
@@ -187,16 +194,16 @@ function metricValue(metric, frame) {
     let text = '0';
 
     if (key === 'PpAcc') {
-        value = ppAccuracy(state.hits) - ppAccuracy(frame.hits);
+        value = ppAccuracy(state.hits) - ppAccuracy(frame.hits) * frameScale(key);
         text = `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
     } else if (key === 'V1Acc') {
-        value = v1Accuracy(state.hits) - v1Accuracy(frame.hits);
+        value = v1Accuracy(state.hits) - v1Accuracy(frame.hits) * frameScale(key);
         text = `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
     } else if (key === 'PpScore') {
-        value = ppScore(state.hits) - ppScore(frame.hits);
+        value = ppScore(state.hits) - ppScore(frame.hits) * frameScale(key);
         text = fmtDiff(value);
     } else if (key === 'Bms') {
-        value = bmsScore(state.hits) - bmsScore(frame.hits);
+        value = bmsScore(state.hits) - bmsScore(frame.hits) * frameScale(key);
         text = fmtDiff(value);
     } else if (key === 'Acc') {
         value = state.accuracy - frame.accuracy;
@@ -215,15 +222,15 @@ function metricValue(metric, frame) {
     };
 }
 
-function metricAbsoluteValue(metric, source) {
+function metricAbsoluteValue(metric, source, scale = 1) {
     const key = normalizeMetric(metric);
     if (!source || key === 'Off') return { text: '-', hidden: key === 'Off' };
 
     const hits = source.hits || {};
-    if (key === 'PpAcc') return { text: `${ppAccuracy(hits).toFixed(2)}%`, hidden: false };
-    if (key === 'V1Acc') return { text: `${v1Accuracy(hits).toFixed(2)}%`, hidden: false };
-    if (key === 'PpScore') return { text: fmtScore(ppScore(hits)), hidden: false };
-    if (key === 'Bms') return { text: fmtScore(bmsScore(hits)), hidden: false };
+    if (key === 'PpAcc') return { text: `${(ppAccuracy(hits) * scale).toFixed(2)}%`, hidden: false };
+    if (key === 'V1Acc') return { text: `${(v1Accuracy(hits) * scale).toFixed(2)}%`, hidden: false };
+    if (key === 'PpScore') return { text: fmtScore(ppScore(hits) * scale), hidden: false };
+    if (key === 'Bms') return { text: fmtScore(bmsScore(hits) * scale), hidden: false };
     if (key === 'Acc') return { text: fmtAcc(source.accuracy), hidden: false };
     return { text: fmtScore(source.score), hidden: false };
 }
@@ -240,8 +247,8 @@ function renderSideMetrics(frame) {
     const liveSource = liveMetricSource();
     const liveMain = metricAbsoluteValue(state.displayMetrics.main, liveSource);
     const liveSub = metricAbsoluteValue(state.displayMetrics.sub, liveSource);
-    const replayMain = metricAbsoluteValue(state.displayMetrics.main, frame);
-    const replaySub = metricAbsoluteValue(state.displayMetrics.sub, frame);
+    const replayMain = metricAbsoluteValue(state.displayMetrics.main, frame, frameScale(normalizeMetric(state.displayMetrics.main)));
+    const replaySub = metricAbsoluteValue(state.displayMetrics.sub, frame, frameScale(normalizeMetric(state.displayMetrics.sub)));
 
     $('liveScore').textContent = liveMain.text;
     $('liveAcc').textContent = liveSub.hidden ? '' : liveSub.text;
@@ -400,13 +407,14 @@ async function checkTimelineState(force = false) {
     }
 }
 
-async function fetchTimeline(replayPath, osuPath, rate, correction) {
+async function fetchTimeline(replayPath, osuPath, rate, correction, scaleMetric = '') {
     const query = new URLSearchParams({
         osr: replayPath,
         osu: osuPath,
         rate: rate.toFixed(4),
         correction,
     });
+    if (scaleMetric) query.set('metric', scaleMetric);
     return fetchJson(`/timeline?${query}`);
 }
 
@@ -426,6 +434,8 @@ function applyTimeline(data, key, sourceSuffix = '') {
 
     state.replayFrames = frames;
     state.replayBaseKey = key;
+    state.scaleMetric = data.scaleMetric || '';
+    state.scaleFactor = Number(data.scaleFactor) || 1;
     state.timelineSource = `${data.source || ''}${sourceSuffix}`;
     state.timelineTotalNotes = Number(data.totalNotes || 0);
 }
@@ -477,7 +487,8 @@ async function loadTimeline(force = false, timelineStateKey = '', correctionOver
             ? replayRate
             : parseFloat(state.modsKey.split('|')[1]) || 1;
         const correction = correctionOverride || await getCorrectionMode();
-        const targetKey = `${currentBaseKey}|${target.replay.filePath}|${rate.toFixed(4)}|${correction}`;
+        const scaleMetric = correction === 'scaled' ? state.displayMetrics.main : '';
+        const targetKey = `${currentBaseKey}|${target.replay.filePath}|${rate.toFixed(4)}|${correction}|${scaleMetric}`;
 
         if (!force && state.targetKey === targetKey && state.replayBaseKey === currentBaseKey) {
             state.loadedKey = currentBaseKey;
@@ -486,14 +497,14 @@ async function loadTimeline(force = false, timelineStateKey = '', correctionOver
 
         const raw = await fetchTimeline(target.replay.filePath, state.osuPath, rate, 'raw');
         if (currentBaseKey !== baseKey()) return;
-        applyTimeline(raw, currentBaseKey, correction === 'corrected' ? ' (temporary)' : '');
+        applyTimeline(raw, currentBaseKey, correction !== 'raw' ? ' (temporary)' : '');
         state.loadedKey = currentBaseKey;
         state.loadedStateKey = timelineStateKey || targetKey;
         state.targetKey = targetKey;
         render();
 
-        if (correction === 'corrected') {
-            const corrected = await fetchTimeline(target.replay.filePath, state.osuPath, rate, 'corrected');
+        if (correction !== 'raw') {
+            const corrected = await fetchTimeline(target.replay.filePath, state.osuPath, rate, correction, scaleMetric);
             if (currentBaseKey !== baseKey()) return;
             applyTimeline(corrected, currentBaseKey);
             state.targetKey = targetKey;

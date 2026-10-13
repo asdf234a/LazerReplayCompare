@@ -190,6 +190,7 @@
                         SelectionChanged="CorrectionModeSelectionChanged">
                 <ComboBoxItem Content="Corrected" />
                 <ComboBoxItem Content="Raw" />
+                <ComboBoxItem Content="Scaled" />
               </ComboBox>
               <TextBlock Grid.Column="5" Text="Main" Classes="muted" VerticalAlignment="Center" />
               <ComboBox Grid.Column="6"

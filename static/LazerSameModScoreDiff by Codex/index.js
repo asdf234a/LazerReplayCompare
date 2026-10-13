@@ -30,6 +30,8 @@ const cache = {
     replayPath: '',
     targetMode: '',
     correctionMode: 'corrected',
+    scaleMetric: '',
+    scaleFactor: 1,
     displayMetrics: {
         main: 'Score',
         sub: 'Off',
@@ -409,27 +411,32 @@ function updateDisplayMetrics(data) {
     cache.displayMetrics.sub = normalizeMetric(data.displayMetrics.sub, cache.displayMetrics.sub);
 }
 
+// Scaled timelines rescale score/accuracy on the server; hit-based metrics carry a factor instead.
+function frameScale(key) {
+    return cache.scaleMetric === key ? cache.scaleFactor : 1;
+}
+
 function getMetric(metric, frame) {
     const key = normalizeMetric(metric);
     if (!frame || key === 'Off') return { key, value: 0, formatted: { sign: '', value: '' }, prefix: '', suffix: '', visible: false };
 
     if (key === 'PpAcc') {
-        const value = ppAccuracy(cache.hits) - ppAccuracy(frame.hits);
+        const value = ppAccuracy(cache.hits) - ppAccuracy(frame.hits) * frameScale(key);
         return { key, value, formatted: formatSignedDecimal(value, 2), prefix: '', suffix: '%', visible: true };
     }
 
     if (key === 'V1Acc') {
-        const value = v1Accuracy(cache.hits) - v1Accuracy(frame.hits);
+        const value = v1Accuracy(cache.hits) - v1Accuracy(frame.hits) * frameScale(key);
         return { key, value, formatted: formatSignedDecimal(value, 2), prefix: '', suffix: '%', visible: true };
     }
 
     if (key === 'PpScore') {
-        const value = ppScore(cache.hits) - ppScore(frame.hits);
+        const value = ppScore(cache.hits) - ppScore(frame.hits) * frameScale(key);
         return { key, value, formatted: formatSigned(value), prefix: '', suffix: '', visible: true };
     }
 
     if (key === 'Bms') {
-        const value = bmsScore(cache.hits) - bmsScore(frame.hits);
+        const value = bmsScore(cache.hits) - bmsScore(frame.hits) * frameScale(key);
         return { key, value, formatted: formatSigned(value), prefix: '', suffix: '', visible: true };
     }
 
@@ -559,7 +566,8 @@ async function loadTimelineInternal(forceTargetCheck, stateKey = '', correctionO
             ? replayRate
             : parseFloat(cache.modsKey.split('|')[1]) || 1;
         const correctionMode = correctionOverride || await getTimelineMode();
-        const key = `${baseKey}|${target.replay.filePath}|${timelineRate.toFixed(4)}|${correctionMode}`;
+        const scaleMetric = correctionMode === 'scaled' ? cache.displayMetrics.main : '';
+        const key = `${baseKey}|${target.replay.filePath}|${timelineRate.toFixed(4)}|${correctionMode}|${scaleMetric}`;
         if (key === cache.loadKey && cache.replayFrames.length > 0) {
             cache.loadBaseKey = baseKey;
             return;
@@ -578,8 +586,8 @@ async function loadTimelineInternal(forceTargetCheck, stateKey = '', correctionO
         cache.loadedStateKey = stateKey || rawKey;
         updateDisplay();
 
-        if (correctionMode === 'corrected') {
-            const timelineData = await fetchTimeline(target.replay.filePath, timelineRate, correctionMode);
+        if (correctionMode !== 'raw') {
+            const timelineData = await fetchTimeline(target.replay.filePath, timelineRate, correctionMode, scaleMetric);
             if (baseKey !== getBaseKey()) return;
             applyTimeline(timelineData, baseKey);
             cache.replayPath = target.replay.filePath;
@@ -610,13 +618,14 @@ async function getTimelineMode() {
     return cache.correctionMode;
 }
 
-async function fetchTimeline(filePath, rate, correction) {
+async function fetchTimeline(filePath, rate, correction, scaleMetric = '') {
     const params = new URLSearchParams({
         osr: filePath,
         osu: cache.osuPath,
         rate: rate.toFixed(4),
         correction,
     });
+    if (scaleMetric) params.set('metric', scaleMetric);
     const timelineRes = await fetch(`http://${LAZER_COMPARE_HOST}/timeline?${params}`);
     if (!timelineRes.ok) throw new Error(`/timeline ${timelineRes.status}`);
     return timelineRes.json();
@@ -638,6 +647,8 @@ function applyTimeline(data, baseKey) {
 
     cache.replayFrames = frames;
     cache.timelineBaseKey = baseKey;
+    cache.scaleMetric = data.scaleMetric || '';
+    cache.scaleFactor = Number(data.scaleFactor) || 1;
 }
 
 // --- WebSocket ---

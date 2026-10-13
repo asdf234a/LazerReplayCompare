@@ -88,6 +88,8 @@ GET http://127.0.0.1:24052/timeline?osr=<replay-file>&osu=<beatmap-file>
 
 Use `correction=raw` to get the fast uncorrected simulator timeline. Omit it, or use `correction=corrected`, to get the density-limited corrected timeline.
 
+Use `correction=scaled` to get the raw simulator timeline linearly scaled so its final value matches the replay. The scaling metric is the overlay main metric (override with `metric=Score|Acc|Bms|PpAcc|PpScore|V1Acc`). `Score` and `Acc` are scaled in the returned frames; for hit-based metrics the frames keep raw judgements and the response's `scaleFactor` (with `scaleMetric`) must be applied to the frame's metric value.
+
 ### `/replays`
 
 Returns the replay list currently loaded in the UI. If a replay is checked in the app, the response also includes `selectedReplay`.

@@ -12,7 +12,8 @@ public sealed class ReplayTimelineBuilder
         string? beatmapPath,
         double rate = 0,
         CorrectionMode correctionMode = CorrectionMode.Corrected,
-        JudgementScoreOrder scoreOrder = JudgementScoreOrder.JudgementTime)
+        JudgementScoreOrder scoreOrder = JudgementScoreOrder.JudgementTime,
+        string scaleMetric = "Score")
     {
         if (string.IsNullOrWhiteSpace(replayPath))
             throw new ArgumentException("Missing osr path.", nameof(replayPath));
@@ -50,6 +51,8 @@ public sealed class ReplayTimelineBuilder
         }
 
         var source = $"frame-header(total={totalFrames},withHeader={framesWithHeader})";
+        string? appliedScaleMetric = null;
+        var scaleFactor = 1.0;
         if (frames.Count == 0)
         {
             var detectedRate = ModUtility.GetPlaybackRate(score);
@@ -59,6 +62,13 @@ public sealed class ReplayTimelineBuilder
             var correctionLabel = correctionMode == CorrectionMode.Corrected
                 ? "score-maxcombo-corrected-bounded-soft-continuity"
                 : "raw-bounded-soft-continuity";
+
+            if (correctionMode == CorrectionMode.Scaled)
+            {
+                appliedScaleMetric = TimelineScaler.NormalizeMetric(scaleMetric);
+                scaleFactor = TimelineScaler.Apply(frames, score, appliedScaleMetric);
+                correctionLabel += $",scaled(metric={appliedScaleMetric},factor={scaleFactor:F6})";
+            }
             source = $"mania-simulated(rate={finalRate:F4},scoreMultiplier={scoreMultiplier:F4},matcher=lazer-event,{correctionLabel},totalFrames={totalFrames},withHeader={framesWithHeader})";
         }
 
@@ -75,7 +85,9 @@ public sealed class ReplayTimelineBuilder
             FinalAccuracy: score.ScoreInfo.Accuracy,
             FinalMaxCombo: score.ScoreInfo.MaxCombo,
             Timeline: frames.Select(frame => new object[] { frame.Time, frame.Score, frame.Combo }).ToList(),
-            Frames: frames);
+            Frames: frames,
+            ScaleMetric: appliedScaleMetric,
+            ScaleFactor: scaleFactor);
     }
 
     private static Dictionary<string, int> ConvertStatistics(IReadOnlyDictionary<HitResult, int> statistics)
@@ -136,7 +148,9 @@ public sealed record ReplayTimelineResponse(
     double FinalAccuracy,
     int FinalMaxCombo,
     List<object[]> Timeline,
-    List<ReplayTimelineFrame> Frames);
+    List<ReplayTimelineFrame> Frames,
+    string? ScaleMetric = null,
+    double ScaleFactor = 1.0);
 
 public sealed record ReplayTimelineFrame(
     double Time,

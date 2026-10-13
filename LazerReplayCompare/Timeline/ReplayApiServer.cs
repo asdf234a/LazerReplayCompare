@@ -113,8 +113,9 @@ public sealed class ReplayApiServer : IDisposable
                 var correction = GetQueryValue(query, "correctionMode") ?? GetQueryValue(query, "correction") ?? GetQueryValue(query, "mode");
                 var rate = double.TryParse(rateStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var r) && r > 0 ? r : 0;
                 var correctionMode = ParseCorrectionMode(correction, getDefaultCorrectionMode());
+                var scaleMetric = GetQueryValue(query, "scaleMetric") ?? GetQueryValue(query, "metric") ?? getOverlayMetrics().MainMetric;
 
-                WriteJson(stream, timelineBuilder.Build(replayPath ?? string.Empty, beatmapPath, rate, correctionMode));
+                WriteJson(stream, timelineBuilder.Build(replayPath ?? string.Empty, beatmapPath, rate, correctionMode, scaleMetric: scaleMetric));
                 return;
             }
 
@@ -143,6 +144,9 @@ public sealed class ReplayApiServer : IDisposable
             string.Equals(value, "false", StringComparison.OrdinalIgnoreCase))
             return CorrectionMode.Raw;
 
+        if (string.Equals(value, "scaled", StringComparison.OrdinalIgnoreCase))
+            return CorrectionMode.Scaled;
+
         return CorrectionMode.Corrected;
     }
 
@@ -158,7 +162,11 @@ public sealed class ReplayApiServer : IDisposable
         var selectedReplayKey = replay == null
             ? string.Empty
             : $"{replay.FilePath}|{replay.Score}|{replay.Timestamp}|{replay.ModsKey}";
-        var timelineKey = $"{md5}|{selectedReplayKey}|{correctionMode}|{replayListVersion}";
+        // Scaled timelines depend on the main metric, so a metric change must invalidate overlay caches.
+        var timelineMode = getDefaultCorrectionMode() == CorrectionMode.Scaled
+            ? $"{correctionMode}:{TimelineScaler.NormalizeMetric(metrics.MainMetric)}"
+            : correctionMode;
+        var timelineKey = $"{md5}|{selectedReplayKey}|{timelineMode}|{replayListVersion}";
 
         return new
         {

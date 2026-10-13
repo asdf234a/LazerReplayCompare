@@ -147,7 +147,12 @@ public sealed partial class MainWindow : Window
                 : 0;
         ThemeService.Apply(this, theme);
         var correctionMode = ParseCorrectionMode(settingsService.Current.CorrectionMode);
-        correctionModeBox.SelectedIndex = correctionMode == CorrectionMode.Raw ? 1 : 0;
+        correctionModeBox.SelectedIndex = correctionMode switch
+        {
+            CorrectionMode.Raw => 1,
+            CorrectionMode.Scaled => 2,
+            _ => 0,
+        };
         mainMetricBox.SelectedIndex = MetricToIndex(settingsService.Current.MainMetric, allowOff: false);
         subMetricBox.SelectedIndex = MetricToIndex(settingsService.Current.SubMetric, allowOff: true);
         UpdateSelectedReplayDetails(null);
@@ -496,9 +501,11 @@ public sealed partial class MainWindow : Window
 
     private static CorrectionMode ParseCorrectionMode(string? value)
     {
-        return string.Equals(value, "Raw", StringComparison.OrdinalIgnoreCase)
-            ? CorrectionMode.Raw
-            : CorrectionMode.Corrected;
+        if (string.Equals(value, "Raw", StringComparison.OrdinalIgnoreCase))
+            return CorrectionMode.Raw;
+        if (string.Equals(value, "Scaled", StringComparison.OrdinalIgnoreCase))
+            return CorrectionMode.Scaled;
+        return CorrectionMode.Corrected;
     }
 
     private static string NormalizeMetric(string? value, string fallback, bool allowOff = false)

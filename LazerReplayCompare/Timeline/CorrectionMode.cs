@@ -4,4 +4,5 @@ public enum CorrectionMode
 {
     Raw,
     Corrected,
+    Scaled,
 }
