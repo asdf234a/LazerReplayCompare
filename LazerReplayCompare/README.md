@@ -54,7 +54,6 @@ dotnet run --project .\LazerReplayCompare
 - `LazerReplayCompare.Core` - class library with the replay scoring code: `.osr` decoding, the drawable-free osu!lazer mania replay simulator, boundary/approximate correction and score timelines (`ReplayTimelineBuilder`, `ManiaReplaySimulation`). It has no UI dependencies. By default it compiles against the installed osu!lazer (`OsuLazerCurrentPath`); build with `-p:OsuReference=NuGet` to use the `ppy.osu.Game` NuGet packages instead.
 - `LazerReplayCompare` - the Avalonia app, overlay API server and tosu integration; references the library.
 - `RawScoreBatchAnalyzer`, `CodexRawAnalyzer` - batch analysis tools; reference the library (not the app).
-- `LazerReplayVerifier` - headless golden-standard check; compiles the library's sources against NuGet osu!lazer.
 
 ## Build Release
 
@@ -190,5 +189,4 @@ This is more stable than comparing by timestamp because it compares the current 
 ## Notes
 
 - If `/timeline` returns a `source` starting with `mania-simulated(engine=lazer-port`, the timeline came from the simulator. `boundary-corrected(flips=N,solutions=M)` means N sub-millisecond judgement flips were applied and M flip sets reproduced the recorded score exactly.
-- `LazerReplayVerifier` (repository root) plays a replay through osu!lazer's real `ReplayPlayer` on a headless host and prints it next to the port's Raw/Corrected results: `dotnet run --project LazerReplayVerifier -c Release -- <replay.osr> <beatmap.osu>`. It compiles `LazerReplayCompare.Core`'s sources against osu!lazer from NuGet, so it runs without a local install.
 - Build warnings about `System.Text.Json`, `System.Diagnostics.DiagnosticSource`, or similar assemblies can appear because osu!lazer ships newer DLLs than the installed .NET 10 reference assemblies. These warnings are expected if the build still finishes with `0 errors`.
