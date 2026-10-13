@@ -119,6 +119,12 @@ public sealed class ReplayApiServer : IDisposable
                 return;
             }
 
+            if (uri.AbsolutePath == "/metrics")
+            {
+                WriteJson(stream, new { metrics = MetricRegistry.ToJson() });
+                return;
+            }
+
             if (uri.AbsolutePath == "/state")
             {
                 WriteJson(stream, BuildState());
@@ -176,6 +182,8 @@ public sealed class ReplayApiServer : IDisposable
                 main = metrics.MainMetric,
                 sub = metrics.SubMetric,
             },
+            // Overlays evaluate every metric from these definitions (MetricRegistry).
+            metrics = MetricRegistry.ToJson(),
             beatmapMd5 = md5,
             selectedReplay = replay,
             replayCount = replayList.Count,

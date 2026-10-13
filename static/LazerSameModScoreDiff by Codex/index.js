@@ -5,6 +5,15 @@ import {
     getReplayModsKey,
     updateOsuPath,
 } from '../lazerReplayCompareShared/overlayState.js';
+import {
+    OFF,
+    formatMetric,
+    metricDiff,
+    metricValue,
+    resolveMetric,
+    setMetricDefinitions,
+    timelineFactor,
+} from '../lazerReplayCompareShared/metrics.js';
 
 const TOSU_HOST = window.TOSU_HOST || location.host || '127.0.0.1:24050';
 const LAZER_COMPARE_HOST = window.LAZER_COMPARE_HOST || '127.0.0.1:24052';
@@ -311,174 +320,33 @@ async function loadTimeline() {
     return loadTimelineInternal(false);
 }
 
-function formatSignedDecimal(value, digits = 2) {
-    const number = Number(value) || 0;
-    return {
-        sign: number > 0 ? '+' : number < 0 ? '-' : '',
-        value: Math.abs(number).toFixed(digits),
-    };
-}
-
-const HIT_ALIASES = {
-    Perfect: ['perfect', 'geki', 'Geki', '320'],
-    Great: ['great', '300'],
-    Good: ['good', 'katu', 'Katu', '200'],
-    Ok: ['ok', '100'],
-    Meh: ['meh', '50'],
-    Miss: ['miss', '0'],
-};
-
-function hitValue(hits, key) {
-    if (!hits) return 0;
-    if (hits[key] != null) return Number(hits[key]) || 0;
-    for (const alias of HIT_ALIASES[key] || []) {
-        if (hits[alias] != null) return Number(hits[alias]) || 0;
-    }
-    return 0;
-}
-
-function ppAccuracy(hits) {
-    const total =
-        hitValue(hits, 'Perfect') +
-        hitValue(hits, 'Great') +
-        hitValue(hits, 'Good') +
-        hitValue(hits, 'Ok') +
-        hitValue(hits, 'Meh') +
-        hitValue(hits, 'Miss');
-
-    if (total <= 0) return 0;
-
-    const value =
-        hitValue(hits, 'Perfect') * 100 +
-        hitValue(hits, 'Great') * 93.75 +
-        hitValue(hits, 'Good') * 62.5 +
-        hitValue(hits, 'Ok') * 31.25 +
-        hitValue(hits, 'Meh') * 15.625;
-
-    return value / total;
-}
-
-function v1Accuracy(hits) {
-    const total =
-        hitValue(hits, 'Perfect') +
-        hitValue(hits, 'Great') +
-        hitValue(hits, 'Good') +
-        hitValue(hits, 'Ok') +
-        hitValue(hits, 'Meh') +
-        hitValue(hits, 'Miss');
-
-    if (total <= 0) return 0;
-
-    const value =
-        hitValue(hits, 'Perfect') * 100 +
-        hitValue(hits, 'Great') * 100 +
-        hitValue(hits, 'Good') * (200 / 3) +
-        hitValue(hits, 'Ok') * (100 / 3) +
-        hitValue(hits, 'Meh') * (50 / 3);
-
-    return value / total;
-}
-
-function ppScore(hits) {
-    return Math.round(
-        hitValue(hits, 'Perfect') * 100 +
-        hitValue(hits, 'Great') * 93.75 +
-        hitValue(hits, 'Good') * 62.5 +
-        hitValue(hits, 'Ok') * 31.25 +
-        hitValue(hits, 'Meh') * 15.625
-    );
-}
-
-function bmsScore(hits) {
-    return hitValue(hits, 'Perfect') * 2 + hitValue(hits, 'Great');
-}
-
-function normalizeMetric(metric, fallback = 'Score') {
-    const value = String(metric || '').toLowerCase();
-    if (value === 'scorediff' || value === 'score') return 'Score';
-    if (value === 'accuracydiff' || value === 'accuracy' || value === 'acc') return 'Acc';
-    if (value === 'bms' || value === 'bmsscore') return 'Bms';
-    if (value === 'judgediff' || value === 'judge' || value === 'ppacc') return 'PpAcc';
-    if (value === 'ppscore') return 'PpScore';
-    if (value === 'v1acc') return 'V1Acc';
-    if (value === 'off' || value === 'none') return 'Off';
-    return fallback;
-}
-
 function updateDisplayMetrics(data) {
+    setMetricDefinitions(data?.metrics);
     if (!data?.displayMetrics) return;
-    cache.displayMetrics.main = normalizeMetric(data.displayMetrics.main, cache.displayMetrics.main);
-    cache.displayMetrics.sub = normalizeMetric(data.displayMetrics.sub, cache.displayMetrics.sub);
+    cache.displayMetrics.main = resolveMetric(data.displayMetrics.main, cache.displayMetrics.main);
+    cache.displayMetrics.sub = resolveMetric(data.displayMetrics.sub, cache.displayMetrics.sub);
 }
 
-// Scaled timelines rescale score/accuracy on the server; hit-based metrics carry a factor instead.
-function frameScale(key) {
-    return cache.scaleMetric === key ? cache.scaleFactor : 1;
+function hiddenMetric(key) {
+    return { key, value: 0, formatted: { sign: '', value: '' }, prefix: '', suffix: '', visible: false };
 }
 
+function shownMetric(key, value, signed) {
+    const formatted = formatMetric(key, value, signed);
+    return { key, value, formatted: { sign: formatted.sign, value: formatted.value }, prefix: '', suffix: formatted.suffix, visible: true };
+}
+
+// Live minus replay, in display units (accuracy as 0..100).
 function getMetric(metric, frame) {
-    const key = normalizeMetric(metric);
-    if (!frame || key === 'Off') return { key, value: 0, formatted: { sign: '', value: '' }, prefix: '', suffix: '', visible: false };
-
-    if (key === 'PpAcc') {
-        const value = ppAccuracy(cache.hits) - ppAccuracy(frame.hits) * frameScale(key);
-        return { key, value, formatted: formatSignedDecimal(value, 2), prefix: '', suffix: '%', visible: true };
-    }
-
-    if (key === 'V1Acc') {
-        const value = v1Accuracy(cache.hits) - v1Accuracy(frame.hits) * frameScale(key);
-        return { key, value, formatted: formatSignedDecimal(value, 2), prefix: '', suffix: '%', visible: true };
-    }
-
-    if (key === 'PpScore') {
-        const value = ppScore(cache.hits) - ppScore(frame.hits) * frameScale(key);
-        return { key, value, formatted: formatSigned(value), prefix: '', suffix: '', visible: true };
-    }
-
-    if (key === 'Bms') {
-        const value = bmsScore(cache.hits) - bmsScore(frame.hits) * frameScale(key);
-        return { key, value, formatted: formatSigned(value), prefix: '', suffix: '', visible: true };
-    }
-
-    if (key === 'Acc') {
-        const value = (cache.accuracy - (Number(frame.accuracy) || 0)) * 100;
-        return { key, value, formatted: formatSignedDecimal(value, 2), prefix: '', suffix: '%', visible: true };
-    }
-
-    const value = cache.score - frame.score;
-    return { key: 'Score', value, formatted: formatSigned(value), prefix: '', suffix: '', visible: true };
+    const key = resolveMetric(metric);
+    if (!frame || key === OFF) return hiddenMetric(key);
+    return shownMetric(key, metricDiff(key, cache, frame, timelineFactor(key, cache.scaleMetric, cache.scaleFactor)), true);
 }
 
 function getLiveMetric(metric) {
-    const key = normalizeMetric(metric);
-    if (key === 'Off') return { key, value: 0, formatted: { sign: '', value: '' }, prefix: '', suffix: '', visible: false };
-
-    if (key === 'PpAcc') {
-        const value = ppAccuracy(cache.hits);
-        return { key, value, formatted: { sign: '', value: value.toFixed(2) }, prefix: '', suffix: '%', visible: true };
-    }
-
-    if (key === 'V1Acc') {
-        const value = v1Accuracy(cache.hits);
-        return { key, value, formatted: { sign: '', value: value.toFixed(2) }, prefix: '', suffix: '%', visible: true };
-    }
-
-    if (key === 'PpScore') {
-        const value = ppScore(cache.hits);
-        return { key, value, formatted: { sign: '', value: Math.round(value).toLocaleString('en-US') }, prefix: '', suffix: '', visible: true };
-    }
-
-    if (key === 'Bms') {
-        const value = bmsScore(cache.hits);
-        return { key, value, formatted: { sign: '', value: value.toLocaleString('en-US') }, prefix: '', suffix: '', visible: true };
-    }
-
-    if (key === 'Acc') {
-        const value = cache.accuracy * 100;
-        return { key, value, formatted: { sign: '', value: value.toFixed(2) }, prefix: '', suffix: '%', visible: true };
-    }
-
-    return { key: 'Score', value: cache.score, formatted: { sign: '', value: Math.round(cache.score).toLocaleString('en-US') }, prefix: '', suffix: '', visible: true };
+    const key = resolveMetric(metric);
+    if (key === OFF) return hiddenMetric(key);
+    return shownMetric(key, metricValue(key, cache), false);
 }
 
 async function refreshReplayTarget() {

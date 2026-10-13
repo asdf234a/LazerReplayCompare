@@ -5,6 +5,16 @@ import {
     getReplayModsKey,
     updateOsuPath,
 } from '../lazerReplayCompareShared/overlayState.js';
+import {
+    OFF,
+    formatMetric,
+    hitValue,
+    metricDiff,
+    metricValue as evaluateMetric,
+    resolveMetric,
+    setMetricDefinitions,
+    timelineFactor,
+} from '../lazerReplayCompareShared/metrics.js';
 
 const TOSU_HOST = window.TOSU_HOST || location.host || '127.0.0.1:24050';
 const LAZER_COMPARE_HOST = window.LAZER_COMPARE_HOST || '127.0.0.1:24052';
@@ -57,15 +67,6 @@ const HIT_ROWS = [
     ['Miss', 'Miss'],
 ];
 
-const HIT_ALIASES = {
-    Perfect: ['perfect', 'geki', 'Geki', '320'],
-    Great: ['great', '300'],
-    Good: ['good', 'katu', 'Katu', '200'],
-    Ok: ['ok', '100'],
-    Meh: ['meh', '50'],
-    Miss: ['miss', '0'],
-};
-
 function isPlaying() {
     const name = String(state.gameState || '').toLowerCase();
     return name === 'play' || name === 'playing';
@@ -80,159 +81,34 @@ function baseKey() {
     return `${state.beatmapChecksum}|${state.osuPath}|${state.modsKey}`;
 }
 
-function fmtScore(value) {
-    return Math.round(Number(value) || 0).toLocaleString('en-US');
-}
-
-function fmtAcc(value) {
-    return `${((Number(value) || 0) * 100).toFixed(2)}%`;
-}
-
-function fmtDiff(value) {
-    const n = Math.round(Number(value) || 0);
-    return `${n > 0 ? '+' : ''}${n.toLocaleString('en-US')}`;
-}
-
-function fmtAccDiff(value) {
-    const n = (Number(value) || 0) * 100;
-    return `${n > 0 ? '+' : ''}${n.toFixed(2)}%`;
-}
-
-function hitValue(hits, key) {
-    if (!hits) return 0;
-    if (hits[key] != null) return Number(hits[key]) || 0;
-    for (const alias of HIT_ALIASES[key] || []) {
-        if (hits[alias] != null) return Number(hits[alias]) || 0;
-    }
-    return 0;
-}
-
-function ppAccuracy(hits) {
-    const total =
-        hitValue(hits, 'Perfect') +
-        hitValue(hits, 'Great') +
-        hitValue(hits, 'Good') +
-        hitValue(hits, 'Ok') +
-        hitValue(hits, 'Meh') +
-        hitValue(hits, 'Miss');
-
-    if (total <= 0) return 0;
-
-    const value =
-        hitValue(hits, 'Perfect') * 100 +
-        hitValue(hits, 'Great') * 93.75 +
-        hitValue(hits, 'Good') * 62.5 +
-        hitValue(hits, 'Ok') * 31.25 +
-        hitValue(hits, 'Meh') * 15.625;
-
-    return value / total;
-}
-
-function v1Accuracy(hits) {
-    const total =
-        hitValue(hits, 'Perfect') +
-        hitValue(hits, 'Great') +
-        hitValue(hits, 'Good') +
-        hitValue(hits, 'Ok') +
-        hitValue(hits, 'Meh') +
-        hitValue(hits, 'Miss');
-
-    if (total <= 0) return 0;
-
-    const value =
-        hitValue(hits, 'Perfect') * 100 +
-        hitValue(hits, 'Great') * 100 +
-        hitValue(hits, 'Good') * (200 / 3) +
-        hitValue(hits, 'Ok') * (100 / 3) +
-        hitValue(hits, 'Meh') * (50 / 3);
-
-    return value / total;
-}
-
-function ppScore(hits) {
-    return Math.round(
-        hitValue(hits, 'Perfect') * 100 +
-        hitValue(hits, 'Great') * 93.75 +
-        hitValue(hits, 'Good') * 62.5 +
-        hitValue(hits, 'Ok') * 31.25 +
-        hitValue(hits, 'Meh') * 15.625
-    );
-}
-
-function bmsScore(hits) {
-    return hitValue(hits, 'Perfect') * 2 + hitValue(hits, 'Great');
-}
-
-function normalizeMetric(metric, fallback = 'Score') {
-    const value = String(metric || '').toLowerCase();
-    if (value === 'scorediff' || value === 'score') return 'Score';
-    if (value === 'accuracydiff' || value === 'accuracy' || value === 'acc') return 'Acc';
-    if (value === 'bms' || value === 'bmsscore') return 'Bms';
-    if (value === 'judgediff' || value === 'judge' || value === 'ppacc') return 'PpAcc';
-    if (value === 'ppscore') return 'PpScore';
-    if (value === 'v1acc') return 'V1Acc';
-    if (value === 'off' || value === 'none') return 'Off';
-    return fallback;
-}
-
 function updateDisplayMetrics(data) {
+    setMetricDefinitions(data?.metrics);
     if (!data?.displayMetrics) return;
-    state.displayMetrics.main = normalizeMetric(data.displayMetrics.main, state.displayMetrics.main);
-    state.displayMetrics.sub = normalizeMetric(data.displayMetrics.sub, state.displayMetrics.sub);
+    state.displayMetrics.main = resolveMetric(data.displayMetrics.main, state.displayMetrics.main);
+    state.displayMetrics.sub = resolveMetric(data.displayMetrics.sub, state.displayMetrics.sub);
 }
 
-// Scaled timelines rescale score/accuracy on the server; hit-based metrics carry a factor instead.
-function frameScale(key) {
-    return state.scaleMetric === key ? state.scaleFactor : 1;
+function frameFactor(key) {
+    return timelineFactor(key, state.scaleMetric, state.scaleFactor);
 }
 
 function metricValue(metric, frame) {
-    const key = normalizeMetric(metric);
-    if (!frame) return { text: '-', className: 'neutral', hidden: key === 'Off' };
+    const key = resolveMetric(metric);
+    if (!frame) return { text: '-', className: 'neutral', hidden: key === OFF };
+    if (key === OFF) return { text: '', className: 'neutral', hidden: true };
 
-    let value = 0;
-    let text = '0';
-
-    if (key === 'PpAcc') {
-        value = ppAccuracy(state.hits) - ppAccuracy(frame.hits) * frameScale(key);
-        text = `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
-    } else if (key === 'V1Acc') {
-        value = v1Accuracy(state.hits) - v1Accuracy(frame.hits) * frameScale(key);
-        text = `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
-    } else if (key === 'PpScore') {
-        value = ppScore(state.hits) - ppScore(frame.hits) * frameScale(key);
-        text = fmtDiff(value);
-    } else if (key === 'Bms') {
-        value = bmsScore(state.hits) - bmsScore(frame.hits) * frameScale(key);
-        text = fmtDiff(value);
-    } else if (key === 'Acc') {
-        value = state.accuracy - frame.accuracy;
-        text = fmtAccDiff(value);
-    } else if (key === 'Off') {
-        return { text: '', className: 'neutral', hidden: true };
-    } else {
-        value = state.score - frame.score;
-        text = fmtDiff(value);
-    }
-
+    const value = metricDiff(key, liveMetricSource(), frame, frameFactor(key));
     return {
-        text,
+        text: formatMetric(key, value, true).text,
         className: value > 0 ? 'positive' : value < 0 ? 'negative' : 'neutral',
         hidden: false,
     };
 }
 
-function metricAbsoluteValue(metric, source, scale = 1) {
-    const key = normalizeMetric(metric);
-    if (!source || key === 'Off') return { text: '-', hidden: key === 'Off' };
-
-    const hits = source.hits || {};
-    if (key === 'PpAcc') return { text: `${(ppAccuracy(hits) * scale).toFixed(2)}%`, hidden: false };
-    if (key === 'V1Acc') return { text: `${(v1Accuracy(hits) * scale).toFixed(2)}%`, hidden: false };
-    if (key === 'PpScore') return { text: fmtScore(ppScore(hits) * scale), hidden: false };
-    if (key === 'Bms') return { text: fmtScore(bmsScore(hits) * scale), hidden: false };
-    if (key === 'Acc') return { text: fmtAcc(source.accuracy), hidden: false };
-    return { text: fmtScore(source.score), hidden: false };
+function metricAbsoluteValue(metric, source, factor = 1) {
+    const key = resolveMetric(metric);
+    if (!source || key === OFF) return { text: '-', hidden: key === OFF };
+    return { text: formatMetric(key, evaluateMetric(key, source, factor)).text, hidden: false };
 }
 
 function liveMetricSource() {
@@ -247,8 +123,8 @@ function renderSideMetrics(frame) {
     const liveSource = liveMetricSource();
     const liveMain = metricAbsoluteValue(state.displayMetrics.main, liveSource);
     const liveSub = metricAbsoluteValue(state.displayMetrics.sub, liveSource);
-    const replayMain = metricAbsoluteValue(state.displayMetrics.main, frame, frameScale(normalizeMetric(state.displayMetrics.main)));
-    const replaySub = metricAbsoluteValue(state.displayMetrics.sub, frame, frameScale(normalizeMetric(state.displayMetrics.sub)));
+    const replayMain = metricAbsoluteValue(state.displayMetrics.main, frame, frameFactor(resolveMetric(state.displayMetrics.main)));
+    const replaySub = metricAbsoluteValue(state.displayMetrics.sub, frame, frameFactor(resolveMetric(state.displayMetrics.sub)));
 
     $('liveScore').textContent = liveMain.text;
     $('liveAcc').textContent = liveSub.hidden ? '' : liveSub.text;

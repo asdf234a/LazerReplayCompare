@@ -153,8 +153,8 @@ public sealed partial class MainWindow : Window
             CorrectionMode.Scaled => 2,
             _ => 0,
         };
-        mainMetricBox.SelectedIndex = MetricToIndex(settingsService.Current.MainMetric, allowOff: false);
-        subMetricBox.SelectedIndex = MetricToIndex(settingsService.Current.SubMetric, allowOff: true);
+        PopulateMetricBox(mainMetricBox, settingsService.Current.MainMetric, allowOff: false);
+        PopulateMetricBox(subMetricBox, settingsService.Current.SubMetric, allowOff: true);
         UpdateSelectedReplayDetails(null);
     }
 
@@ -509,42 +509,18 @@ public sealed partial class MainWindow : Window
     }
 
     private static string NormalizeMetric(string? value, string fallback, bool allowOff = false)
-    {
-        if (allowOff && string.Equals(value, "Off", StringComparison.OrdinalIgnoreCase))
-            return "Off";
-        if (string.Equals(value, "Score", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(value, "ScoreDiff", StringComparison.OrdinalIgnoreCase))
-            return "Score";
-        if (string.Equals(value, "Acc", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(value, "AccuracyDiff", StringComparison.OrdinalIgnoreCase))
-            return "Acc";
-        if (string.Equals(value, "Bms", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(value, "BmsScore", StringComparison.OrdinalIgnoreCase))
-            return "Bms";
-        if (string.Equals(value, "PpAcc", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(value, "JudgeDiff", StringComparison.OrdinalIgnoreCase))
-            return "PpAcc";
-        if (string.Equals(value, "PpScore", StringComparison.OrdinalIgnoreCase))
-            return "PpScore";
-        if (string.Equals(value, "V1Acc", StringComparison.OrdinalIgnoreCase))
-            return "V1Acc";
-        return fallback;
-    }
+        => MetricRegistry.Normalize(value, fallback, allowOff);
 
-    private static int MetricToIndex(string? value, bool allowOff)
+    /// <summary>Fills a metric picker from <see cref="MetricRegistry"/> and selects <paramref name="selected"/>.</summary>
+    private static void PopulateMetricBox(ComboBox box, string? selected, bool allowOff)
     {
-        var metric = NormalizeMetric(value, allowOff ? "Off" : "Score", allowOff);
-        return metric switch
-        {
-            "Score" => 0,
-            "Acc" => 1,
-            "Bms" => 2,
-            "PpAcc" => 3,
-            "PpScore" => 4,
-            "V1Acc" => 5,
-            "Off" when allowOff => 6,
-            _ => 0,
-        };
+        var items = MetricRegistry.All.Select(metric => new ComboBoxItem { Content = metric.DisplayName, Tag = metric.Key }).ToList();
+        if (allowOff)
+            items.Add(new ComboBoxItem { Content = MetricRegistry.Off, Tag = MetricRegistry.Off });
+
+        box.ItemsSource = items;
+        var key = NormalizeMetric(selected, allowOff ? MetricRegistry.Off : MetricRegistry.Default.Key, allowOff);
+        box.SelectedIndex = Math.Max(0, items.FindIndex(item => (string)item.Tag! == key));
     }
 
 }

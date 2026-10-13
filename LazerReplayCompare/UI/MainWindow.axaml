@@ -197,25 +197,14 @@
                         x:Name="MainMetricBox"
                         Width="132"
                         SelectionChanged="MainMetricSelectionChanged">
-                <ComboBoxItem Content="Score" Tag="Score" />
-                <ComboBoxItem Content="Acc" Tag="Acc" />
-                <ComboBoxItem Content="BMS" Tag="Bms" />
-                <ComboBoxItem Content="PPacc" Tag="PpAcc" />
-                <ComboBoxItem Content="PPscore" Tag="PpScore" />
-                <ComboBoxItem Content="V1acc" Tag="V1Acc" />
+                <!-- Items come from MetricRegistry (MainWindow.PopulateMetricBox). -->
               </ComboBox>
               <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="10">
                 <TextBlock Text="Sub" Classes="muted" VerticalAlignment="Center" />
                 <ComboBox x:Name="SubMetricBox"
                           Width="132"
                           SelectionChanged="SubMetricSelectionChanged">
-                  <ComboBoxItem Content="Score" Tag="Score" />
-                  <ComboBoxItem Content="Acc" Tag="Acc" />
-                  <ComboBoxItem Content="BMS" Tag="Bms" />
-                  <ComboBoxItem Content="PPacc" Tag="PpAcc" />
-                  <ComboBoxItem Content="PPscore" Tag="PpScore" />
-                  <ComboBoxItem Content="V1acc" Tag="V1Acc" />
-                  <ComboBoxItem Content="Off" Tag="Off" />
+                  <!-- Items come from MetricRegistry (MainWindow.PopulateMetricBox). -->
                 </ComboBox>
               </StackPanel>
             </Grid>
