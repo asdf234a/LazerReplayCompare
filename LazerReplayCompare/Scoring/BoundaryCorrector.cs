@@ -21,23 +21,36 @@ internal static class BoundaryCorrector
     /// Fraction of the ±0.5ms rounding interval around a user-triggered judgement's offset in which it would have been
     /// judged as <paramref name="to"/> instead (0 when not user-triggered).
     /// </summary>
-    public static double FlipProbability(LazerManiaReplaySimulator.Judged r, HitResult to)
+    public static double FlipProbability(LazerManiaReplaySimulator.Judged r, HitResult to, TimingUncertainty? uncertainty = null)
     {
+        var u = uncertainty ?? TimingUncertainty.Rounding;
         if (r.Offset is not double off) return 0;
         var w = r.HitObject.HitWindows;
         HitResult judge(double o) { var x = w.ResultFor(o / r.Scale); return r.CapAtMeh && x > HitResult.Meh ? HitResult.Meh : x; }
-        if (judge(off - 0.4999) != to && judge(off + 0.4999) != to) return 0;
+        if (judge(off - u.Before + 1e-4) != to && judge(off + u.After - 1e-4) != to) return 0;
         const int n = 1000;
         int hits = 0;
-        for (int s = 0; s < n; s++) if (judge(off - 0.5 + (s + 0.5) / n) == to) hits++;
+        for (int s = 0; s < n; s++) if (judge(off - u.Before + (s + 0.5) / n * u.Width) == to) hits++;
         return hits / (double)n;
     }
 
     private static readonly HitResult[] kinds = [HitResult.Perfect, HitResult.Great, HitResult.Good, HitResult.Ok, HitResult.Meh];
 
-    public static Outcome Solve(IReadOnlyList<LazerManiaReplaySimulator.Judged> results, IReadOnlyList<JudgementResult> applied,
-                                ScoreProcessor processor, IReadOnlyDictionary<HitResult, int> recordedStats, long recordedScore)
+    /// <summary>
+    /// Where the true input time can lie relative to the stored (whole-millisecond) one: <see cref="Before"/> ms earlier up
+    /// to <see cref="After"/> ms later. Rounding alone gives ±0.5ms.
+    /// </summary>
+    public readonly record struct TimingUncertainty(double Before, double After)
     {
+        public static readonly TimingUncertainty Rounding = new TimingUncertainty(0.5, 0.5);
+        public double Width => Before + After;
+    }
+
+    public static Outcome Solve(IReadOnlyList<LazerManiaReplaySimulator.Judged> results, IReadOnlyList<JudgementResult> applied,
+                                ScoreProcessor processor, IReadOnlyDictionary<HitResult, int> recordedStats, long recordedScore,
+                                TimingUncertainty? uncertainty = null)
+    {
+        var u = uncertainty ?? TimingUncertainty.Rounding;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         double field(string name) => Convert.ToDouble(typeof(ScoreProcessor).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(processor));
         double B = field("currentBaseScore"), Bmax = field("currentMaximumBaseScore"), C = field("currentComboPortion"), Cmax = field("maximumComboPortion");
@@ -63,9 +76,9 @@ internal static class BoundaryCorrector
             var w = r.HitObject.HitWindows;
             HitResult judge(double o) { var x = w.ResultFor(o / r.Scale); return r.CapAtMeh && x > HitResult.Meh ? HitResult.Meh : x; }
             // sample the ±0.5ms interval finely; probability = fraction of the interval giving each alternative
-            if (judge(off - 0.4999) == r.Type && judge(off + 0.4999) == r.Type) continue;   // windows are wide; endpoints suffice
+            if (judge(off - u.Before + 1e-4) == r.Type && judge(off + u.After - 1e-4) == r.Type) continue;   // windows are wide; endpoints suffice
             var counts = new Dictionary<HitResult, int>(); const int n = 1000;
-            for (int s = 0; s < n; s++) { var x = judge(off - 0.5 + (s + 0.5) / n); counts[x] = counts.GetValueOrDefault(x) + 1; }
+            for (int s = 0; s < n; s++) { var x = judge(off - u.Before + (s + 0.5) / n * u.Width); counts[x] = counts.GetValueOrDefault(x) + 1; }
             foreach (var (alt, c) in counts)
             {
                 if (alt == r.Type || !kinds.Contains(alt)) continue;

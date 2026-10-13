@@ -35,6 +35,7 @@ internal sealed class ManiaTimelineCalculator
         var ruleset = new ManiaRuleset();
         var playable = new FlatWorkingBeatmap(beatmapPath).GetPlayableBeatmap(ruleset.RulesetInfo, info.Mods);
         var preRoundingWindows = PreRoundingManiaHitWindows.AppliesTo(info);
+        var uncertainty = preRoundingWindows ? OldReplayUncertainty : BoundaryCorrector.TimingUncertainty.Rounding;
         if (preRoundingWindows)
             PreRoundingManiaHitWindows.Apply(playable, info.Mods);
 
@@ -67,18 +68,18 @@ internal sealed class ManiaTimelineCalculator
             }
             else
             {
-                var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore);
+                var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore, uncertainty);
                 var mehMissFlips = 0;
                 var timingAdjustments = 0;
 
                 if (!outcome.Exact &&
-                    reconcileWithMehMissFlips(playable, columns, replayFrames, gameplayStartTime, results, processor, applied, info) is { } reconciled)
+                    reconcileWithMehMissFlips(playable, columns, replayFrames, gameplayStartTime, results, processor, applied, info, uncertainty) is { } reconciled)
                 {
                     (results, outcome, mehMissFlips) = reconciled;
                 }
 
                 if (!outcome.Exact &&
-                    reconcileWithTimingAdjustments(playable, columns, replayFrames, gameplayStartTime, results, processor, applied, info) is { } adjusted)
+                    reconcileWithTimingAdjustments(playable, columns, replayFrames, gameplayStartTime, results, processor, applied, info, uncertainty) is { } adjusted)
                 {
                     (results, outcome, mehMissFlips, timingAdjustments) = adjusted;
                 }
@@ -107,6 +108,17 @@ internal sealed class ManiaTimelineCalculator
         return new ManiaTimelineResult(frames, rawFrames, label, scoreMultiplier);
     }
 
+    /// <summary>Timing uncertainty assumed for replays set before osu!lazer 2025.710 (experimental).</summary>
+    internal static BoundaryCorrector.TimingUncertainty OldReplayUncertainty = parseUncertainty(Environment.GetEnvironmentVariable("LRC_OLD_UNCERTAINTY")) ?? BoundaryCorrector.TimingUncertainty.Rounding;
+
+    private static BoundaryCorrector.TimingUncertainty? parseUncertainty(string? value)
+    {
+        var parts = value?.Split(',');
+        return parts?.Length == 2 && double.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out var before) && double.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var after)
+            ? new BoundaryCorrector.TimingUncertainty(before, after)
+            : null;
+    }
+
     private const int max_meh_miss_flips = 3;
     private const int max_meh_miss_attempts = 48;
 
@@ -126,7 +138,8 @@ internal sealed class ManiaTimelineCalculator
         IReadOnlyList<LazerManiaReplaySimulator.Judged> results,
         ScoreProcessor processor,
         List<JudgementResult> applied,
-        ScoreInfo info)
+        ScoreInfo info,
+        BoundaryCorrector.TimingUncertainty uncertainty)
     {
         var missGap = info.Statistics.GetValueOrDefault(HitResult.Miss) - results.Count(r => r.Type == HitResult.Miss);
         var count = Math.Abs(missGap);
@@ -137,7 +150,7 @@ internal sealed class ManiaTimelineCalculator
         var to = missGap > 0 ? HitResult.Miss : HitResult.Meh;
         var candidates = results
             .Where(r => r.Type == from)
-            .Select(r => (judged: r, probability: BoundaryCorrector.FlipProbability(r, to)))
+            .Select(r => (judged: r, probability: BoundaryCorrector.FlipProbability(r, to, uncertainty)))
             .Where(c => c.probability > 0)
             .ToList();
         if (candidates.Count < count)
@@ -161,7 +174,7 @@ internal sealed class ManiaTimelineCalculator
             if (hold_statistics.Any(r => processor.Statistics.GetValueOrDefault(r) != info.Statistics.GetValueOrDefault(r)))
                 continue;
 
-            var outcome = BoundaryCorrector.Solve(simulator.Results, applied, processor, info.Statistics, info.TotalScore);
+            var outcome = BoundaryCorrector.Solve(simulator.Results, applied, processor, info.Statistics, info.TotalScore, uncertainty);
             if (outcome.Exact)
                 return (simulator.Results, outcome, count);
         }
@@ -194,7 +207,8 @@ internal sealed class ManiaTimelineCalculator
         IReadOnlyList<LazerManiaReplaySimulator.Judged> rawResults,
         ScoreProcessor processor,
         List<JudgementResult> applied,
-        ScoreInfo info)
+        ScoreInfo info,
+        BoundaryCorrector.TimingUncertainty uncertainty)
     {
         var candidates = findTimingCandidates(playable, replayFrames);
         if (candidates.Count == 0)
@@ -233,11 +247,11 @@ internal sealed class ManiaTimelineCalculator
             var results = simulate(single);
             evaluate(results);
 
-            var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore);
+            var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore, uncertainty);
             if (outcome.Exact)
                 return (results, outcome, 0, 1);
 
-            if (reconcileWithMehMissFlips(playable, columns, single, gameplayStartTime, results, processor, applied, info) is { } reconciled)
+            if (reconcileWithMehMissFlips(playable, columns, single, gameplayStartTime, results, processor, applied, info, uncertainty) is { } reconciled)
                 return (reconciled.results, reconciled.outcome, reconciled.flips, 1);
         }
 
@@ -255,11 +269,11 @@ internal sealed class ManiaTimelineCalculator
             currentGap = gap;
             accepted++;
 
-            var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore);
+            var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore, uncertainty);
             if (outcome.Exact)
                 return (results, outcome, 0, accepted);
 
-            if (reconcileWithMehMissFlips(playable, columns, current, gameplayStartTime, results, processor, applied, info) is { } reconciled)
+            if (reconcileWithMehMissFlips(playable, columns, current, gameplayStartTime, results, processor, applied, info, uncertainty) is { } reconciled)
                 return (reconciled.results, reconciled.outcome, reconciled.flips, accepted);
         }
 
