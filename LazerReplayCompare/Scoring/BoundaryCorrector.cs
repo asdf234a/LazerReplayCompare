@@ -14,7 +14,10 @@ internal static class BoundaryCorrector
     public sealed record Candidate(int Index, HitResult From, HitResult To, double Probability, double DeltaBase, double DeltaCombo, double Time);
     public sealed record Outcome(Dictionary<int, HitResult> Flips, long Score, int ExactSolutions, int Candidates, long ElapsedMs, string Note)
     {
-        public bool Exact => Flips.Count > 0 || Note == "already exact";
+        public bool Exact => !Approximate && (Flips.Count > 0 || Note == "already exact");
+
+        /// <summary>The flips only bring the counts/score closer to the recorded ones (no exact solution was found).</summary>
+        public bool Approximate { get; init; }
     }
 
     /// <summary>
@@ -48,7 +51,7 @@ internal static class BoundaryCorrector
 
     public static Outcome Solve(IReadOnlyList<LazerManiaReplaySimulator.Judged> results, IReadOnlyList<JudgementResult> applied,
                                 ScoreProcessor processor, IReadOnlyDictionary<HitResult, int> recordedStats, long recordedScore,
-                                TimingUncertainty? uncertainty = null)
+                                TimingUncertainty? uncertainty = null, bool approximate = false)
     {
         var u = uncertainty ?? TimingUncertainty.Rounding;
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -119,6 +122,7 @@ internal static class BoundaryCorrector
         if (bestPlans.Count == 0)
         {
             return solveLargePlan(cands, need, scoreOf, recordedScore, sw)
+                   ?? (approximate ? solveLargePlan(cands, need, scoreOf, recordedScore, sw, approximate: true) : null)
                    ?? new(new(), processor.TotalScore.Value, 0, cands.Count, sw.ElapsedMilliseconds, "no hit<->hit plan closes the count gap");
         }
 
@@ -145,6 +149,9 @@ internal static class BoundaryCorrector
                 if (exact.Count >= 20000) break;
             }
         }
+        if (exact.Count == 0 && approximate)
+            return solveLargePlan(cands, need, scoreOf, recordedScore, sw, approximate: true)
+                   ?? new(new(), processor.TotalScore.Value, 0, cands.Count, sw.ElapsedMilliseconds, "no selection reproduces the recorded score");
         if (exact.Count == 0)
             return new(new(), processor.TotalScore.Value, 0, cands.Count, sw.ElapsedMilliseconds, "no selection reproduces the recorded score");
 
@@ -164,9 +171,10 @@ internal static class BoundaryCorrector
     /// local search on the closed-form score.
     /// </summary>
     private static Outcome? solveLargePlan(List<Candidate> cands, Dictionary<HitResult, int> need, Func<double, double, long> scoreOf, long recordedScore,
-                                           System.Diagnostics.Stopwatch sw)
+                                           System.Diagnostics.Stopwatch sw, bool approximate = false)
     {
-        if (kinds.Sum(k => need[k]) != 0)
+        // Approximate mode takes as many flips of each link as there are candidates and only minimises the score distance.
+        if (!approximate && kinds.Sum(k => need[k]) != 0)
             return null;
 
         // flow[i] > 0: that many judgements go kinds[i] -> kinds[i+1]; < 0: the reverse.
@@ -179,8 +187,8 @@ internal static class BoundaryCorrector
             if (flow == 0) continue;
             var (from, to) = flow > 0 ? (kinds[i], kinds[i + 1]) : (kinds[i + 1], kinds[i]);
             var group = cands.Where(c => c.From == from && c.To == to).OrderByDescending(c => c.Probability).ThenBy(c => c.Time).ToList();
-            if (group.Count < Math.Abs(flow)) return null;
-            picks.Add((group, Math.Abs(flow)));
+            if (group.Count < Math.Abs(flow) && !approximate) return null;
+            if (Math.Min(group.Count, Math.Abs(flow)) > 0) picks.Add((group, Math.Min(group.Count, Math.Abs(flow))));
         }
 
         double fixedDB = picks.Sum(p => p.count * p.group[0].DeltaBase);
@@ -193,7 +201,11 @@ internal static class BoundaryCorrector
 
         var used = chosen.Select(c => c.Index).ToHashSet();
         var selection = free.Select(p => p.group.Where(c => !used.Contains(c.Index)).Take(p.count).ToList()).ToList();
-        if (selection.Zip(free).Any(x => x.First.Count < x.Second.count)) return null;
+        if (selection.Zip(free).Any(x => x.First.Count < x.Second.count))
+        {
+            if (!approximate) return null;
+            free = free.Zip(selection, (f, sel) => (f.group, sel.Count)).ToList();
+        }
 
         double comboOf() => selection.Sum(sel => sel.Sum(c => c.DeltaCombo));
         long distance(double dC) => Math.Abs(scoreOf(fixedDB, dC) - recordedScore);
@@ -232,12 +244,20 @@ internal static class BoundaryCorrector
             }
         }
 
-        if (distance(comboOf()) != 0)
+        if (distance(comboOf()) != 0 && !approximate)
             return null;
 
         chosen.AddRange(selection.SelectMany(x => x));
         if (chosen.Select(c => c.Index).Distinct().Count() != chosen.Count)
             return null;
+
+        if (approximate)
+        {
+            if (chosen.Count == 0) return null;
+            return new(chosen.ToDictionary(c => c.Index, c => c.To), scoreOf(fixedDB, comboOf()), 0, cands.Count, sw.ElapsedMilliseconds,
+                $"approximate (dS={scoreOf(fixedDB, comboOf()) - recordedScore}): " + string.Join(", ", chosen.GroupBy(c => $"{c.From}->{c.To}").Select(g => $"{g.Key} x{g.Count()}")))
+            { Approximate = true };
+        }
 
         return new(chosen.ToDictionary(c => c.Index, c => c.To), recordedScore, -1, cands.Count, sw.ElapsedMilliseconds,
             "large plan: " + string.Join(", ", chosen.GroupBy(c => $"{c.From}->{c.To}").Select(g => $"{g.Key} x{g.Count()}")));

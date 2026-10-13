@@ -68,36 +68,57 @@ internal sealed class ManiaTimelineCalculator
             }
             else
             {
-                var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore, uncertainty);
-                var mehMissFlips = 0;
-                var timingAdjustments = 0;
-
-                if (!outcome.Exact &&
-                    reconcileWithMehMissFlips(playable, columns, replayFrames, gameplayStartTime, results, processor, applied, info, uncertainty) is { } reconciled)
+                (IReadOnlyList<LazerManiaReplaySimulator.Judged> results, BoundaryCorrector.Outcome outcome, int mehMiss, int timing) correct(BoundaryCorrector.TimingUncertainty u)
                 {
-                    (results, outcome, mehMissFlips) = reconciled;
+                    var outcome = BoundaryCorrector.Solve(simulator.Results, applied, processor, info.Statistics, info.TotalScore, u);
+                    if (!outcome.Exact &&
+                        reconcileWithMehMissFlips(playable, columns, replayFrames, gameplayStartTime, simulator.Results, processor, applied, info, u) is { } reconciled)
+                        return (reconciled.results, reconciled.outcome, reconciled.flips, 0);
+                    if (!outcome.Exact &&
+                        reconcileWithTimingAdjustments(playable, columns, replayFrames, gameplayStartTime, simulator.Results, processor, applied, info, u) is { } adjusted)
+                        return adjusted;
+                    return (simulator.Results, outcome, 0, 0);
                 }
 
-                if (!outcome.Exact &&
-                    reconcileWithTimingAdjustments(playable, columns, replayFrames, gameplayStartTime, results, processor, applied, info, uncertainty) is { } adjusted)
+                var corrected = correct(uncertainty);
+                var widened = 0.0;
+
+                // Not enough boundary candidates: widen the assumed timing error step by step (exact solutions only).
+                foreach (var width in widened_uncertainties)
                 {
-                    (results, outcome, mehMissFlips, timingAdjustments) = adjusted;
+                    if (corrected.outcome.Exact) break;
+                    applyResults(processor, simulator.Results, applied, new Dictionary<int, HitResult>());
+                    corrected = correct(new BoundaryCorrector.TimingUncertainty(width, width));
+                    widened = width;
                 }
 
-                if (outcome.Exact && (outcome.Flips.Count > 0 || mehMissFlips > 0 || timingAdjustments > 0))
+                if (corrected.outcome.Exact && (corrected.outcome.Flips.Count > 0 || corrected.mehMiss > 0 || corrected.timing > 0))
                 {
-                    frames = applyResults(processor, results, applied, outcome.Flips);
-                    label = $"boundary-corrected(flips={outcome.Flips.Count + mehMissFlips},meh-miss={mehMissFlips},timing={timingAdjustments},solutions={outcome.ExactSolutions})";
+                    frames = applyResults(processor, corrected.results, applied, corrected.outcome.Flips);
+                    label = $"boundary-corrected(flips={corrected.outcome.Flips.Count + corrected.mehMiss},meh-miss={corrected.mehMiss},timing={corrected.timing},solutions={corrected.outcome.ExactSolutions}"
+                            + (corrected.outcome.Exact && widened > 0 ? $",widened=±{widened}ms" : "") + ")";
                 }
-                else if (!outcome.Exact)
+                else if (corrected.outcome.Exact)
                 {
-                    // Leave the processor holding the raw results.
-                    frames = applyResults(processor, simulator.Results, applied, new Dictionary<int, HitResult>());
-                    label = $"raw(boundary:{outcome.Note})";
+                    label = $"raw(boundary:{corrected.outcome.Note})";
                 }
                 else
                 {
-                    label = $"raw(boundary:{outcome.Note})";
+                    // Give up on an exact match: close as much of the count gap as the widest candidate set allows, keeping
+                    // the score as close to the recorded one as possible.
+                    applyResults(processor, simulator.Results, applied, new Dictionary<int, HitResult>());
+                    var widest = new BoundaryCorrector.TimingUncertainty(widened_uncertainties[^1], widened_uncertainties[^1]);
+                    var approx = BoundaryCorrector.Solve(simulator.Results, applied, processor, info.Statistics, info.TotalScore, widest, approximate: true);
+                    if (approx.Approximate && approx.Flips.Count > 0)
+                    {
+                        frames = applyResults(processor, simulator.Results, applied, approx.Flips);
+                        label = $"approx-corrected(flips={approx.Flips.Count},dS={processor.TotalScore.Value - info.TotalScore})";
+                    }
+                    else
+                    {
+                        frames = applyResults(processor, simulator.Results, applied, new Dictionary<int, HitResult>());
+                        label = $"raw(boundary:{approx.Note})";
+                    }
                 }
             }
         }
@@ -136,6 +157,9 @@ internal sealed class ManiaTimelineCalculator
             ? new BoundaryCorrector.TimingUncertainty(before, after)
             : null;
     }
+
+    /// <summary>Timing errors (±ms) tried when the rounding-only candidates admit no exact solution.</summary>
+    private static readonly double[] widened_uncertainties = { 1.0, 1.5, 2.0 };
 
     private const int max_meh_miss_flips = 3;
     private const int max_meh_miss_attempts = 48;
