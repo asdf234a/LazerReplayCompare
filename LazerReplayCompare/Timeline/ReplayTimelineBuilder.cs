@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Globalization;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 
@@ -108,28 +106,23 @@ public sealed class ReplayTimelineBuilder
 
     private static double GetScoreMultiplier(Score score)
     {
-        var multiplier = 1.0;
-
         try
         {
-            var mods = score.ScoreInfo.GetType().GetProperty("Mods")?.GetValue(score.ScoreInfo);
-            if (mods is not IEnumerable modsEnumerable)
-                return multiplier;
+            // Mod.ScoreMultiplier is obsolete and always returns 1; lazer computes mod multipliers
+            // through the ruleset's ScoreMultiplierCalculator. Passing the score applies the same
+            // version-dependent multipliers (key mods, classic) that lazer uses for stored scores.
+            var scoreInfo = score.ScoreInfo;
+            var calculator = scoreInfo.Ruleset.CreateInstance()
+                .CreateScoreMultiplierCalculator(new ScoreMultiplierContext(scoreInfo.BeatmapInfo.Difficulty, scoreInfo));
+            var multiplier = calculator.CalculateFor(scoreInfo.Mods);
 
-            foreach (var mod in modsEnumerable.Cast<object>())
-            {
-                var value = mod.GetType().GetProperty("ScoreMultiplier")?.GetValue(mod);
-                if (value is IConvertible convertible)
-                    multiplier *= convertible.ToDouble(CultureInfo.InvariantCulture);
-            }
+            return multiplier > 0 ? multiplier : 1.0;
         }
         catch (Exception ex)
         {
             InternalLogger.Log(ex);
             return 1.0;
         }
-
-        return multiplier > 0 ? multiplier : 1.0;
     }
 }
 
