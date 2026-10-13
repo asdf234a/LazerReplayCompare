@@ -225,6 +225,22 @@ internal sealed class ManiaTimelineCalculator
                 improving.Add((index, direction, gap));
         }
 
+        // Each improving nudge on its own may already be the explanation (the greedy accumulation below would otherwise
+        // commit to the first-best nudge and never revisit the others in isolation).
+        foreach (var (index, direction, _) in improving.OrderBy(c => c.gap))
+        {
+            var single = nudge(replayFrames, index, direction);
+            var results = simulate(single);
+            evaluate(results);
+
+            var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore);
+            if (outcome.Exact)
+                return (results, outcome, 0, 1);
+
+            if (reconcileWithMehMissFlips(playable, columns, single, gameplayStartTime, results, processor, applied, info) is { } reconciled)
+                return (reconciled.results, reconciled.outcome, reconciled.flips, 1);
+        }
+
         var current = replayFrames;
         var accepted = 0;
         foreach (var (index, direction, _) in improving.OrderBy(c => c.gap).Take(max_timing_adjustments))
