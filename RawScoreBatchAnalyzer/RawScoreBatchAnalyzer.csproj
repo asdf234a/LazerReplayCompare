@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\LazerReplayCompare\LazerReplayCompare.csproj" />
+    <ProjectReference Include="..\LazerReplayCompare.Core\LazerReplayCompare.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -57,5 +57,12 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.3" />
     <PackageReference Include="System.IO.Pipelines" Version="10.0.0" />
   </ItemGroup>
+
+  <!-- osu.Game.Resources.dll (~125MB of skins/audio) comes in transitively but is never used for analysis. -->
+  <Target Name="RemoveOsuGameResources" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)' == 'osu.Game.Resources'" />
+    </ItemGroup>
+  </Target>
 
 </Project>

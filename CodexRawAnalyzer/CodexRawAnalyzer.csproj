@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\LazerReplayCompare\LazerReplayCompare.csproj" />
+    <ProjectReference Include="..\LazerReplayCompare.Core\LazerReplayCompare.Core.csproj" />
     <ProjectReference Include="..\RawScoreBatchAnalyzer\RawScoreBatchAnalyzer.csproj" />
   </ItemGroup>
 

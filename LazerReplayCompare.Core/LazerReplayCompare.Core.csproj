@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Replay scoring library: .osr decoding, the drawable-free osu!lazer mania replay simulator, boundary correction and
+    score timelines. Shared by the app, the batch analyzers and the verifier.
+
+    osu!lazer assemblies come from one of two places (OsuReference):
+      Local (default) - the installed client at $(OsuLazerCurrentPath), so the app matches the user's own lazer version.
+      NuGet           - ppy.osu.Game $(OsuNuGetVersion), for machines without lazer installed (verifier, CI).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>LazerReplayCompare</RootNamespace>
+    <OsuReference Condition="'$(OsuReference)' == ''">Local</OsuReference>
+    <OsuLazerCurrentPath Condition="'$(OsuLazerCurrentPath)' == ''">$(LocalAppData)\osulazer\current</OsuLazerCurrentPath>
+    <OsuNuGetVersion Condition="'$(OsuNuGetVersion)' == ''">2026.916.0</OsuNuGetVersion>
+    <!-- Do not copy .pdb/.xml files that sit next to the referenced osu!lazer assemblies. -->
+    <AllowedReferenceRelatedFileExtensions>.none</AllowedReferenceRelatedFileExtensions>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(OsuReference)' == 'Local'">
+    <Reference Include="osu.Framework">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Framework.dll</HintPath>
+    </Reference>
+    <Reference Include="Realm">
+      <HintPath>$(OsuLazerCurrentPath)\Realm.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game.Rulesets.Osu">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.Rulesets.Osu.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game.Rulesets.Taiko">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.Rulesets.Taiko.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game.Rulesets.Catch">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.Rulesets.Catch.dll</HintPath>
+    </Reference>
+    <Reference Include="osu.Game.Rulesets.Mania">
+      <HintPath>$(OsuLazerCurrentPath)\osu.Game.Rulesets.Mania.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(OsuLazerCurrentPath)\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(OsuReference)' == 'NuGet'">
+    <NoWarn>$(NoWarn);CS0618;NU1608;NU1605;NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(OsuReference)' == 'NuGet'">
+    <PackageReference Include="ppy.osu.Game" Version="$(OsuNuGetVersion)" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="$(OsuNuGetVersion)" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Taiko" Version="$(OsuNuGetVersion)" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Catch" Version="$(OsuNuGetVersion)" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Mania" Version="$(OsuNuGetVersion)" />
+  </ItemGroup>
+
+</Project>

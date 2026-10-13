@@ -14,11 +14,12 @@
     <OsuNuGetVersion Condition="'$(OsuNuGetVersion)' == ''">2026.916.0</OsuNuGetVersion>
   </PropertyGroup>
 
+  <!--
+    Compiles LazerReplayCompare.Core's sources directly: a ProjectReference cannot switch Core to its NuGet flavour
+    (restore ignores properties passed through references), and the app's flavour needs a local lazer install.
+  -->
   <ItemGroup>
-    <Compile Include="..\LazerReplayCompare\Scoring\*.cs" Link="Shared\Scoring\%(Filename)%(Extension)" />
-    <Compile Include="..\LazerReplayCompare\Timeline\ReplayTimelineBuilder.cs;..\LazerReplayCompare\Timeline\TimelineScaler.cs;..\LazerReplayCompare\Timeline\CorrectionMode.cs" Link="Shared\Timeline\%(Filename)%(Extension)" />
-    <Compile Include="..\LazerReplayCompare\ReplayExtraction\LazerReplayScoreDecoder.cs;..\LazerReplayCompare\ReplayExtraction\ModUtility.cs;..\LazerReplayCompare\ReplayExtraction\ReplayEntry.cs" Link="Shared\ReplayExtraction\%(Filename)%(Extension)" />
-    <Compile Include="..\LazerReplayCompare\App\InternalLogger.cs" Link="Shared\App\%(Filename)%(Extension)" />
+    <Compile Include="..\LazerReplayCompare.Core\**\*.cs" Exclude="..\LazerReplayCompare.Core\bin\**;..\LazerReplayCompare.Core\obj\**" Link="Core\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

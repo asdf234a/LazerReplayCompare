@@ -4,7 +4,11 @@ Batch analyzer for testing the currently checked-out `LazerReplayCompare` Raw os
 
 ## How It Chooses The Calculator
 
-This project references `..\LazerReplayCompare\LazerReplayCompare.csproj`.
+This project references the scoring library `..\LazerReplayCompare.Core\LazerReplayCompare.Core.csproj` (not the app), so it can also be published on its own:
+
+```powershell
+dotnet publish .\RawScoreBatchAnalyzer -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
+```
 
 To test another calculator version, switch the Git branch first, then run this app:
 
