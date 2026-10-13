@@ -55,13 +55,12 @@ public sealed class ReplayTimelineBuilder
         var scaleFactor = 1.0;
         if (frames.Count == 0)
         {
-            var detectedRate = ModUtility.GetPlaybackRate(score);
-            var finalRate = rate > 0 ? rate : detectedRate;
-            var scoreMultiplier = GetScoreMultiplier(score);
-            frames = maniaTimelineCalculator.Build(score, beatmapPath ?? string.Empty, finalRate, scoreMultiplier, correctionMode, scoreOrder);
-            var correctionLabel = correctionMode == CorrectionMode.Corrected
-                ? "score-maxcombo-corrected-bounded-soft-continuity"
-                : "raw-bounded-soft-continuity";
+            // Hit windows and playback rate come from the replay's own mods (as in osu!lazer); `rate` is kept for API
+            // compatibility only.
+            var rateFromMods = ModUtility.GetPlaybackRate(score);
+            var simulated = maniaTimelineCalculator.Build(score, beatmapPath ?? string.Empty, correctionMode);
+            frames = simulated.Frames;
+            var correctionLabel = simulated.Label;
 
             if (correctionMode == CorrectionMode.Scaled)
             {
@@ -69,7 +68,7 @@ public sealed class ReplayTimelineBuilder
                 scaleFactor = TimelineScaler.Apply(frames, score, appliedScaleMetric);
                 correctionLabel += $",scaled(metric={appliedScaleMetric},factor={scaleFactor:F6})";
             }
-            source = $"mania-simulated(rate={finalRate:F4},scoreMultiplier={scoreMultiplier:F4},matcher=lazer-event,{correctionLabel},totalFrames={totalFrames},withHeader={framesWithHeader})";
+            source = $"mania-simulated(engine=lazer-port,rate={rateFromMods:F4},scoreMultiplier={simulated.ScoreMultiplier:F4},{correctionLabel},totalFrames={totalFrames},withHeader={framesWithHeader})";
         }
 
         if (frames.Count == 0)
@@ -114,27 +113,6 @@ public sealed class ReplayTimelineBuilder
             "Good" or
             "Great" or
             "Perfect";
-    }
-
-    private static double GetScoreMultiplier(Score score)
-    {
-        try
-        {
-            // Mod.ScoreMultiplier is obsolete and always returns 1; lazer computes mod multipliers
-            // through the ruleset's ScoreMultiplierCalculator. Passing the score applies the same
-            // version-dependent multipliers (key mods, classic) that lazer uses for stored scores.
-            var scoreInfo = score.ScoreInfo;
-            var calculator = scoreInfo.Ruleset.CreateInstance()
-                .CreateScoreMultiplierCalculator(new ScoreMultiplierContext(scoreInfo.BeatmapInfo.Difficulty, scoreInfo));
-            var multiplier = calculator.CalculateFor(scoreInfo.Mods);
-
-            return multiplier > 0 ? multiplier : 1.0;
-        }
-        catch (Exception ex)
-        {
-            InternalLogger.Log(ex);
-            return 1.0;
-        }
     }
 }
 

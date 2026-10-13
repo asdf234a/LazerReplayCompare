@@ -21,3 +21,6 @@ settings/
 .cache/
 
 debug-static/
+
+# LazerReplayVerifier headless game storage
+headless/

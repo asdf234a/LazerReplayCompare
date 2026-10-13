@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Golden-standard verifier: plays a replay back through osu!lazer's real ReplayPlayer on a headless host and compares
+    it with the fast lazer port used by LazerReplayCompare. It references osu!lazer from NuGet (not the local install)
+    so it runs on any OS, including CI.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS0618;NU1608;NU1605;NU1701</NoWarn>
+    <OsuNuGetVersion Condition="'$(OsuNuGetVersion)' == ''">2026.916.0</OsuNuGetVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\LazerReplayCompare\Scoring\*.cs" Link="Shared\Scoring\%(Filename)%(Extension)" />
+    <Compile Include="..\LazerReplayCompare\Timeline\ReplayTimelineBuilder.cs;..\LazerReplayCompare\Timeline\TimelineScaler.cs;..\LazerReplayCompare\Timeline\CorrectionMode.cs" Link="Shared\Timeline\%(Filename)%(Extension)" />
+    <Compile Include="..\LazerReplayCompare\ReplayExtraction\LazerReplayScoreDecoder.cs;..\LazerReplayCompare\ReplayExtraction\ModUtility.cs;..\LazerReplayCompare\ReplayExtraction\ReplayEntry.cs" Link="Shared\ReplayExtraction\%(Filename)%(Extension)" />
+    <Compile Include="..\LazerReplayCompare\App\InternalLogger.cs" Link="Shared\App\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ppy.osu.Game" Version="$(OsuNuGetVersion)" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="$(OsuNuGetVersion)" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Taiko" Version="$(OsuNuGetVersion)" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Catch" Version="$(OsuNuGetVersion)" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Mania" Version="$(OsuNuGetVersion)" />
+  </ItemGroup>
+
+</Project>

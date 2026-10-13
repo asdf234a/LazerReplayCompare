@@ -24,7 +24,7 @@ It reads osu!lazer's `client.realm` and `files` storage, finds replay files for 
   - rank
   - file
 - Includes mod settings in API data, so plugins can compare by playback speed or implement their own mod filters.
-- Provides a replay timeline API. It first uses lazer replay frame headers when present, then falls back to the mania simulator with large excess-miss correction guided by final score and accuracy.
+- Provides a replay timeline API. It first uses lazer replay frame headers when present, then falls back to a drawable-free port of osu!lazer's own mania replay playback (judged with lazer's hit windows and scored with lazer's score processor).
 
 ## Requirements
 
@@ -86,7 +86,7 @@ GET http://127.0.0.1:24052/best-replay
 GET http://127.0.0.1:24052/timeline?osr=<replay-file>&osu=<beatmap-file>
 ```
 
-Use `correction=raw` to get the fast uncorrected simulator timeline. Omit it, or use `correction=corrected`, to get the density-limited corrected timeline.
+Use `correction=raw` to get the simulator timeline exactly as osu!lazer plays the replay back. Omit it, or use `correction=corrected`, to additionally reconcile it with the replay's recorded statistics and score: `.osr` frame times are rounded to whole milliseconds, so the only judgements that can differ from the real play are those whose result changes within ±0.5ms (in practice hold-note tails, whose 1.5x windows end on x.25/x.75ms). The corrector picks the smallest set of such flips that reproduces the recorded counts and score exactly, preferring the solution closest to the mean of all exact solutions. Stable replays (whose statistics use stable's one-judgement-per-hold-note counting) fall back to the raw timeline.
 
 Use `correction=scaled` to get the raw simulator timeline linearly scaled so its final value matches the replay. The scaling metric is the overlay main metric (override with `metric=Score|Acc|Bms|PpAcc|PpScore|V1Acc`). `Score` and `Acc` are scaled in the returned frames; for hit-based metrics the frames keep raw judgements and the response's `scaleFactor` (with `scaleMetric`) must be applied to the frame's metric value.
 
@@ -127,7 +127,7 @@ Builds a replay timeline from the `.osr` file.
 Timeline source priority:
 
 1. Existing lazer replay frame headers, if the replay already contains them.
-2. The mania simulator fallback with large excess-miss correction guided by final score and accuracy.
+2. The lazer replay port (see `correction` above).
 
 The timeline includes:
 
@@ -180,5 +180,6 @@ This is more stable than comparing by timestamp because it compares the current 
 
 ## Notes
 
-- If `/timeline` returns a `source` containing `density-limited-judgement-score-corrected`, the timeline came from the simulator. It adjusts simulated judgements only in likely error sections: broad high-density regions and short windows where judgements swing sharply toward lower results. Correction candidates are prioritized by volatility first and density second, while scores are still produced only through the osu!mania scoring formula.
+- If `/timeline` returns a `source` starting with `mania-simulated(engine=lazer-port`, the timeline came from the simulator. `boundary-corrected(flips=N,solutions=M)` means N sub-millisecond judgement flips were applied and M flip sets reproduced the recorded score exactly.
+- `LazerReplayVerifier` (repository root) plays a replay through osu!lazer's real `ReplayPlayer` on a headless host and prints it next to the port's Raw/Corrected results: `dotnet run --project LazerReplayVerifier -c Release -- <replay.osr> <beatmap.osu>`. It uses osu!lazer from NuGet, so it runs without a local install.
 - Build warnings about `System.Text.Json`, `System.Diagnostics.DiagnosticSource`, or similar assemblies can appear because osu!lazer ships newer DLLs than the installed .NET 10 reference assemblies. These warnings are expected if the build still finishes with `0 errors`.
