@@ -34,6 +34,10 @@ internal sealed class ManiaTimelineCalculator
 
         var ruleset = new ManiaRuleset();
         var playable = new FlatWorkingBeatmap(beatmapPath).GetPlayableBeatmap(ruleset.RulesetInfo, info.Mods);
+        var preRoundingWindows = PreRoundingManiaHitWindows.AppliesTo(info);
+        if (preRoundingWindows)
+            PreRoundingManiaHitWindows.Apply(playable, info.Mods);
+
         if (playable.HitObjects.Count == 0)
             return new ManiaTimelineResult(new List<ReplayTimelineFrame>(), new List<ReplayTimelineFrame>(), "lazer-port(empty)", 1);
 
@@ -65,6 +69,7 @@ internal sealed class ManiaTimelineCalculator
             {
                 var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore);
                 var mehMissFlips = 0;
+                var timingAdjustments = 0;
 
                 if (!outcome.Exact &&
                     reconcileWithMehMissFlips(playable, columns, replayFrames, gameplayStartTime, results, processor, applied, info) is { } reconciled)
@@ -72,10 +77,16 @@ internal sealed class ManiaTimelineCalculator
                     (results, outcome, mehMissFlips) = reconciled;
                 }
 
-                if (outcome.Exact && (outcome.Flips.Count > 0 || mehMissFlips > 0))
+                if (!outcome.Exact &&
+                    reconcileWithTimingAdjustments(playable, columns, replayFrames, gameplayStartTime, results, processor, applied, info) is { } adjusted)
+                {
+                    (results, outcome, mehMissFlips, timingAdjustments) = adjusted;
+                }
+
+                if (outcome.Exact && (outcome.Flips.Count > 0 || mehMissFlips > 0 || timingAdjustments > 0))
                 {
                     frames = applyResults(processor, results, applied, outcome.Flips);
-                    label = $"boundary-corrected(flips={outcome.Flips.Count + mehMissFlips},meh-miss={mehMissFlips},solutions={outcome.ExactSolutions})";
+                    label = $"boundary-corrected(flips={outcome.Flips.Count + mehMissFlips},meh-miss={mehMissFlips},timing={timingAdjustments},solutions={outcome.ExactSolutions})";
                 }
                 else if (!outcome.Exact)
                 {
@@ -89,6 +100,9 @@ internal sealed class ManiaTimelineCalculator
                 }
             }
         }
+
+        if (preRoundingWindows)
+            label += ",pre-2025.710-windows";
 
         return new ManiaTimelineResult(frames, rawFrames, label, scoreMultiplier);
     }
@@ -153,6 +167,148 @@ internal sealed class ManiaTimelineCalculator
         }
 
         return null;
+    }
+
+    private const double timing_nudge = 0.4;
+    private const int max_timing_adjustments = 6;
+
+    private static readonly HitResult[] gap_statistics =
+    {
+        HitResult.Perfect, HitResult.Great, HitResult.Good, HitResult.Ok, HitResult.Meh, HitResult.Miss,
+        HitResult.IgnoreHit, HitResult.IgnoreMiss, HitResult.ComboBreak,
+    };
+
+    /// <summary>
+    /// Besides hit windows (whose boundaries sit on x.5ms), OrderedHitPolicy compares the input time against the next
+    /// object's start time (`time &lt; next.StartTime`). Object times are whole milliseconds, so a press stored exactly on
+    /// the next object's start may really have happened up to 0.5ms earlier and gone to the previous object. Such presses
+    /// (together with any frames stored at the same millisecond, keeping their order) are nudged by 0.4ms and re-simulated;
+    /// nudges that bring the statistics closer without changing the max combo are accepted greedily, and after each one the
+    /// remaining gap is handed to the boundary flips.
+    /// </summary>
+    private static (IReadOnlyList<LazerManiaReplaySimulator.Judged> results, BoundaryCorrector.Outcome outcome, int mehMiss, int timing)? reconcileWithTimingAdjustments(
+        IBeatmap playable,
+        int columns,
+        List<ManiaReplayFrame> replayFrames,
+        double gameplayStartTime,
+        IReadOnlyList<LazerManiaReplaySimulator.Judged> rawResults,
+        ScoreProcessor processor,
+        List<JudgementResult> applied,
+        ScoreInfo info)
+    {
+        var candidates = findTimingCandidates(playable, replayFrames);
+        if (candidates.Count == 0)
+            return null;
+
+        IReadOnlyList<LazerManiaReplaySimulator.Judged> simulate(List<ManiaReplayFrame> frames)
+        {
+            var simulator = new LazerManiaReplaySimulator(playable, columns);
+            simulator.Run(frames, gameplayStartTime);
+            return simulator.Results;
+        }
+
+        (int gap, bool comboOk) evaluate(IReadOnlyList<LazerManiaReplaySimulator.Judged> results)
+        {
+            applyResults(processor, results, applied, new Dictionary<int, HitResult>());
+            var gap = gap_statistics.Sum(r => Math.Abs(processor.Statistics.GetValueOrDefault(r) - info.Statistics.GetValueOrDefault(r)));
+            return (gap, processor.HighestCombo.Value == info.MaxCombo);
+        }
+
+        var currentGap = evaluate(rawResults).gap;
+
+        // Score each candidate on its own.
+        var improving = new List<(int index, int direction, int gap)>();
+        foreach (var (index, direction) in candidates)
+        {
+            var (gap, comboOk) = evaluate(simulate(nudge(replayFrames, index, direction)));
+            if (comboOk && gap < currentGap)
+                improving.Add((index, direction, gap));
+        }
+
+        var current = replayFrames;
+        var accepted = 0;
+        foreach (var (index, direction, _) in improving.OrderBy(c => c.gap).Take(max_timing_adjustments))
+        {
+            var trial = nudge(current, index, direction);
+            var results = simulate(trial);
+            var (gap, comboOk) = evaluate(results);
+            if (!comboOk || gap >= currentGap)
+                continue;
+
+            current = trial;
+            currentGap = gap;
+            accepted++;
+
+            var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore);
+            if (outcome.Exact)
+                return (results, outcome, 0, accepted);
+
+            if (reconcileWithMehMissFlips(playable, columns, current, gameplayStartTime, results, processor, applied, info) is { } reconciled)
+                return (reconciled.results, reconciled.outcome, reconciled.flips, accepted);
+        }
+
+        return null;
+    }
+
+    /// <summary>Presses stored exactly on the start time of the next object in their column while the previous object could still take them.</summary>
+    private static List<(int index, int direction)> findTimingCandidates(IBeatmap playable, List<ManiaReplayFrame> frames)
+    {
+        var byColumn = playable.HitObjects.Cast<ManiaHitObject>()
+                               .GroupBy(h => h.Column)
+                               .ToDictionary(g => g.Key, g => g.OrderBy(h => h.StartTime).ToList());
+        var candidates = new List<(int, int)>();
+
+        for (var i = 0; i < frames.Count; i++)
+        {
+            var previous = i > 0 ? frames[i - 1].Actions : new List<ManiaAction>();
+            foreach (var column in frames[i].Actions.Except(previous).Select(a => (int)a))
+            {
+                if (!byColumn.TryGetValue(column, out var objects))
+                    continue;
+
+                var k = objects.FindIndex(h => h.StartTime == frames[i].Time);
+                if (k <= 0)
+                    continue;
+
+                var prev = objects[k - 1];
+                var missWindow = (prev is HoldNote hold ? hold.Head : prev).HitWindows.WindowFor(HitResult.Miss);
+                if (prev is not HoldNote && frames[i].Time - prev.StartTime > missWindow)
+                    continue;
+
+                // The press may really have been earlier (previous object takes it) – and, symmetrically, later.
+                candidates.Add((i, -1));
+                candidates.Add((i, 1));
+            }
+        }
+
+        return candidates;
+    }
+
+    /// <summary>
+    /// Moves frame <paramref name="index"/> by 0.4ms in <paramref name="direction"/>, together with the frames stored at the
+    /// same millisecond on that side (chords are recorded as consecutive frames), keeping their relative order.
+    /// </summary>
+    private static List<ManiaReplayFrame> nudge(List<ManiaReplayFrame> frames, int index, int direction)
+    {
+        var result = frames.ToList();
+        var time = frames[index].Time;
+        var group = new List<int> { index };
+        for (var j = index + direction; j >= 0 && j < frames.Count && frames[j].Time == time; j += direction)
+            group.Add(j);
+
+        // group[0] is the candidate; frames further out on the nudge side move a little further to keep the order.
+        for (var g = 0; g < group.Count; g++)
+        {
+            var f = frames[group[g]];
+            result[group[g]] = new ManiaReplayFrame(time + direction * (timing_nudge + g * 0.001), f.Actions.ToArray());
+        }
+
+        // Keep the neighbour on the far side of the nudge from being overtaken.
+        var limit = group.Max(j => j * direction) * direction + direction;
+        if (limit >= 0 && limit < frames.Count && direction * (frames[limit].Time - result[group[^1]].Time) <= 0)
+            return frames;
+
+        return result;
     }
 
     private static IEnumerable<List<T>> combinations<T>(IReadOnlyList<T> items, int k, int start = 0)
