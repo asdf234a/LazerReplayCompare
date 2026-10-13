@@ -25,6 +25,56 @@ internal sealed class ManiaTimelineCalculator
 
     public ManiaTimelineResult Build(Score score, string beatmapPath, CorrectionMode correctionMode = CorrectionMode.Corrected)
     {
+        simulationCache.Value = new System.Collections.Concurrent.ConcurrentDictionary<(long frames, string forced), IReadOnlyList<LazerManiaReplaySimulator.Judged>>();
+        try
+        {
+            return build(score, beatmapPath, correctionMode);
+        }
+        finally
+        {
+            simulationCache.Value = null;
+        }
+    }
+
+    /// <summary>
+    /// Re-simulations requested by the correction stages, keyed by frame content and forced results. The widened and
+    /// approximate stages revisit the same Meh↔Miss / timing variants many times.
+    /// </summary>
+    private static readonly AsyncLocal<System.Collections.Concurrent.ConcurrentDictionary<(long frames, string forced), IReadOnlyList<LazerManiaReplaySimulator.Judged>>?> simulationCache = new();
+
+    /// <summary>Runs independent re-simulations in parallel so later <see cref="simulate"/> calls hit the cache.</summary>
+    private static void prefetch(IBeatmap playable, int columns, double gameplayStartTime, ScoreInfo info,
+                                 IEnumerable<(List<ManiaReplayFrame> frames, IReadOnlyDictionary<osu.Game.Rulesets.Objects.HitObject, HitResult>? forced)> requests)
+    {
+        if (simulationCache.Value == null) return;
+        Parallel.ForEach(requests, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
+            request => simulate(playable, columns, request.frames, gameplayStartTime, info, request.forced));
+    }
+
+    private static IReadOnlyList<LazerManiaReplaySimulator.Judged> simulate(IBeatmap playable, int columns, List<ManiaReplayFrame> frames, double gameplayStartTime, ScoreInfo info,
+                                                                            IReadOnlyDictionary<osu.Game.Rulesets.Objects.HitObject, HitResult>? forced = null)
+    {
+        long framesKey = frames.Count;
+        foreach (var frame in frames)
+        {
+            framesKey = framesKey * 31 + BitConverter.DoubleToInt64Bits(frame.Time);
+            foreach (var action in frame.Actions) framesKey = framesKey * 7 + (int)action + 1;
+        }
+
+        var forcedKey = forced == null ? "" : string.Join(";", forced.Select(kv => $"{kv.Key.StartTime}:{((ManiaHitObject)kv.Key).Column}:{kv.Key.GetType().Name}:{kv.Value}").Order());
+        var cache = simulationCache.Value;
+        if (cache != null && cache.TryGetValue((framesKey, forcedKey), out var cached))
+            return cached;
+
+        var simulator = new LazerManiaReplaySimulator(playable, columns) { LiveFrameInterval = LiveFrameIntervalFor(info), ForcedResults = forced };
+        simulator.Run(frames, gameplayStartTime);
+        if (cache != null)
+            cache[(framesKey, forcedKey)] = simulator.Results;
+        return simulator.Results;
+    }
+
+    private ManiaTimelineResult build(Score score, string beatmapPath, CorrectionMode correctionMode)
+    {
         if (string.IsNullOrWhiteSpace(beatmapPath) || !File.Exists(beatmapPath))
             throw new InvalidOperationException("A .osu beatmap path is required to simulate mania timelines.");
 
@@ -87,7 +137,7 @@ internal sealed class ManiaTimelineCalculator
                 foreach (var width in widened_uncertainties)
                 {
                     if (corrected.outcome.Exact) break;
-                    applyResults(processor, simulator.Results, applied, new Dictionary<int, HitResult>());
+                    applyResults(processor, simulator.Results, applied, new Dictionary<int, HitResult>(), buildFrames: false);
                     corrected = correct(new BoundaryCorrector.TimingUncertainty(width, width));
                     widened = width;
                 }
@@ -184,7 +234,7 @@ internal sealed class ManiaTimelineCalculator
     {
         int gapNow() => gap_statistics.Sum(r => Math.Abs(processor.Statistics.GetValueOrDefault(r) - info.Statistics.GetValueOrDefault(r)));
 
-        applyResults(processor, raw, applied, new Dictionary<int, HitResult>());
+        applyResults(processor, raw, applied, new Dictionary<int, HitResult>(), buildFrames: false);
         (int gap, long dS) bestKey = (gapNow(), Math.Abs(processor.TotalScore.Value - info.TotalScore));
         (IReadOnlyList<LazerManiaReplaySimulator.Judged> results, Dictionary<int, HitResult> flips, int changes, int gap, double width)? best = null;
 
@@ -193,7 +243,7 @@ internal sealed class ManiaTimelineCalculator
             // The processor holds `results` here.
             var outcome = BoundaryCorrector.Solve(results, applied, processor, info.Statistics, info.TotalScore, new BoundaryCorrector.TimingUncertainty(width, width), approximate: true);
             var flips = outcome.Flips;
-            applyResults(processor, results, applied, flips);
+            applyResults(processor, results, applied, flips, buildFrames: false);
             var key = (gapNow(), Math.Abs(processor.TotalScore.Value - info.TotalScore));
             if (key.CompareTo(bestKey) < 0)
             {
@@ -204,7 +254,7 @@ internal sealed class ManiaTimelineCalculator
 
         foreach (var width in approximate_uncertainties)
         {
-            applyResults(processor, raw, applied, new Dictionary<int, HitResult>());
+            applyResults(processor, raw, applied, new Dictionary<int, HitResult>(), buildFrames: false);
             consider(raw, 0, width);
             if (bestKey == (0, 0)) break;
 
@@ -212,7 +262,7 @@ internal sealed class ManiaTimelineCalculator
                 new BoundaryCorrector.TimingUncertainty(width, width), max_approximate_miss_variants).ToList();
             foreach (var (results, changes) in variants)
             {
-                applyResults(processor, results, applied, new Dictionary<int, HitResult>());
+                applyResults(processor, results, applied, new Dictionary<int, HitResult>(), buildFrames: false);
                 consider(results, changes, width);
             }
 
@@ -309,16 +359,19 @@ internal sealed class ManiaTimelineCalculator
                              .OrderByDescending(set => set.Aggregate(1.0, (p, c) => p * c.probability))
                              .Take(maxAttempts));
 
-        foreach (var set in attempts)
+        var attemptList = attempts.ToList();
+        for (int i = 0; i < attemptList.Count; i++)
         {
-            var simulator = new LazerManiaReplaySimulator(playable, columns)
+            var set = attemptList[i];
+            if (i % Environment.ProcessorCount == 0)
             {
-                LiveFrameInterval = LiveFrameIntervalFor(info),
-                ForcedResults = set.ToDictionary(c => c.judged.HitObject, c => c.to),
-            };
-            simulator.Run(replayFrames, gameplayStartTime);
-            applyResults(processor, simulator.Results, applied, new Dictionary<int, HitResult>());
-            yield return (simulator.Results, set.Count);
+                prefetch(playable, columns, gameplayStartTime, info, attemptList.Skip(i).Take(Environment.ProcessorCount)
+                    .Select(a => (replayFrames, (IReadOnlyDictionary<osu.Game.Rulesets.Objects.HitObject, HitResult>?)a.ToDictionary(c => c.judged.HitObject, c => c.to))));
+            }
+
+            var variant = simulate(playable, columns, replayFrames, gameplayStartTime, info, set.ToDictionary(c => c.judged.HitObject, c => c.to));
+            applyResults(processor, variant, applied, new Dictionary<int, HitResult>(), buildFrames: false);
+            yield return (variant, set.Count);
         }
     }
 
@@ -355,20 +408,19 @@ internal sealed class ManiaTimelineCalculator
             return null;
 
         IReadOnlyList<LazerManiaReplaySimulator.Judged> simulate(List<ManiaReplayFrame> frames)
-        {
-            var simulator = new LazerManiaReplaySimulator(playable, columns) { LiveFrameInterval = LiveFrameIntervalFor(info) };
-            simulator.Run(frames, gameplayStartTime);
-            return simulator.Results;
-        }
+            => ManiaTimelineCalculator.simulate(playable, columns, frames, gameplayStartTime, info);
 
         (int gap, bool comboOk) evaluate(IReadOnlyList<LazerManiaReplaySimulator.Judged> results)
         {
-            applyResults(processor, results, applied, new Dictionary<int, HitResult>());
+            applyResults(processor, results, applied, new Dictionary<int, HitResult>(), buildFrames: false);
             var gap = gap_statistics.Sum(r => Math.Abs(processor.Statistics.GetValueOrDefault(r) - info.Statistics.GetValueOrDefault(r)));
             return (gap, processor.HighestCombo.Value == info.MaxCombo);
         }
 
         var currentGap = evaluate(rawResults).gap;
+
+        prefetch(playable, columns, gameplayStartTime, info,
+            candidates.Select(c => (nudge(replayFrames, c.index, c.direction), (IReadOnlyDictionary<osu.Game.Rulesets.Objects.HitObject, HitResult>?)null)));
 
         // Score each candidate on its own.
         var improving = new List<(int index, int direction, int gap)>();
@@ -507,7 +559,8 @@ internal sealed class ManiaTimelineCalculator
         ScoreProcessor processor,
         IReadOnlyList<LazerManiaReplaySimulator.Judged> results,
         List<JudgementResult> applied,
-        IReadOnlyDictionary<int, HitResult> overrides)
+        IReadOnlyDictionary<int, HitResult> overrides,
+        bool buildFrames = true)
     {
         for (var i = applied.Count - 1; i >= 0; i--)
             processor.RevertResult(applied[i]);
@@ -524,7 +577,8 @@ internal sealed class ManiaTimelineCalculator
             processor.ApplyResult(judgementResult);
             applied.Add(judgementResult);
 
-            if (!counted_results.Contains(type))
+            // Correction stages only need the processor's totals.
+            if (!buildFrames || !counted_results.Contains(type))
                 continue;
 
             hits[type.ToString()]++;

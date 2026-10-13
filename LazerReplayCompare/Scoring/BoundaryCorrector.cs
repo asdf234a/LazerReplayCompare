@@ -25,16 +25,42 @@ internal static class BoundaryCorrector
     /// judged as <paramref name="to"/> instead (0 when not user-triggered).
     /// </summary>
     public static double FlipProbability(LazerManiaReplaySimulator.Judged r, HitResult to, TimingUncertainty? uncertainty = null)
+        => ResultProbabilities(r, uncertainty ?? TimingUncertainty.Rounding).GetValueOrDefault(to);
+
+    private static readonly HitResult[] window_results = [HitResult.Perfect, HitResult.Great, HitResult.Good, HitResult.Ok, HitResult.Meh, HitResult.Miss];
+
+    /// <summary>
+    /// Exact share of the uncertainty interval around a user-triggered judgement's offset that each result covers. The
+    /// result only changes where |offset| crosses a window edge, so the interval is split there instead of sampled.
+    /// </summary>
+    public static Dictionary<HitResult, double> ResultProbabilities(LazerManiaReplaySimulator.Judged r, TimingUncertainty u)
     {
-        var u = uncertainty ?? TimingUncertainty.Rounding;
-        if (r.Offset is not double off) return 0;
+        var shares = new Dictionary<HitResult, double>();
+        if (r.Offset is not double off) return shares;
+
         var w = r.HitObject.HitWindows;
         HitResult judge(double o) { var x = w.ResultFor(o / r.Scale); return r.CapAtMeh && x > HitResult.Meh ? HitResult.Meh : x; }
-        if (judge(off - u.Before + 1e-4) != to && judge(off + u.After - 1e-4) != to) return 0;
-        const int n = 1000;
-        int hits = 0;
-        for (int s = 0; s < n; s++) if (judge(off - u.Before + (s + 0.5) / n * u.Width) == to) hits++;
-        return hits / (double)n;
+
+        double lo = off - u.Before, hi = off + u.After;
+        var cuts = new List<double> { lo, hi };
+        foreach (var result in window_results)
+        {
+            if (!w.IsHitResultAllowed(result)) continue;
+            double edge = w.WindowFor(result) * r.Scale;
+            if (edge > lo && edge < hi) cuts.Add(edge);
+            if (-edge > lo && -edge < hi) cuts.Add(-edge);
+        }
+        cuts.Sort();
+
+        for (int i = 0; i + 1 < cuts.Count; i++)
+        {
+            double length = cuts[i + 1] - cuts[i];
+            if (length <= 0) continue;
+            var result = judge((cuts[i] + cuts[i + 1]) / 2);
+            shares[result] = shares.GetValueOrDefault(result) + length / u.Width;
+        }
+
+        return shares;
     }
 
     private static readonly HitResult[] kinds = [HitResult.Perfect, HitResult.Great, HitResult.Good, HitResult.Ok, HitResult.Meh];
@@ -80,13 +106,11 @@ internal static class BoundaryCorrector
             HitResult judge(double o) { var x = w.ResultFor(o / r.Scale); return r.CapAtMeh && x > HitResult.Meh ? HitResult.Meh : x; }
             // sample the ±0.5ms interval finely; probability = fraction of the interval giving each alternative
             if (judge(off - u.Before + 1e-4) == r.Type && judge(off + u.After - 1e-4) == r.Type) continue;   // windows are wide; endpoints suffice
-            var counts = new Dictionary<HitResult, int>(); const int n = 1000;
-            for (int s = 0; s < n; s++) { var x = judge(off - u.Before + (s + 0.5) / n * u.Width); counts[x] = counts.GetValueOrDefault(x) + 1; }
-            foreach (var (alt, c) in counts)
+            foreach (var (alt, share) in ResultProbabilities(r, u))
             {
                 if (alt == r.Type || !kinds.Contains(alt)) continue;
                 int combo = applied[k].ComboAfterJudgement;
-                cands.Add(new(k, r.Type, alt, c / (double)n,
+                cands.Add(new(k, r.Type, alt, share,
                     processor.GetBaseScoreForResult(alt) - processor.GetBaseScoreForResult(r.Type),
                     (comboBase(alt) - comboBase(r.Type)) * comboFactor(combo), r.Time));
             }
@@ -211,7 +235,9 @@ internal static class BoundaryCorrector
         long distance(double dC) => Math.Abs(scoreOf(fixedDB, dC) - recordedScore);
 
         var rng = new Random(1);
-        for (int restart = 0; restart < 64 && distance(comboOf()) != 0; restart++)
+        // Approximate mode rarely reaches distance 0, so it would otherwise always pay for every restart.
+        int restarts = approximate ? 8 : 64;
+        for (int restart = 0; restart < restarts && distance(comboOf()) != 0; restart++)
         {
             if (restart > 0)
             {
@@ -229,13 +255,16 @@ internal static class BoundaryCorrector
                 (int g, int s, Candidate u)? bestSwap = null;
                 for (int g = 0; g < free.Count; g++)
                 {
+                    // Candidates with the same combo delta are interchangeable for the score, so only one selected and
+                    // one unselected representative per distinct delta needs to be tried.
                     var selected = selection[g].Select(c => c.Index).ToHashSet();
-                    for (int si = 0; si < selection[g].Count; si++)
+                    var outgoing = selection[g].Select((c, si) => (c, si)).DistinctBy(x => Math.Round(x.c.DeltaCombo, 6)).ToList();
+                    var incoming = free[g].group.Where(c => !selected.Contains(c.Index) && !used.Contains(c.Index)).DistinctBy(c => Math.Round(c.DeltaCombo, 6)).ToList();
+                    foreach (var (o, si) in outgoing)
                     {
-                        foreach (var u in free[g].group)
+                        foreach (var u in incoming)
                         {
-                            if (selected.Contains(u.Index) || used.Contains(u.Index)) continue;
-                            long d = distance(current - selection[g][si].DeltaCombo + u.DeltaCombo);
+                            long d = distance(current - o.DeltaCombo + u.DeltaCombo);
                             if (d < best) { best = d; bestSwap = (g, si, u); }
                         }
                     }
