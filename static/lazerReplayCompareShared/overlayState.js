@@ -81,24 +81,44 @@ export function hasClassicMode(modsKey) {
     return mods.includes('CL') || mods.includes('CLASSIC');
 }
 
-export function isAutoCompatibleReplay(replay, currentModsKey) {
-    return isSameRate(replay, currentModsKey) &&
-        hasClassicMode(getReplayModsKey(replay)) === hasClassicMode(currentModsKey);
+/** Clients the overlays compare against: osu!lazer, and osu!stable (against osu!stable replays). */
+export function isSupportedClient(client) {
+    return client === 'lazer' || client === 'stable';
 }
 
-export function chooseReplayTarget(replaysData, currentModsKey, selectedMode, autoMode) {
+export function isAutoCompatibleReplay(replay, currentModsKey, client = 'lazer') {
+    if (!isSameRate(replay, currentModsKey)) return false;
+    // osu!stable scores ScoreV1 with one judgement per hold note, so it is compared against osu!stable replays only.
+    if (client === 'stable') return Boolean(replay?.isLegacy);
+    return hasClassicMode(getReplayModsKey(replay)) === hasClassicMode(currentModsKey);
+}
+
+export function chooseReplayTarget(replaysData, currentModsKey, selectedMode, autoMode, client = 'lazer') {
     const replays = Array.isArray(replaysData.replays) ? replaysData.replays : [];
     const selected = replaysData.selectedReplay;
 
     if (selected) {
+        if (client === 'stable' && !selected.isLegacy) {
+            return { replay: null, mode: selectedMode, error: 'osu!lazer replay: not compared in osu!stable' };
+        }
         return { replay: selected, mode: selectedMode, error: '' };
     }
 
     const replay = replays
-        .filter((entry) => isAutoCompatibleReplay(entry, currentModsKey))
+        .filter((entry) => isAutoCompatibleReplay(entry, currentModsKey, client))
         .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0] ?? null;
 
     return { replay, mode: autoMode, error: replay ? '' : 'no same-rate replay' };
+}
+
+/**
+ * Metric a timeline is scaled by: scaled timelines, and corrected osu!stable replays compared against osu!lazer
+ * (lazer's playback of them is scaled onto the recorded result).
+ */
+export function timelineScaleMetric(correction, replay, client, mainMetric) {
+    if (correction === 'scaled') return mainMetric;
+    if (correction === 'corrected' && client !== 'stable' && replay?.isLegacy) return mainMetric;
+    return '';
 }
 
 export function getHitIndex(hits) {

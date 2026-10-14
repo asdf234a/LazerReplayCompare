@@ -130,12 +130,13 @@ public sealed record TosuSnapshot(
             Speed: GetPlaySpeed(root));
     }
 
-    /// <summary>play.mods → rate/Classic, the way the overlays read it (getCurrentModsKey).</summary>
+    /// <summary>play.mods → rate/Classic, the way the overlays read it (getCurrentModsKey), and whether the client is osu!stable.</summary>
     private static PlaySpeed GetPlaySpeed(JsonElement root)
     {
+        bool stable = LiveClients.Parse(GetString(root, "client")) == LiveClient.Stable;
         if (!root.TryGetProperty("play", out var play) || play.ValueKind != JsonValueKind.Object ||
             !play.TryGetProperty("mods", out var mods) || mods.ValueKind != JsonValueKind.Object)
-            return new PlaySpeed(1, false);
+            return new PlaySpeed(1, false, stable);
 
         var acronyms = new List<string>();
         double? settingsRate = null;
@@ -156,7 +157,7 @@ public sealed record TosuSnapshot(
         }
 
         var rate = mods.TryGetProperty("rate", out var rateValue) && rateValue.ValueKind == JsonValueKind.Number ? rateValue.GetDouble() : 1;
-        return AutoTargetRule.ForPlay(acronyms, settingsRate, rate);
+        return AutoTargetRule.ForPlay(acronyms, settingsRate, rate, stable);
 
         static string settingText(JsonElement value) => value.ValueKind switch
         {

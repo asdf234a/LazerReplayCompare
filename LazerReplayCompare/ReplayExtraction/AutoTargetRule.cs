@@ -4,14 +4,15 @@ using System.Text.RegularExpressions;
 namespace LazerReplayCompare;
 
 /// <summary>Playback rate and Classic mod of a play or replay — what the auto target has to match.</summary>
-public readonly record struct PlaySpeed(double Rate, bool Classic)
+/// <param name="Stable">The play runs in osu!stable (only osu!stable replays are compared against it).</param>
+public readonly record struct PlaySpeed(double Rate, bool Classic, bool Stable = false)
 {
     public string RateText => Rate.ToString("0.##", CultureInfo.InvariantCulture) + "×";
 }
 
 /// <summary>
-/// In auto mode the comparison target is the best score among replays with the current play's rate and Classic mod.
-/// Mirrors <c>isAutoCompatibleReplay</c> / <c>getCurrentModsKey</c> in static/lazerReplayCompareShared/overlayState.js,
+/// In auto mode the comparison target is the best score among replays with the current play's rate and Classic mod
+/// (against osu!stable: the best osu!stable replay at the current rate). Mirrors <c>isAutoCompatibleReplay</c> / <c>getCurrentModsKey</c> in static/lazerReplayCompareShared/overlayState.js,
 /// so the app shows the same target the overlay compares against.
 /// </summary>
 public static class AutoTargetRule
@@ -19,10 +20,10 @@ public static class AutoTargetRule
     private const double rate_epsilon = 0.0001;
     private static readonly Regex number = new(@"[\d.]+", RegexOptions.Compiled);
 
-    public static PlaySpeed ForPlay(IReadOnlyList<string> acronyms, double? settingsRate, double modsRate)
+    public static PlaySpeed ForPlay(IReadOnlyList<string> acronyms, double? settingsRate, double modsRate, bool stable = false)
     {
         var rate = settingsRate ?? (modsRate > 0 ? modsRate : 1);
-        return new PlaySpeed(rate != 1 ? rate : DefaultRate(acronyms), IsClassic(acronyms));
+        return new PlaySpeed(rate != 1 ? rate : DefaultRate(acronyms), IsClassic(acronyms), stable);
     }
 
     public static PlaySpeed ForReplay(ReplayEntry replay)
@@ -35,7 +36,11 @@ public static class AutoTargetRule
     public static bool IsCompatible(ReplayEntry replay, PlaySpeed current)
     {
         var speed = ForReplay(replay);
-        return Math.Abs(speed.Rate - current.Rate) <= rate_epsilon && speed.Classic == current.Classic;
+        if (Math.Abs(speed.Rate - current.Rate) > rate_epsilon)
+            return false;
+
+        // osu!stable scores ScoreV1 with one judgement per hold note, so it is compared against osu!stable replays only.
+        return current.Stable ? replay.IsLegacy : speed.Classic == current.Classic;
     }
 
     /// <summary>A rate-like mod setting ("speed_change", "rate", …), parsed leniently like the overlay does.</summary>

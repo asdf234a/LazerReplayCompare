@@ -17,15 +17,24 @@ public static class TimelineScaler
     /// </summary>
     public static double Apply(List<ReplayTimelineFrame> frames, Score score, string metric)
     {
+        var info = score.ScoreInfo;
+        return Apply(frames, metric, info.TotalScore, info.Accuracy,
+            key => Enum.TryParse<HitResult>(key, out var result) ? info.Statistics.GetValueOrDefault(result) : 0);
+    }
+
+    /// <summary>
+    /// <see cref="Apply(List{ReplayTimelineFrame}, Score, string)"/> onto explicit final values: score, accuracy and
+    /// judgement counts in the same units as the frames.
+    /// </summary>
+    public static double Apply(List<ReplayTimelineFrame> frames, string metric, double targetScore, double targetAccuracy, Func<string, double> targetHits)
+    {
         if (frames.Count == 0)
             return 1.0;
 
         var definition = MetricRegistry.Find(metric) ?? MetricRegistry.Default;
-        var info = score.ScoreInfo;
         var last = frames.MaxBy(frame => frame.Index)!;
         var rawFinal = evaluate(definition, last);
-        var target = definition.Evaluate(info.TotalScore, info.Accuracy,
-            key => Enum.TryParse<HitResult>(key, out var result) ? info.Statistics.GetValueOrDefault(result) : 0);
+        var target = definition.Evaluate(targetScore, targetAccuracy, targetHits);
         var factor = rawFinal > 0 && target > 0 ? target / rawFinal : 1.0;
 
         for (var i = 0; i < frames.Count; i++)

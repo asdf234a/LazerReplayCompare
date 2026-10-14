@@ -36,6 +36,7 @@ Keep the app running while you use the overlay. Its overlay API listens on port 
 ## Choosing the target replay
 
 - **Auto (default).** The target is your highest score at the same playback rate and Classic setting as the current play. If no saved replay matches, there is nothing to compare against until you pin one.
+- **Playing in osu!stable.** The target is your best replay set in osu!stable (imported into osu!lazer) at the same rate, scored the way osu!stable does (ScoreV1, one judgement per hold note). Replays set in osu!lazer are not compared against osu!stable.
 - **Pinned.** Pin a replay in the list to compare against it instead, whatever its mods or speed. Unpin it to go back to auto.
 
 ## Overlays

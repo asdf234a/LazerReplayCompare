@@ -92,7 +92,8 @@ public sealed class ReplayFinder
                             Rank: rank,
                             Statistics: new Dictionary<string, int>(statistics, StringComparer.Ordinal),
                             Timestamp: timestamp,
-                            Date: date));
+                            Date: date,
+                            IsLegacy: score.IsLegacyScore || score.LegacyTotalScore != null));
                     }
                 }
 

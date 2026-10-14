@@ -120,8 +120,10 @@ public sealed class ReplayApiServer : IDisposable
                 var rate = double.TryParse(rateStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var r) && r > 0 ? r : 0;
                 var correctionMode = ParseCorrectionMode(correction, getDefaultCorrectionMode());
                 var scaleMetric = GetQueryValue(query, "scaleMetric") ?? GetQueryValue(query, "metric") ?? getOverlayMetrics().MainMetric;
+                // the game the live play runs in: osu!stable replays are scored the osu!stable way against osu!stable
+                var liveClient = LiveClients.Parse(GetQueryValue(query, "client"));
 
-                WriteJson(stream, timelineBuilder.GetOrBuild(replayPath ?? string.Empty, beatmapPath, rate, correctionMode, scaleMetric));
+                WriteJson(stream, timelineBuilder.GetOrBuild(replayPath ?? string.Empty, beatmapPath, rate, correctionMode, scaleMetric, liveClient));
                 return;
             }
 

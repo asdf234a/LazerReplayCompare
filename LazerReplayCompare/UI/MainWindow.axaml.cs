@@ -537,6 +537,15 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        var client = LiveClients.Parse(currentSnapshot.Client);
+        if (client == LiveClient.Stable && !target.IsLegacy)
+        {
+            viewModel.ShowCorrectionNotice("Not compared in osu!stable",
+                "This replay was set in osu!lazer. Playing in osu!stable, the overlay only compares against replays set in osu!stable.",
+                "osu!lazer replay");
+            return;
+        }
+
         var beatmapPath = BuildBeatmapPath(currentSnapshot);
         if (string.IsNullOrWhiteSpace(beatmapPath) || !File.Exists(beatmapPath))
         {
@@ -554,7 +563,7 @@ public sealed partial class MainWindow : Window
         {
             try
             {
-                var timeline = timelineBuilder.GetOrBuild(target.FilePath, beatmapPath, 0, mode, metric.Key);
+                var timeline = timelineBuilder.GetOrBuild(target.FilePath, beatmapPath, 0, mode, metric.Key, client);
                 Dispatcher.UIThread.Post(() =>
                 {
                     if (!cancellation.IsCancellationRequested)

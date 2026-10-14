@@ -294,12 +294,14 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    public string TargetModeText => IsTargetPinned ? "Pinned" : $"Auto · best at {AutoSpeed.RateText}{(AutoSpeed.Classic ? " Classic" : "")}";
+    public string TargetModeText => IsTargetPinned ? "Pinned" : $"Auto · best {(AutoSpeed.Stable ? "osu!stable replay " : "")}at {AutoSpeed.RateText}{(!AutoSpeed.Stable && AutoSpeed.Classic ? " Classic" : "")}";
 
     /// <summary>Replays exist, but none at the current rate (and nothing is pinned).</summary>
     public bool ShowNoTarget => HasReplays && Target == null;
 
-    public string NoTargetText => $"No saved replay at {AutoSpeed.RateText}{(AutoSpeed.Classic ? " with Classic" : "")}. Pin one below to compare against it anyway.";
+    public string NoTargetText => AutoSpeed.Stable
+        ? $"No osu!stable replay at {AutoSpeed.RateText}. Playing in osu!stable, only replays set in osu!stable are compared."
+        : $"No saved replay at {AutoSpeed.RateText}{(AutoSpeed.Classic ? " with Classic" : "")}. Pin one below to compare against it anyway.";
     public bool ShowPinHint => !IsTargetPinned;
     public string MaxComboText => Target?.MaxCombo.ToString("N0", CultureInfo.InvariantCulture) ?? "-";
 
@@ -418,8 +420,24 @@ public sealed class MainWindowViewModel : ObservableObject
             case TimelineCorrectionStatus.Exact:
                 CorrectionTone = "good";
                 CorrectionTitle = "Exact match";
-                CorrectionDetail = "The corrected timeline reproduces the recorded score and every judgement count, so the overlay's difference is exact at every note.";
+                CorrectionDetail = correction.StableScoring
+                    ? "Scored the way osu!stable does, the timeline reproduces the recorded score and every judgement count, so the overlay's difference is exact at every note."
+                    : "The corrected timeline reproduces the recorded score and every judgement count, so the overlay's difference is exact at every note.";
                 CorrectionShort = "Score & judgements reproduced";
+                break;
+
+            case TimelineCorrectionStatus.Corrected:
+                CorrectionTone = "good";
+                CorrectionTitle = "Judgements match";
+                CorrectionDetail = "Scored the way osu!stable does, the timeline reproduces every recorded judgement count. osu!stable keeps some scoring state that replays don't record, so the small score difference left over is spread across the timeline, which ends exactly on the recorded score.";
+                CorrectionShort = "Judgements reproduced, score aligned";
+                break;
+
+            case TimelineCorrectionStatus.Approximate when correction.StableScoring:
+                CorrectionTone = "warning";
+                CorrectionTitle = $"Approximate · {correction.HitDifference} judgements differ";
+                CorrectionDetail = $"Scored the way osu!stable does, the replay's frames can't reproduce every recorded judgement ({correction.HitDifference} differ). The timeline still ends on the recorded score, but notes near the differing judgements can be slightly off.";
+                CorrectionShort = $"{correction.HitDifference} judgements differ";
                 break;
 
             case TimelineCorrectionStatus.Approximate:
@@ -434,9 +452,10 @@ public sealed class MainWindowViewModel : ObservableObject
             case TimelineCorrectionStatus.Raw:
                 CorrectionTone = "info";
                 CorrectionTitle = "Raw timeline";
+                var playback = correction.StableScoring ? "osu!stable's judgement of the replay gives" : "osu!lazer's replay playback shows";
                 CorrectionDetail = correction.ScoreDifference == 0
-                    ? "Exactly what osu!lazer's replay playback shows, which here matches the recorded score."
-                    : $"Exactly what osu!lazer's replay playback shows ({points} points from the recorded score). Choose Corrected in Settings to match the recorded score.";
+                    ? $"Exactly what {playback}, which here matches the recorded score."
+                    : $"Exactly what {playback} ({points} points from the recorded score). Choose Corrected in Settings to match the recorded score.";
                 CorrectionShort = correction.ScoreDifference == 0 ? "Matches the recorded score" : $"{points} points from the recorded score";
                 break;
 
@@ -449,9 +468,9 @@ public sealed class MainWindowViewModel : ObservableObject
 
             case TimelineCorrectionStatus.Legacy:
                 CorrectionTone = "info";
-                CorrectionTitle = "Lazer playback";
-                CorrectionDetail = "osu!stable counts hold notes differently, so this replay can't be matched to its recorded judgements. The timeline is exactly what lazer's replay playback shows.";
-                CorrectionShort = "osu!stable replay";
+                CorrectionTitle = "osu!stable replay · scaled";
+                CorrectionDetail = $"osu!stable counts hold notes differently, so this replay can't be matched to its recorded judgements in osu!lazer. The timeline is lazer's playback of it, stretched so its final {scaleMetric} equals the recorded one.";
+                CorrectionShort = $"Lazer playback, stretched to the final {scaleMetric}";
                 break;
 
             default:
@@ -461,6 +480,16 @@ public sealed class MainWindowViewModel : ObservableObject
                 CorrectionShort = string.Empty;
                 break;
         }
+    }
+
+    /// <summary>Informational state when the target isn't compared (e.g. an osu!lazer replay while playing osu!stable).</summary>
+    public void ShowCorrectionNotice(string title, string detail, string shortText)
+    {
+        IsCorrectionLoading = false;
+        CorrectionTone = "info";
+        CorrectionTitle = title;
+        CorrectionDetail = detail;
+        CorrectionShort = shortText;
     }
 
     public void ShowCorrectionError(string message)

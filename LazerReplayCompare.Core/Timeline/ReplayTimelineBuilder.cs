@@ -20,13 +20,16 @@ public sealed class ReplayTimelineBuilder
         string? beatmapPath,
         double rate = 0,
         CorrectionMode correctionMode = CorrectionMode.Corrected,
-        string scaleMetric = "Score")
+        string scaleMetric = "Score",
+        LiveClient client = LiveClient.Lazer)
     {
         var file = new FileInfo(replayPath);
-        var metricKey = correctionMode == CorrectionMode.Scaled ? TimelineScaler.NormalizeMetric(scaleMetric) : "";
+        // Scaled timelines depend on the metric, and so do corrected osu!stable replays compared against osu!lazer (scaled too).
+        var scaled = correctionMode == CorrectionMode.Scaled || (correctionMode == CorrectionMode.Corrected && client == LiveClient.Lazer && IsStableReplay(replayPath));
+        var metricKey = scaled ? TimelineScaler.NormalizeMetric(scaleMetric) : "";
         // `rate` is not part of the key: playback rate comes from the replay's mods (see Build).
         var key = string.Join("|", replayPath, file.Exists ? file.Length : -1, file.Exists ? file.LastWriteTimeUtc.Ticks : 0,
-            beatmapPath, correctionMode, metricKey);
+            beatmapPath, correctionMode, metricKey, client);
 
         Lazy<ReplayTimelineResponse> entry;
         lock (cacheLock)
@@ -42,7 +45,7 @@ public sealed class ReplayTimelineBuilder
             }
             else
             {
-                node = cache.AddFirst((key, new Lazy<ReplayTimelineResponse>(() => Build(replayPath, beatmapPath, rate, correctionMode, scaleMetric: scaleMetric))));
+                node = cache.AddFirst((key, new Lazy<ReplayTimelineResponse>(() => Build(replayPath, beatmapPath, rate, correctionMode, scaleMetric: scaleMetric, client: client))));
                 while (cache.Count > cache_capacity)
                     cache.RemoveLast();
             }
@@ -76,7 +79,8 @@ public sealed class ReplayTimelineBuilder
         double rate = 0,
         CorrectionMode correctionMode = CorrectionMode.Corrected,
         JudgementScoreOrder scoreOrder = JudgementScoreOrder.JudgementTime,
-        string scaleMetric = "Score")
+        string scaleMetric = "Score",
+        LiveClient client = LiveClient.Lazer)
     {
         if (string.IsNullOrWhiteSpace(replayPath))
             throw new ArgumentException("Missing osr path.", nameof(replayPath));
@@ -117,7 +121,31 @@ public sealed class ReplayTimelineBuilder
         var correction = new TimelineCorrection(TimelineCorrectionStatus.Recorded, 0, 0);
         string? appliedScaleMetric = null;
         var scaleFactor = 1.0;
-        if (frames.Count == 0)
+        var info = score.ScoreInfo;
+        var (finalScore, finalAccuracy, finalMaxCombo) = (info.TotalScore, info.Accuracy, info.MaxCombo);
+
+        if (frames.Count == 0 && client == LiveClient.Stable && StableTimelineCalculator.Supports(info))
+        {
+            // osu!stable replay against a live osu!stable play: score it the way osu!stable does (ScoreV1, one judgement
+            // per hold note), so it lines up with what osu!stable shows.
+            var stable = StableTimelineCalculator.Build(score, beatmapPath ?? string.Empty, correctionMode);
+            frames = stable.Frames;
+            correction = stable.Correction;
+            (finalScore, finalAccuracy, finalMaxCombo) = (stable.FinalScore, stable.FinalAccuracy, stable.FinalMaxCombo);
+            var label = correction.Label;
+
+            if (correctionMode == CorrectionMode.Scaled)
+            {
+                appliedScaleMetric = TimelineScaler.NormalizeMetric(scaleMetric);
+                scaleFactor = TimelineScaler.Apply(frames, appliedScaleMetric, stable.FinalScore, stable.FinalAccuracy,
+                    key => Enum.TryParse<HitResult>(key, out var result) ? info.Statistics.GetValueOrDefault(result) : 0);
+                label += $",scaled(metric={appliedScaleMetric},factor={scaleFactor:F6})";
+                correction = correction with { ScoreDifference = frames.Count > 0 ? frames[^1].Score - stable.FinalScore : 0, Label = label };
+            }
+
+            source = $"stable-simulated(engine=stable-port,rate={ModUtility.GetPlaybackRate(score):F4},{label},totalFrames={totalFrames})";
+        }
+        else if (frames.Count == 0)
         {
             // Hit windows and playback rate come from the replay's own mods (as in osu!lazer); `rate` is kept for API
             // compatibility only.
@@ -126,13 +154,26 @@ public sealed class ReplayTimelineBuilder
             frames = simulated.Frames;
             var correctionLabel = simulated.Label;
 
-            if (correctionMode == CorrectionMode.Scaled)
+            if (info.LegacyTotalScore != null && correctionMode != CorrectionMode.Raw && frames.Count > 0)
+            {
+                // osu!stable replay against osu!lazer: lazer's playback, scaled onto the recorded result. osu!stable counts
+                // one judgement per hold note and lazer two (head and tail), so recorded counts are brought to lazer's total.
+                appliedScaleMetric = TimelineScaler.NormalizeMetric(scaleMetric);
+                var last = frames.MaxBy(frame => frame.Index)!;
+                double lazerJudgements = counted_results.Sum(result => last.Hits.GetValueOrDefault(result.ToString()));
+                double stableJudgements = counted_results.Sum(result => info.Statistics.GetValueOrDefault(result));
+                double holdNoteCorrection = stableJudgements > 0 ? lazerJudgements / stableJudgements : 1;
+                scaleFactor = TimelineScaler.Apply(frames, appliedScaleMetric, info.TotalScore, info.Accuracy,
+                    key => Enum.TryParse<HitResult>(key, out var result) ? info.Statistics.GetValueOrDefault(result) * holdNoteCorrection : 0);
+                correctionLabel += $",scaled(metric={appliedScaleMetric},factor={scaleFactor:F6},holdNotes=x{holdNoteCorrection:F4})";
+            }
+            else if (correctionMode == CorrectionMode.Scaled)
             {
                 appliedScaleMetric = TimelineScaler.NormalizeMetric(scaleMetric);
                 scaleFactor = TimelineScaler.Apply(frames, score, appliedScaleMetric);
                 correctionLabel += $",scaled(metric={appliedScaleMetric},factor={scaleFactor:F6})";
             }
-            correction = describeCorrection(score.ScoreInfo, frames, correctionMode, simulated.Label);
+            correction = describeCorrection(info, frames, correctionMode, correctionLabel);
             source = $"mania-simulated(engine=lazer-port,rate={rateFromMods:F4},scoreMultiplier={simulated.ScoreMultiplier:F4},{correctionLabel},totalFrames={totalFrames},withHeader={framesWithHeader})";
         }
 
@@ -145,9 +186,9 @@ public sealed class ReplayTimelineBuilder
             Source: source,
             Estimated: false,
             TotalNotes: frames.Last().Index,
-            FinalScore: score.ScoreInfo.TotalScore,
-            FinalAccuracy: score.ScoreInfo.Accuracy,
-            FinalMaxCombo: score.ScoreInfo.MaxCombo,
+            FinalScore: finalScore,
+            FinalAccuracy: finalAccuracy,
+            FinalMaxCombo: finalMaxCombo,
             Timeline: frames.Select(frame => new object[] { frame.Time, frame.Score, frame.Combo }).ToList(),
             Frames: frames,
             ScaleMetric: appliedScaleMetric,
@@ -157,14 +198,35 @@ public sealed class ReplayTimelineBuilder
 
     private static readonly HitResult[] counted_results = [HitResult.Perfect, HitResult.Great, HitResult.Good, HitResult.Ok, HitResult.Meh, HitResult.Miss];
 
+    /// <summary>
+    /// Whether the .osr was saved by osu!stable, from its header alone: osu!stable writes its build date (yyyymmdd) as the
+    /// version, osu!lazer 30000000 or later.
+    /// </summary>
+    public static bool IsStableReplay(string replayPath)
+    {
+        try
+        {
+            using var stream = File.OpenRead(replayPath);
+            using var reader = new BinaryReader(stream);
+            reader.ReadByte();
+            return reader.ReadInt32() < 30000000;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or EndOfStreamException)
+        {
+            return false;
+        }
+    }
+
     private static TimelineCorrection describeCorrection(ScoreInfo info, List<ReplayTimelineFrame> frames, CorrectionMode mode, string label)
     {
         var last = frames.MaxBy(frame => frame.Index)!;
         var scoreDifference = last.Score - info.TotalScore;
-        var hitDifference = counted_results.Sum(result => Math.Abs(last.Hits.GetValueOrDefault(result.ToString()) - info.Statistics.GetValueOrDefault(result)));
+        // osu!stable's recorded counts (one per hold note) cannot be compared one to one with lazer's judgements.
+        var hitDifference = info.LegacyTotalScore != null ? 0
+            : counted_results.Sum(result => Math.Abs(last.Hits.GetValueOrDefault(result.ToString()) - info.Statistics.GetValueOrDefault(result)));
 
-        var status = info.LegacyTotalScore != null ? TimelineCorrectionStatus.Legacy
-            : mode == CorrectionMode.Raw ? TimelineCorrectionStatus.Raw
+        var status = mode == CorrectionMode.Raw ? TimelineCorrectionStatus.Raw
+            : info.LegacyTotalScore != null && mode == CorrectionMode.Corrected ? TimelineCorrectionStatus.Legacy
             : mode == CorrectionMode.Scaled ? TimelineCorrectionStatus.Scaled
             : scoreDifference == 0 && hitDifference == 0 ? TimelineCorrectionStatus.Exact
             : TimelineCorrectionStatus.Approximate;
@@ -232,15 +294,25 @@ public enum TimelineCorrectionStatus
     /// <summary>Raw timeline linearly scaled onto the replay's final value.</summary>
     Scaled,
 
-    /// <summary>An osu!stable replay: its statistics cannot be reconciled, so the timeline is the raw playback.</summary>
+    /// <summary>
+    /// An osu!stable replay compared against osu!lazer: lazer's playback of it, scaled onto its recorded result (stable
+    /// counts hold notes differently, so its judgements cannot be reconciled with lazer's).
+    /// </summary>
     Legacy,
+
+    /// <summary>
+    /// osu!stable replay compared against osu!stable: the recorded judgement counts are reproduced, and the score left
+    /// over is spread across the timeline so it ends on the recorded score.
+    /// </summary>
+    Corrected,
 }
 
 /// <param name="Status">Overall result.</param>
 /// <param name="ScoreDifference">Timeline final score minus the recorded score.</param>
 /// <param name="HitDifference">Sum of absolute per-judgement count differences against the recorded statistics.</param>
 /// <param name="Label">The simulator's detailed correction label.</param>
-public sealed record TimelineCorrection(TimelineCorrectionStatus Status, long ScoreDifference, int HitDifference, string Label = "");
+/// <param name="StableScoring">The timeline is scored the way osu!stable does (ScoreV1, one judgement per hold note).</param>
+public sealed record TimelineCorrection(TimelineCorrectionStatus Status, long ScoreDifference, int HitDifference, string Label = "", bool StableScoring = false);
 
 public sealed record ReplayTimelineFrame(
     double Time,

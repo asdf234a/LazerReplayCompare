@@ -3,6 +3,8 @@ import {
     getCurrentModsKey,
     getHitIndex,
     getReplayModsKey,
+    isSupportedClient,
+    timelineScaleMetric,
     updateOsuPath,
 } from '../lazerReplayCompareShared/overlayState.js';
 import {
@@ -64,7 +66,7 @@ const cache = {
 };
 
 function chooseReplayTarget(replaysData) {
-    return chooseSharedReplayTarget(replaysData, cache.modsKey, 'selected', 'auto');
+    return chooseSharedReplayTarget(replaysData, cache.modsKey, 'selected', 'auto', cache.client);
 }
 
 // --- Frame lookup ---
@@ -354,7 +356,7 @@ async function refreshReplayTarget() {
 }
 
 async function checkTimelineState(force = false) {
-    if (!isPlaying() || cache.client !== 'lazer' || !cache.beatmapChecksum || !cache.osuPath || cache.checkingState) return;
+    if (!isPlaying() || !isSupportedClient(cache.client) || !cache.beatmapChecksum || !cache.osuPath || cache.checkingState) return;
 
     cache.checkingState = true;
     try {
@@ -390,7 +392,7 @@ async function checkTimelineState(force = false) {
 }
 
 async function loadTimelineInternal(forceTargetCheck, stateKey = '', correctionOverride = '') {
-    if (!isPlaying() || cache.client !== 'lazer' || !cache.beatmapChecksum || !cache.osuPath || cache.loading) return;
+    if (!isPlaying() || !isSupportedClient(cache.client) || !cache.beatmapChecksum || !cache.osuPath || cache.loading) return;
 
     const baseKey = getBaseKey();
     if (!forceTargetCheck && baseKey === cache.loadBaseKey) return;
@@ -434,8 +436,8 @@ async function loadTimelineInternal(forceTargetCheck, stateKey = '', correctionO
             ? replayRate
             : parseFloat(cache.modsKey.split('|')[1]) || 1;
         const correctionMode = correctionOverride || await getTimelineMode();
-        const scaleMetric = correctionMode === 'scaled' ? cache.displayMetrics.main : '';
-        const key = `${baseKey}|${target.replay.filePath}|${timelineRate.toFixed(4)}|${correctionMode}|${scaleMetric}`;
+        const scaleMetric = timelineScaleMetric(correctionMode, target.replay, cache.client, cache.displayMetrics.main);
+        const key = `${baseKey}|${cache.client}|${target.replay.filePath}|${timelineRate.toFixed(4)}|${correctionMode}|${scaleMetric}`;
         if (key === cache.loadKey && cache.replayFrames.length > 0) {
             cache.loadBaseKey = baseKey;
             return;
@@ -444,7 +446,7 @@ async function loadTimelineInternal(forceTargetCheck, stateKey = '', correctionO
         cache.replayPath = '';
         updateDisplay();
 
-        const rawKey = `${baseKey}|${target.replay.filePath}|${timelineRate.toFixed(4)}|raw`;
+        const rawKey = `${baseKey}|${cache.client}|${target.replay.filePath}|${timelineRate.toFixed(4)}|raw`;
         const rawTimeline = await fetchTimeline(target.replay.filePath, timelineRate, 'raw');
         if (baseKey !== getBaseKey()) return;
         applyTimeline(rawTimeline, baseKey);
@@ -492,6 +494,8 @@ async function fetchTimeline(filePath, rate, correction, scaleMetric = '') {
         osu: cache.osuPath,
         rate: rate.toFixed(4),
         correction,
+        // osu!stable replays are scored the osu!stable way when the live play is in osu!stable
+        client: cache.client,
     });
     if (scaleMetric) params.set('metric', scaleMetric);
     const timelineRes = await fetch(`http://${LAZER_COMPARE_HOST}/timeline?${params}`);

@@ -12,6 +12,7 @@ public record ReplayMod(
     string Type = "",
     string ExtendedInfo = "");
 
+/// <param name="IsLegacy">Set in osu!stable (imported into osu!lazer): scored with ScoreV1, one judgement per hold note.</param>
 public record ReplayEntry(
     string FilePath,
     string Player,
@@ -24,4 +25,5 @@ public record ReplayEntry(
     string Rank,
     Dictionary<string, int> Statistics,
     long Timestamp,
-    string Date);
+    string Date,
+    bool IsLegacy = false);

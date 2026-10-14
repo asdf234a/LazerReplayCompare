@@ -3,6 +3,8 @@ import {
     getCurrentModsKey,
     getHitIndex,
     getReplayModsKey,
+    isSupportedClient,
+    timelineScaleMetric,
     updateOsuPath,
 } from '../lazerReplayCompareShared/overlayState.js';
 import {
@@ -250,7 +252,7 @@ async function getCorrectionMode() {
 }
 
 async function checkTimelineState(force = false) {
-    if (!isPlaying() || state.client !== 'lazer' || !state.beatmapChecksum || !state.osuPath || state.checkingState) return;
+    if (!isPlaying() || !isSupportedClient(state.client) || !state.beatmapChecksum || !state.osuPath || state.checkingState) return;
 
     state.checkingState = true;
     try {
@@ -289,6 +291,8 @@ async function fetchTimeline(replayPath, osuPath, rate, correction, scaleMetric 
         osu: osuPath,
         rate: rate.toFixed(4),
         correction,
+        // osu!stable replays are scored the osu!stable way when the live play is in osu!stable
+        client: state.client,
     });
     if (scaleMetric) query.set('metric', scaleMetric);
     return fetchJson(`/timeline?${query}`);
@@ -317,7 +321,7 @@ function applyTimeline(data, key, sourceSuffix = '') {
 }
 
 async function loadTimeline(force = false, timelineStateKey = '', correctionOverride = '') {
-    if (!isPlaying() || state.client !== 'lazer' || !state.beatmapChecksum || !state.osuPath) return;
+    if (!isPlaying() || !isSupportedClient(state.client) || !state.beatmapChecksum || !state.osuPath) return;
 
     const currentBaseKey = baseKey();
     if (!force && state.loadedKey === currentBaseKey) return;
@@ -337,7 +341,7 @@ async function loadTimeline(force = false, timelineStateKey = '', correctionOver
             return;
         }
 
-        const target = chooseReplayTarget(replays, state.modsKey, 'SELECTED', 'AUTO BEST');
+        const target = chooseReplayTarget(replays, state.modsKey, 'SELECTED', 'AUTO BEST', state.client);
         state.targetMode = target.mode;
         if (!target.replay) {
             state.error = '';
@@ -363,8 +367,8 @@ async function loadTimeline(force = false, timelineStateKey = '', correctionOver
             ? replayRate
             : parseFloat(state.modsKey.split('|')[1]) || 1;
         const correction = correctionOverride || await getCorrectionMode();
-        const scaleMetric = correction === 'scaled' ? state.displayMetrics.main : '';
-        const targetKey = `${currentBaseKey}|${target.replay.filePath}|${rate.toFixed(4)}|${correction}|${scaleMetric}`;
+        const scaleMetric = timelineScaleMetric(correction, target.replay, state.client, state.displayMetrics.main);
+        const targetKey = `${currentBaseKey}|${state.client}|${target.replay.filePath}|${rate.toFixed(4)}|${correction}|${scaleMetric}`;
 
         if (!force && state.targetKey === targetKey && state.replayBaseKey === currentBaseKey) {
             state.loadedKey = currentBaseKey;

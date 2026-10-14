@@ -113,7 +113,8 @@ internal sealed class ManiaTimelineCalculator
             if (info.LegacyTotalScore != null)
             {
                 // Stable replays store stable statistics (one judgement per hold note), which cannot be reconciled
-                // with lazer judgements. The raw port already matches lazer's own playback for these.
+                // with lazer judgements. The raw port already matches lazer's own playback for these; ReplayTimelineBuilder
+                // scales it onto the recorded result (or scores it with the stable engine against a live osu!stable play).
                 label = "raw(legacy-replay)";
             }
             else
