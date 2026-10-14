@@ -52,7 +52,7 @@
     </Panel>
 
     <!-- ... and the sharp image behind the top bar and "now playing", fading out into the blurred copy. -->
-    <Panel Height="380" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
+    <Panel x:Name="Banner" Height="380" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
       <Panel.OpacityMask>
         <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
           <GradientStop Offset="0" Color="Black" />
@@ -132,7 +132,7 @@
 
     <Grid>
       <!-- ===================== Compare ===================== -->
-      <ScrollViewer IsVisible="{Binding IsComparePage}" HorizontalScrollBarVisibility="Disabled">
+      <ScrollViewer x:Name="CompareScroll" IsVisible="{Binding IsComparePage}" HorizontalScrollBarVisibility="Disabled">
         <StackPanel MaxWidth="1160" Margin="28,22,28,28" Spacing="18">
 
           <!-- Problems -->

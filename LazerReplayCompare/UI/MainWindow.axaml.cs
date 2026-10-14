@@ -52,6 +52,12 @@ public sealed partial class MainWindow : Window
         replayList = this.FindControl<ListBox>("ReplayList")!;
         setUpTitleBar(this.FindControl<Border>("TitleBar")!);
 
+        // The sharp banner scrolls with the page, so it stays behind "now playing" (the blurred copy stays put).
+        var banner = this.FindControl<Panel>("Banner")!;
+        var bannerOffset = new TranslateTransform();
+        banner.RenderTransform = bannerOffset;
+        this.FindControl<ScrollViewer>("CompareScroll")!.ScrollChanged += (sender, _) => bannerOffset.Y = -((ScrollViewer)sender!).Offset.Y;
+
         // In a narrow window the legend stacks into one column so the target's name keeps its room.
         this.FindControl<Border>("TargetCard")!.SizeChanged += (_, e) => judgementLegend.Columns = e.NewSize.Width >= 1000 ? 2 : 1;
 
