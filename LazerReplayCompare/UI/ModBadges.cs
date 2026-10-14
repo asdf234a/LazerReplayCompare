@@ -9,8 +9,8 @@ using Avalonia.Platform;
 namespace LazerReplayCompare;
 
 /// <summary>
-/// A replay's mods drawn the way osu!lazer draws them: a hexagon in the mod type's colour with the mod's icon, and
-/// the extra information (rate, OD, …) on a tab behind it. Unknown mods fall back to their acronym.
+/// A replay's mods drawn the way osu!lazer's ModIcon draws them (osu.Game/Rulesets/UI/ModIcon.cs), laid out like
+/// song select's leaderboard. Unknown mods fall back to their acronym.
 /// </summary>
 public sealed class ModBadges : Control
 {
@@ -20,13 +20,20 @@ public sealed class ModBadges : Control
     public static readonly StyledProperty<double> BadgeHeightProperty =
         AvaloniaProperty.Register<ModBadges, double>(nameof(BadgeHeight), 22);
 
-    // Proportions of osu!lazer's mod-icon (135×100) and mod-icon-extender (194×100) textures.
-    private const double hexagon_aspect = 1.35;
-    private const double extender_aspect = 1.94;
-    // Badges overlap like osu!lazer's mod display; later ones sit on top of the previous badge's edge.
-    private const double overlap = 0.3;
+    // ModIcon's geometry, in its own units: an 80×80 box holding the hexagon (mod-icon, 135×100, fitted), the icon
+    // (131/135 × 92/135 of the box) and the settings marker (20 across, centred at 64,14); and from x = 58 a 116×80 box
+    // with the extender (mod-icon-extender, 194×100, fitted) and its text (Torus Bold 34, 6 right of centre).
+    private const double box = 80;
+    private const double hexagon_height = box * 100 / 135;
+    private const double extended_x = box - 22;
+    private const double extended_width = 116;
+    private const double extended_text_size = 34;
+
+    // BeatmapLeaderboardScore: icons at 0.3 scale with -10 spacing, i.e. -10 / 0.3 in icon units; later ones on top.
+    private const double spacing = -10 / 0.3;
 
     private static readonly Dictionary<string, Bitmap?> textures = new();
+
     // osu!lazer's UI font is Torus, which can't be bundled (it needs a commercial licence), so it is used when
     // installed and Quicksand (OFL, similar rounded geometric shapes) stands in otherwise.
     private static readonly Typeface typeface = new(new FontFamily("Torus, avares://LazerReplayCompare/Assets/Fonts#Quicksand"), FontStyle.Normal, FontWeight.Bold);
@@ -43,72 +50,76 @@ public sealed class ModBadges : Control
         set => SetValue(ModsProperty, value);
     }
 
+    /// <summary>Height of the hexagon itself, in pixels.</summary>
     public double BadgeHeight
     {
         get => GetValue(BadgeHeightProperty);
         set => SetValue(BadgeHeightProperty, value);
     }
 
+    private double unit => BadgeHeight / hexagon_height;
+
     protected override Size MeasureOverride(Size availableSize)
     {
         var mods = Mods ?? Array.Empty<ReplayMod>();
-        var width = mods.Sum(mod => layout(mod).Width) - Math.Max(0, mods.Count - 1) * overlap * BadgeHeight;
-        return new Size(width, mods.Count == 0 ? 0 : BadgeHeight);
+        if (mods.Count == 0)
+            return default;
+
+        return new Size((mods.Sum(width) + (mods.Count - 1) * spacing) * unit, BadgeHeight);
     }
+
+    private static double width(ReplayMod mod) => string.IsNullOrEmpty(extendedInfo(mod)) ? box : extended_x + extended_width;
 
     public override void Render(DrawingContext context)
     {
-        var height = BadgeHeight;
-        var top = Math.Max(0, (Bounds.Height - height) / 2);
+        var u = unit;
+        var centreY = Bounds.Height / 2;
         var x = 0.0;
 
         foreach (var mod in Mods ?? Array.Empty<ReplayMod>())
         {
-            var badge = layout(mod);
             var colour = typeColour(mod.Type);
-            var hexagon = new Rect(x, top, height * hexagon_aspect, height);
+            // Interpolation.ValueAt(0.1, Black, colour): almost black, tinted towards the mod's colour.
+            var iconColour = Color.FromRgb((byte)(colour.R * 0.1), (byte)(colour.G * 0.1), (byte)(colour.B * 0.1));
+            var info = extendedInfo(mod);
 
-            if (badge.Text is { } info)
+            if (!string.IsNullOrEmpty(info))
             {
-                // Extended information on a dark tab in the mod's colour, behind the hexagon (as in osu!lazer).
-                var tab = new Rect(x + hexagon.Width / 2, top, badge.Width - hexagon.Width / 2, height);
-                fill(context, "icon-extender", tab, darken(colour, 2.8));
-                var textX = hexagon.Right + (tab.Right - height * 0.4 - hexagon.Right - info.Width) / 2;
-                drawHeavy(context, info, new Point(textX, top + (height - info.Height) / 2), colour, height);
+                const double extender_height = extended_width * 100 / 194;
+                fill(context, texture("mod-icon-extender"),
+                    new Rect((x + extended_x) * u, centreY - extender_height / 2 * u, extended_width * u, extender_height * u), darken(colour, 2.8));
+
+                var text = new FormattedText(info, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, extended_text_size * u, null);
+                var textCentreX = (x + extended_x + extended_width / 2 + 6) * u;
+                drawHeavy(context, text, new Point(textCentreX - text.Width / 2, centreY - text.Height / 2), colour, u);
             }
 
-            fill(context, "icon", hexagon, colour);
+            fill(context, texture("mod-icon"), new Rect(x * u, centreY - hexagon_height / 2 * u, box * u, hexagon_height * u), colour);
 
-            // The icon is drawn almost black, tinted towards the background colour.
-            var iconColour = Color.FromRgb((byte)(colour.R * 0.1), (byte)(colour.G * 0.1), (byte)(colour.B * 0.1));
-            var icon = texture(iconName(mod));
-            if (icon != null)
+            if (texture(iconName(mod)) is { } icon)
             {
-                var iconHeight = height * 0.62;
-                var iconWidth = iconHeight * icon.Size.Width / icon.Size.Height;
-                fill(context, icon, new Rect(hexagon.Center.X - iconWidth / 2, hexagon.Center.Y - iconHeight / 2, iconWidth, iconHeight), iconColour);
+                const double icon_width = box * 131 / 135;
+                const double icon_height = box * 92 / 135;
+                fill(context, icon, new Rect((x + (box - icon_width) / 2) * u, centreY - icon_height / 2 * u, icon_width * u, icon_height * u), iconColour);
             }
             else
             {
-                var acronym = text(mod.Acronym, height * 0.42, iconColour);
-                context.DrawText(acronym, new Point(hexagon.Center.X - acronym.Width / 2, hexagon.Center.Y - acronym.Height / 2));
+                // OsuFont.Numeric Black 22 in osu!lazer.
+                var acronym = new FormattedText(mod.Acronym, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, 22 * u, new SolidColorBrush(iconColour));
+                context.DrawText(acronym, new Point((x + box / 2) * u - acronym.Width / 2, centreY - acronym.Height / 2));
             }
 
-            x += badge.Width - overlap * height;
+            // Settings marker (shown when the mod's settings differ from the defaults, which is when a score stores any):
+            // a cog in the mod's colour on a dark circle.
+            if (mod.Settings.Count > 0)
+            {
+                var marker = new Point((x + 64) * u, centreY + (14 - box / 2) * u);
+                context.DrawEllipse(new SolidColorBrush(iconColour), null, marker, 10 * u, 10 * u);
+                context.DrawGeometry(new SolidColorBrush(colour), null, cog(marker, 6 * u));
+            }
+
+            x += width(mod) + spacing;
         }
-    }
-
-    private (double Width, FormattedText? Text) layout(ReplayMod mod)
-    {
-        var height = BadgeHeight;
-        var hexagonWidth = height * hexagon_aspect;
-        var info = extendedInfo(mod);
-        if (string.IsNullOrEmpty(info))
-            return (hexagonWidth, null);
-
-        var formatted = text(info, height * 0.58, Colors.White);
-        var width = Math.Max(hexagonWidth / 2 + height * extender_aspect, hexagonWidth + formatted.Width + height * 0.7);
-        return (width, formatted);
     }
 
     /// <summary>osu!lazer's own text when known; otherwise the rate for speed mods (the most important case).</summary>
@@ -130,7 +141,7 @@ public sealed class ModBadges : Control
     private static string iconName(ReplayMod mod)
         => string.IsNullOrWhiteSpace(mod.Name) ? string.Empty : "mod-" + Regex.Replace(mod.Name.Trim().ToLowerInvariant(), @"[^a-z0-9]+", "-");
 
-    // osu!lazer's OsuColour.ForModType.
+    // OsuColour.ForModType.
     private static Color typeColour(string type) => type switch
     {
         "DifficultyReduction" => Color.FromRgb(178, 255, 102),
@@ -146,36 +157,62 @@ public sealed class ModBadges : Control
     private static Color darken(Color colour, double amount)
         => Color.FromRgb((byte)(colour.R / (1 + amount)), (byte)(colour.G / (1 + amount)), (byte)(colour.B / (1 + amount)));
 
-    private static FormattedText text(string value, double size, Color colour)
-        => new(value, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, size, new SolidColorBrush(colour));
-
     /// <summary>
-    /// osu!lazer's tab text is heavier than the bold of the stand-in font, so the glyphs get a thin outline in their
-    /// own colour.
+    /// Torus Bold is heavier than the stand-in's bold, so the glyphs get a thin outline in their own colour.
     /// </summary>
-    private static void drawHeavy(DrawingContext context, FormattedText text, Point origin, Color colour, double height)
+    private static void drawHeavy(DrawingContext context, FormattedText text, Point origin, Color colour, double unit)
     {
         var brush = new SolidColorBrush(colour);
         if (text.BuildGeometry(origin) is { } geometry)
-            context.DrawGeometry(brush, new Pen(brush, height * 0.045, lineJoin: PenLineJoin.Round), geometry);
-        else
         {
-            text.SetForegroundBrush(brush);
-            context.DrawText(text, origin);
+            context.DrawGeometry(brush, new Pen(brush, 1.6 * unit, lineJoin: PenLineJoin.Round), geometry);
+            return;
         }
+
+        text.SetForegroundBrush(brush);
+        context.DrawText(text, origin);
     }
 
-    private static void fill(DrawingContext context, string textureName, Rect rect, Color colour)
+    // Draws the texture's shape (its alpha) in a solid colour, as osu!framework does when colouring a sprite.
+    private static void fill(DrawingContext context, Bitmap? shape, Rect rect, Color colour)
     {
-        if (texture("mod-" + textureName) is { } shape)
-            fill(context, shape, rect, colour);
-    }
+        if (shape == null)
+            return;
 
-    // Draws the texture's shape (its alpha) in a solid colour.
-    private static void fill(DrawingContext context, Bitmap shape, Rect rect, Color colour)
-    {
         using (context.PushOpacityMask(new ImageBrush(shape) { Stretch = Stretch.Fill }, rect))
             context.FillRectangle(new SolidColorBrush(colour), rect);
+    }
+
+    // An eight-toothed cog with a hole (FontAwesome's cog in osu!lazer), radius r.
+    private static Geometry cog(Point centre, double r)
+    {
+        var geometry = new StreamGeometry();
+        using (var path = geometry.Open())
+        {
+            path.SetFillRule(FillRule.EvenOdd);
+
+            const int steps = 8 * 4;
+            for (var i = 0; i < steps; i++)
+            {
+                var angle = Math.PI * 2 * i / steps;
+                var radius = i % 4 < 2 ? r : r * 0.72;
+                var point = new Point(centre.X + radius * Math.Cos(angle), centre.Y + radius * Math.Sin(angle));
+                if (i == 0)
+                    path.BeginFigure(point, true);
+                else
+                    path.LineTo(point);
+            }
+
+            path.EndFigure(true);
+
+            var hole = r * 0.32;
+            path.BeginFigure(new Point(centre.X + hole, centre.Y), true);
+            path.ArcTo(new Point(centre.X - hole, centre.Y), new Size(hole, hole), 0, false, SweepDirection.Clockwise);
+            path.ArcTo(new Point(centre.X + hole, centre.Y), new Size(hole, hole), 0, false, SweepDirection.Clockwise);
+            path.EndFigure(true);
+        }
+
+        return geometry;
     }
 
     private static Bitmap? texture(string name)
