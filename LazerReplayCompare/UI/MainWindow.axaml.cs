@@ -52,8 +52,8 @@ public sealed partial class MainWindow : Window
         replayList = this.FindControl<ListBox>("ReplayList")!;
         setUpTitleBar(this.FindControl<Border>("TitleBar")!);
 
-        // In a narrow window the legend would squeeze the target's name; the ring alone (with its tooltip) stays.
-        this.FindControl<Border>("TargetCard")!.SizeChanged += (_, e) => judgementLegend.IsVisible = e.NewSize.Width >= 1000;
+        // In a narrow window the legend stacks into one column so the target's name keeps its room.
+        this.FindControl<Border>("TargetCard")!.SizeChanged += (_, e) => judgementLegend.Columns = e.NewSize.Width >= 1000 ? 2 : 1;
 
         ApplySavedSettings();
         viewModel.SettingsChanged += OnSettingsChanged;
@@ -587,24 +587,28 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// The top bar takes the place of the system title bar: it drags the window, and keeps clear of the system's
-    /// minimise/maximise/close buttons, which stay drawn in the top-right corner.
+    /// The top bar takes the place of the system title bar: it drags the window, while the minimise/maximise/close
+    /// buttons stay drawn in the top-right corner.
     /// </summary>
     private void setUpTitleBar(Border titleBar)
     {
-        Avalonia.Controls.Chrome.WindowDecorationProperties.SetElementRole(titleBar, WindowDecorationsElementRole.TitleBar);
+        Avalonia.Controls.Chrome.WindowDecorationProperties.SetElementRole(titleBar.FindControl<Border>("DragArea")!, WindowDecorationsElementRole.TitleBar);
 
-        void update() => titleBar.Padding = new Thickness(24, 0, IsExtendedIntoWindowDecorations ? 24 + CaptionButtonsWidth : 24, 0);
-        update();
-        PropertyChanged += (_, e) =>
-        {
-            if (e.Property == IsExtendedIntoWindowDecorationsProperty)
-                update();
-        };
+        // The window styles hide the drawn title text and full-screen button; this also catches them if the drawn
+        // decorations are created outside the styles' reach.
+        Opened += (_, _) => Dispatcher.UIThread.Post(hideDecorationExtras, DispatcherPriority.Loaded);
     }
 
-    /// <summary>Room for the system caption buttons (three 46 px buttons on Windows).</summary>
-    private const double CaptionButtonsWidth = 138;
+    private static readonly HashSet<string> hiddenDecorationParts = new() { "PART_FullScreenButton", "PART_TitleTextPanel", "PART_TitlePresenter" };
+
+    private void hideDecorationExtras()
+    {
+        foreach (var visual in Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(this))
+        {
+            if (visual is Control { Name: { } name } control && hiddenDecorationParts.Contains(name))
+                control.IsVisible = false;
+        }
+    }
 
     // --- Pages, compact mode, files ---
 
