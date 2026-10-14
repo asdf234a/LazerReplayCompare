@@ -74,7 +74,7 @@ public sealed class ModBadges : Control
                 var tab = new Rect(x + hexagon.Width / 2, top, badge.Width - hexagon.Width / 2, height);
                 fill(context, "icon-extender", tab, darken(colour, 2.8));
                 var textX = hexagon.Right + (tab.Right - height * 0.4 - hexagon.Right - info.Width) / 2;
-                context.DrawText(withColour(info, colour), new Point(textX, top + (height - info.Height) / 2));
+                drawHeavy(context, info, new Point(textX, top + (height - info.Height) / 2), colour, height);
             }
 
             fill(context, "icon", hexagon, colour);
@@ -106,7 +106,7 @@ public sealed class ModBadges : Control
         if (string.IsNullOrEmpty(info))
             return (hexagonWidth, null);
 
-        var formatted = text(info, height * 0.46, Colors.White);
+        var formatted = text(info, height * 0.58, Colors.White);
         var width = Math.Max(hexagonWidth / 2 + height * extender_aspect, hexagonWidth + formatted.Width + height * 0.7);
         return (width, formatted);
     }
@@ -149,10 +149,20 @@ public sealed class ModBadges : Control
     private static FormattedText text(string value, double size, Color colour)
         => new(value, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, size, new SolidColorBrush(colour));
 
-    private static FormattedText withColour(FormattedText text, Color colour)
+    /// <summary>
+    /// osu!lazer's tab text is heavier than the bold of the stand-in font, so the glyphs get a thin outline in their
+    /// own colour.
+    /// </summary>
+    private static void drawHeavy(DrawingContext context, FormattedText text, Point origin, Color colour, double height)
     {
-        text.SetForegroundBrush(new SolidColorBrush(colour));
-        return text;
+        var brush = new SolidColorBrush(colour);
+        if (text.BuildGeometry(origin) is { } geometry)
+            context.DrawGeometry(brush, new Pen(brush, height * 0.045, lineJoin: PenLineJoin.Round), geometry);
+        else
+        {
+            text.SetForegroundBrush(brush);
+            context.DrawText(text, origin);
+        }
     }
 
     private static void fill(DrawingContext context, string textureName, Rect rect, Color colour)
