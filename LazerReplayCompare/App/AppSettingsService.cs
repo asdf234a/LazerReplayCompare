@@ -27,6 +27,12 @@ public sealed class AppSettingsService
         Save();
     }
 
+    public void SetShowBackground(bool show)
+    {
+        Current.ShowBackground = show;
+        Save();
+    }
+
     public void SetMainMetric(string metric)
     {
         Current.MainMetric = string.IsNullOrWhiteSpace(metric) ? "Score" : metric;

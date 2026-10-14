@@ -8,12 +8,61 @@
         Height="820"
         MinWidth="900"
         MinHeight="600">
+  <Window.Styles>
+    <Style Selector="Border.header">
+      <Setter Property="Background" Value="{DynamicResource HeaderBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HeaderBorderBrush}" />
+    </Style>
+    <Style Selector="Border.header.overBanner">
+      <Setter Property="Background">
+        <SolidColorBrush Color="{DynamicResource BannerScrim35Color}" />
+      </Setter>
+      <Setter Property="BorderBrush">
+        <SolidColorBrush Color="{DynamicResource BannerScrim25Color}" />
+      </Setter>
+    </Style>
+    <Style Selector="Border.pickerPanel.overBanner">
+      <Setter Property="Background">
+        <SolidColorBrush Color="{DynamicResource BannerScrim62Color}" />
+      </Setter>
+      <Setter Property="Padding" Value="8" />
+    </Style>
+    <Style Selector="Grid.hero.overBanner">
+      <Setter Property="MinHeight" Value="200" />
+    </Style>
+  </Window.Styles>
+
+  <Grid>
+    <!-- Beatmap background banner (behind the top bar and the "now playing" block) -->
+    <Panel Height="340" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBannerOnCompare}">
+      <Border Background="{Binding BackgroundBrush}" />
+      <Border>
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+            <GradientStop Offset="0" Color="{DynamicResource BannerScrim92Color}" />
+            <GradientStop Offset="0.38" Color="{DynamicResource BannerScrim70Color}" />
+            <GradientStop Offset="0.7" Color="{DynamicResource BannerScrim25Color}" />
+            <GradientStop Offset="1" Color="{DynamicResource BannerScrim10Color}" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+      <Border>
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Offset="0" Color="{DynamicResource BannerScrim55Color}" />
+            <GradientStop Offset="0.22" Color="{DynamicResource BannerScrim0Color}" />
+            <GradientStop Offset="0.55" Color="{DynamicResource BannerScrim0Color}" />
+            <GradientStop Offset="1" Color="{DynamicResource BannerScrim100Color}" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+    </Panel>
+
   <DockPanel>
 
     <!-- Top bar: app, pages, connection state, compact mode -->
     <Border DockPanel.Dock="Top"
-            Background="{DynamicResource HeaderBrush}"
-            BorderBrush="{DynamicResource HeaderBorderBrush}"
+            Classes="header" Classes.overBanner="{Binding ShowBannerOnCompare}"
             BorderThickness="0,0,0,1"
             Padding="24,0">
       <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="20">
@@ -90,20 +139,22 @@
           </Border>
 
           <!-- Now playing + overlay metrics -->
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="24">
+          <Grid Classes="hero" Classes.overBanner="{Binding ShowBannerOnCompare}" ColumnDefinitions="*,Auto" ColumnSpacing="24">
             <StackPanel Spacing="4" VerticalAlignment="Bottom">
               <TextBlock Classes="overline" Text="NOW PLAYING" />
-              <TextBlock Text="{Binding BeatmapTitle}" FontSize="24" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding BeatmapTitle}" FontSize="28" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
               <TextBlock Classes="secondary" Text="{Binding BeatmapSubtitle}" TextTrimming="CharacterEllipsis" />
               <TextBlock Classes="muted" FontSize="12" Text="{Binding StatusText}" IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Bottom">
-              <TextBlock Classes="muted" Text="Overlay" VerticalAlignment="Center" FontSize="13" />
-              <ComboBox MinWidth="140" ItemsSource="{Binding MainMetricOptions}" SelectedItem="{Binding SelectedMainMetric, Mode=TwoWay}"
-                        ToolTip.Tip="Main value the overlay compares" />
-              <ComboBox MinWidth="140" ItemsSource="{Binding SubMetricOptions}" SelectedItem="{Binding SelectedSubMetric, Mode=TwoWay}"
-                        ToolTip.Tip="Second value the overlay shows (or Off)" />
-            </StackPanel>
+            <Border Grid.Column="1" Classes="pickerPanel" Classes.overBanner="{Binding ShowBannerOnCompare}" CornerRadius="12" VerticalAlignment="Bottom">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Classes="secondary" Text="Overlay" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
+                <ComboBox MinWidth="140" ItemsSource="{Binding MainMetricOptions}" SelectedItem="{Binding SelectedMainMetric, Mode=TwoWay}"
+                          ToolTip.Tip="Main value the overlay compares" />
+                <ComboBox MinWidth="140" ItemsSource="{Binding SubMetricOptions}" SelectedItem="{Binding SelectedSubMetric, Mode=TwoWay}"
+                          ToolTip.Tip="Second value the overlay shows (or Off)" />
+              </StackPanel>
+            </Border>
           </Grid>
 
           <!-- Empty / waiting states -->
@@ -144,6 +195,9 @@
                   <Button Grid.Column="3" Content="Unpin" Click="UnpinReplay" IsVisible="{Binding IsTargetPinned}" MinHeight="34" />
                 </Grid>
 
+                <TextBlock Classes="secondary" FontSize="14" TextWrapping="Wrap" Text="{Binding NoTargetText}" IsVisible="{Binding ShowNoTarget}" />
+
+                <StackPanel Spacing="18" IsVisible="{Binding HasTarget}">
                 <Grid ColumnDefinitions="*,1.6*" ColumnSpacing="32">
                   <StackPanel Spacing="4">
                     <TextBlock Text="{Binding TargetPlayer}" FontSize="24" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
@@ -186,6 +240,7 @@
                       <TextBlock Classes="mono" FontSize="13" Text="{Binding MaxComboText}" />
                     </StackPanel>
                   </Grid>
+                </StackPanel>
                 </StackPanel>
               </StackPanel>
             </Border>
@@ -326,8 +381,11 @@
 
           <Border Classes="surface" Padding="22,20">
             <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Classes="sectionTitle" Text="Appearance" VerticalAlignment="Center" />
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
+              <StackPanel Spacing="6" VerticalAlignment="Center">
+                <TextBlock Classes="sectionTitle" Text="Appearance" />
+                <CheckBox Content="Show the beatmap's background" IsChecked="{Binding ShowBackground, Mode=TwoWay}" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
                 <RadioButton GroupName="theme" Content="System" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
                 <RadioButton GroupName="theme" Content="Dark" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
                 <RadioButton GroupName="theme" Content="Light" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
@@ -338,4 +396,5 @@
       </ScrollViewer>
     </Grid>
   </DockPanel>
+  </Grid>
 </Window>

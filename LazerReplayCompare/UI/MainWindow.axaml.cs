@@ -119,6 +119,7 @@ public sealed partial class MainWindow : Window
         viewModel.LazerFound = OsuLazerPathResolver.IsOsuLazerRoot(viewModel.OsuLazerPath);
 
         viewModel.Theme = NormalizeTheme(current.Theme);
+        viewModel.ShowBackground = current.ShowBackground;
         viewModel.CorrectionMode = ParseCorrectionMode(current.CorrectionMode);
         viewModel.SetMetrics(MetricRegistry.Normalize(current.MainMetric, MetricRegistry.Default.Key),
             MetricRegistry.Normalize(current.SubMetric, "Acc", allowOff: true));
@@ -130,6 +131,7 @@ public sealed partial class MainWindow : Window
     private void OnSettingsChanged()
     {
         settingsService.SetTheme(viewModel.Theme);
+        settingsService.SetShowBackground(viewModel.ShowBackground);
         settingsService.SetCorrectionMode(viewModel.CorrectionMode);
         if (viewModel.SelectedMainMetric is { } main)
             settingsService.SetMainMetric(main.Key);
@@ -227,6 +229,7 @@ public sealed partial class MainWindow : Window
         {
             viewModel.TosuConnected = true;
             var oldChecksum = currentSnapshot.BeatmapChecksum;
+            var oldSpeed = currentSnapshot.PlaySpeed;
             currentSnapshot = snapshot;
 
             var hasBeatmap = !string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum);
@@ -236,11 +239,51 @@ public sealed partial class MainWindow : Window
                 ? string.Join(" · ", new[] { snapshot.BeatmapArtist, snapshot.BeatmapVersion }.Where(part => !string.IsNullOrWhiteSpace(part)))
                 : "Select a beatmap in osu!lazer";
 
+            if (snapshot.BackgroundPath != loadedBackgroundPath)
+                LoadBackground(snapshot.BackgroundPath);
+
             if (!viewModel.LazerFound && OsuLazerPathResolver.Resolve(snapshot) is { } detectedPath)
                 SetOsuLazerPath(detectedPath);
 
             if (hasBeatmap && snapshot.BeatmapChecksum != oldChecksum)
                 RefreshReplays();
+            else if (snapshot.PlaySpeed != oldSpeed)
+                UpdateTarget();   // the auto target depends on the current rate
+        });
+    }
+
+    private string loadedBackgroundPath = string.Empty;
+
+    /// <summary>Decodes the beatmap background off the UI thread (reduced to banner size); none when it is missing.</summary>
+    private void LoadBackground(string path)
+    {
+        loadedBackgroundPath = path;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            viewModel.BackgroundImage = null;
+            return;
+        }
+
+        _ = Task.Run(() =>
+        {
+            Avalonia.Media.Imaging.Bitmap? bitmap = null;
+            try
+            {
+                using var stream = File.OpenRead(path);
+                bitmap = Avalonia.Media.Imaging.Bitmap.DecodeToWidth(stream, 1600);
+            }
+            catch (Exception ex)
+            {
+                InternalLogger.Log(ex);
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (path == loadedBackgroundPath)
+                    viewModel.BackgroundImage = bitmap;
+                else
+                    bitmap?.Dispose();
+            });
         });
     }
 
@@ -404,20 +447,22 @@ public sealed partial class MainWindow : Window
     // --- Comparison target ---
 
     /// <summary>
-    /// The pinned replay, otherwise the best score (the overlay may pick a different same-rate replay in auto mode).
-    /// Also starts working out how the target's timeline matches its recorded result.
+    /// The pinned replay, otherwise the best score at the current play's rate and Classic mod (the same rule as the
+    /// overlay's auto mode). Also starts working out how the target's timeline matches its recorded result.
     /// </summary>
     private void UpdateTarget()
     {
         ReplayEntry? target;
         bool pinned;
+        var speed = currentSnapshot.PlaySpeed;
         lock (replayLock)
         {
             var selected = replaySelection.GetSelected(currentReplays);
             pinned = selected != null;
-            target = selected ?? currentReplays.FirstOrDefault();
+            target = selected ?? currentReplays.FirstOrDefault(replay => AutoTargetRule.IsCompatible(replay, speed));
         }
 
+        viewModel.AutoSpeed = speed;
         viewModel.IsTargetPinned = pinned;
         viewModel.Target = target;
 

@@ -7,8 +7,8 @@ It reads osu!lazer's `client.realm` and `files` storage, finds replay files for 
 ## Features
 
 - Shows a Windows UI when launched, with two pages:
-  - **Compare**: the beatmap selected in osu!lazer, the overlay's main/sub metric pickers, the replay being compared against (best score, or the one you pinned) with how exactly its timeline matches the recorded score and its judgement breakdown, and a sortable list of the map's replays (score difference to the target, pin buttons).
-  - **Settings**: replay timeline mode (Corrected / Raw / Scaled), osu!lazer folder, overlay folder and theme (System / Dark / Light).
+  - **Compare**: the beatmap selected in osu!lazer (over its background image, which can be turned off in Settings), the overlay's main/sub metric pickers, the replay being compared against (in auto mode the best score at the current play's rate and Classic mod — the same rule as the overlays — or the one you pinned) with how exactly its timeline matches the recorded score and its judgement breakdown, and a sortable list of the map's replays (score difference to the target, pin buttons).
+  - **Settings**: replay timeline mode (Corrected / Raw / Scaled), osu!lazer folder, overlay folder, theme (System / Dark / Light) and whether to show the beatmap background.
 - Shows problems (tosu not running, osu!lazer folder not found, overlay API port in use) as banners at the top, and the connection state in the top bar.
 - Compact mode: a small always-on-top window with the target, the metric pickers and the match status, for while you play.
 - Uses one osu!lazer root folder and automatically resolves:

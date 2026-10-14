@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 
 namespace LazerReplayCompare;
 
@@ -61,8 +62,11 @@ public sealed class MainWindowViewModel : ObservableObject
         get => isSettingsPage;
         set
         {
-            if (Set(ref isSettingsPage, value))
-                OnPropertyChanged(nameof(IsComparePage));
+            if (!Set(ref isSettingsPage, value))
+                return;
+
+            OnPropertyChanged(nameof(IsComparePage));
+            OnPropertyChanged(nameof(ShowBannerOnCompare));
         }
     }
 
@@ -180,6 +184,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private void replaysChanged()
     {
         OnPropertyChanged(nameof(HasReplays));
+        OnPropertyChanged(nameof(ShowNoTarget));
         OnPropertyChanged(nameof(ReplayCountText));
         OnPropertyChanged(nameof(ShowCompareContent));
         OnPropertyChanged(nameof(ShowNoReplays));
@@ -234,6 +239,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 return;
 
             OnPropertyChanged(nameof(HasTarget));
+            OnPropertyChanged(nameof(ShowNoTarget));
             OnPropertyChanged(nameof(TargetPlayer));
             OnPropertyChanged(nameof(TargetSummary));
             OnPropertyChanged(nameof(TargetScoreText));
@@ -266,7 +272,28 @@ public sealed class MainWindowViewModel : ObservableObject
     public string TargetAccuracyText => Target == null ? "-" : (Target.Accuracy * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%";
     public string TargetDateText => Target == null ? "-" : ReplayRow.FormatDateOnly(Target.Date);
     public string TargetSummary => Target == null ? "-" : $"{TargetAccuracyText} · {Target.ModsText} · {TargetDateText}";
-    public string TargetModeText => IsTargetPinned ? "Pinned" : "Auto · best score";
+    private PlaySpeed autoSpeed = new(1, false);
+
+    /// <summary>Rate/Classic the auto target must match (the current play's).</summary>
+    public PlaySpeed AutoSpeed
+    {
+        get => autoSpeed;
+        set
+        {
+            if (!Set(ref autoSpeed, value))
+                return;
+
+            OnPropertyChanged(nameof(TargetModeText));
+            OnPropertyChanged(nameof(NoTargetText));
+        }
+    }
+
+    public string TargetModeText => IsTargetPinned ? "Pinned" : $"Auto · best at {AutoSpeed.RateText}{(AutoSpeed.Classic ? " Classic" : "")}";
+
+    /// <summary>Replays exist, but none at the current rate (and nothing is pinned).</summary>
+    public bool ShowNoTarget => HasReplays && Target == null;
+
+    public string NoTargetText => $"No saved replay at {AutoSpeed.RateText}{(AutoSpeed.Classic ? " with Classic" : "")}. Pin one below to compare against it anyway.";
     public bool ShowPinHint => !IsTargetPinned;
     public string MaxComboText => Target?.MaxCombo.ToString("N0", CultureInfo.InvariantCulture) ?? "-";
 
@@ -527,6 +554,51 @@ public sealed class MainWindowViewModel : ObservableObject
         get => Theme == "Light";
         set { if (value) Theme = "Light"; }
     }
+
+    // --- Beatmap background ---
+
+    private Bitmap? backgroundImage;
+    private bool showBackground = true;
+
+    /// <summary>The current beatmap's background, decoded at a reduced size (null when there is none).</summary>
+    public Bitmap? BackgroundImage
+    {
+        get => backgroundImage;
+        set
+        {
+            var old = backgroundImage;
+            if (!Set(ref backgroundImage, value))
+                return;
+
+            // Anchored to the top: most backgrounds keep their subject in the upper half, which a centred crop cuts off.
+            BackgroundBrush = value == null ? null : new ImageBrush(value) { Stretch = Stretch.UniformToFill, AlignmentY = AlignmentY.Top };
+            OnPropertyChanged(nameof(BackgroundBrush));
+            old?.Dispose();
+            OnPropertyChanged(nameof(ShowBanner));
+            OnPropertyChanged(nameof(ShowBannerOnCompare));
+        }
+    }
+
+    public IBrush? BackgroundBrush { get; private set; }
+
+    public bool ShowBackground
+    {
+        get => showBackground;
+        set
+        {
+            if (!Set(ref showBackground, value))
+                return;
+
+            OnPropertyChanged(nameof(ShowBanner));
+            OnPropertyChanged(nameof(ShowBannerOnCompare));
+            SettingsChanged?.Invoke();
+        }
+    }
+
+    /// <summary>Whether the beatmap background banner is drawn.</summary>
+    public bool ShowBanner => ShowBackground && BackgroundImage != null;
+
+    public bool ShowBannerOnCompare => ShowBanner && IsComparePage;
 
     // --- osu!lazer folder and overlays ---
 

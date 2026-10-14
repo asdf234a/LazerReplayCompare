@@ -29,7 +29,7 @@ public sealed class TosuClient : IDisposable
                 StatusChanged?.Invoke("Connected to tosu");
 
                 var filter = """
-                    applyFilters:["client",{"field":"beatmap","keys":["checksum","artist","title","version","difficulty","name"]},{"field":"folders","keys":["songs","beatmap"]},{"field":"files","keys":["beatmap"]},{"field":"state","keys":["name"]}]
+                    applyFilters:["client",{"field":"beatmap","keys":["checksum","artist","title","version","difficulty","name"]},{"field":"folders","keys":["songs","beatmap"]},{"field":"files","keys":["beatmap","background"]},{"field":"directPath","keys":["beatmapBackground"]},{"field":"state","keys":["name"]},{"field":"play","keys":["mods"]}]
                     """;
                 var filterBytes = Encoding.UTF8.GetBytes(filter);
                 await socket.SendAsync(filterBytes, WebSocketMessageType.Text, true, token);
@@ -85,8 +85,31 @@ public sealed record TosuSnapshot(
     string BeatmapVersion,
     string SongsFolder,
     string BeatmapFolder,
-    string BeatmapFile)
+    string BeatmapFile,
+    string BackgroundFile = "",
+    string DirectBackgroundPath = "",
+    PlaySpeed? Speed = null)
 {
+    /// <summary>The current play's rate and Classic mod (1×, no Classic when tosu reports no mods).</summary>
+    public PlaySpeed PlaySpeed => Speed ?? new PlaySpeed(1, false);
+
+    /// <summary>Absolute path of the beatmap's background image (empty when tosu reports none).</summary>
+    public string BackgroundPath
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(DirectBackgroundPath))
+                return DirectBackgroundPath;
+            if (string.IsNullOrWhiteSpace(SongsFolder) || string.IsNullOrWhiteSpace(BackgroundFile))
+                return string.Empty;
+
+            // Same layout as the beatmap file: lazer stores files flat (by hash) under the songs/files folder.
+            return Client == "lazer"
+                ? System.IO.Path.Combine(SongsFolder, BackgroundFile)
+                : System.IO.Path.Combine(SongsFolder, BeatmapFolder, BackgroundFile);
+        }
+    }
+
     public static TosuSnapshot? FromJson(string json)
     {
         using var document = JsonDocument.Parse(json);
@@ -101,7 +124,48 @@ public sealed record TosuSnapshot(
             BeatmapVersion: GetBeatmapVersion(root),
             SongsFolder: GetString(root, "folders", "songs"),
             BeatmapFolder: GetString(root, "folders", "beatmap"),
-            BeatmapFile: GetString(root, "files", "beatmap"));
+            BeatmapFile: GetString(root, "files", "beatmap"),
+            BackgroundFile: GetString(root, "files", "background"),
+            DirectBackgroundPath: GetString(root, "directPath", "beatmapBackground"),
+            Speed: GetPlaySpeed(root));
+    }
+
+    /// <summary>play.mods → rate/Classic, the way the overlays read it (getCurrentModsKey).</summary>
+    private static PlaySpeed GetPlaySpeed(JsonElement root)
+    {
+        if (!root.TryGetProperty("play", out var play) || play.ValueKind != JsonValueKind.Object ||
+            !play.TryGetProperty("mods", out var mods) || mods.ValueKind != JsonValueKind.Object)
+            return new PlaySpeed(1, false);
+
+        var acronyms = new List<string>();
+        double? settingsRate = null;
+        if (mods.TryGetProperty("array", out var array) && array.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var mod in array.EnumerateArray())
+            {
+                if (mod.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                acronyms.Add(GetString(mod, "acronym"));
+                if (settingsRate == null && mod.TryGetProperty("settings", out var settings) && settings.ValueKind == JsonValueKind.Object)
+                {
+                    settingsRate = AutoTargetRule.RateFromSettings(settings.EnumerateObject()
+                        .Select(setting => new KeyValuePair<string, string>(setting.Name, settingText(setting.Value))));
+                }
+            }
+        }
+
+        var rate = mods.TryGetProperty("rate", out var rateValue) && rateValue.ValueKind == JsonValueKind.Number ? rateValue.GetDouble() : 1;
+        return AutoTargetRule.ForPlay(acronyms, settingsRate, rate);
+
+        static string settingText(JsonElement value) => value.ValueKind switch
+        {
+            JsonValueKind.Number => value.GetRawText(),
+            JsonValueKind.String => value.GetString() ?? string.Empty,
+            JsonValueKind.Object when value.TryGetProperty("value", out var inner) => settingText(inner),
+            JsonValueKind.Object when value.TryGetProperty("Value", out var inner) => settingText(inner),
+            _ => string.Empty,
+        };
     }
 
     private static string GetString(JsonElement root, string name)
