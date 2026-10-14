@@ -8,7 +8,9 @@
         Height="820"
         MinWidth="900"
         MinHeight="600"
-        WindowDecorations="BorderOnly">
+        WindowDecorations="BorderOnly"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0">
   <Window.Styles>
     <Style Selector="Border.header">
       <Setter Property="Background" Value="{DynamicResource HeaderBrush}" />
@@ -51,8 +53,7 @@
           <GradientStop Offset="1" Color="Transparent" />
         </LinearGradientBrush>
       </Panel.OpacityMask>
-      <!-- Focal point near the top: banners are much wider than tall, so most of the crop comes off the top and bottom. -->
-      <local:FocalImage Source="{Binding BackgroundImage}" FocalY="0.12" />
+      <local:FocalImage Source="{Binding BackgroundImage}" />
       <Border>
         <Border.Background>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">

@@ -9,6 +9,8 @@
         CanResize="False"
         Topmost="True"
         WindowDecorations="BorderOnly"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
         Background="{DynamicResource PageBrush}">
   <Grid Background="Transparent" PointerPressed="DragWindow">
     <!-- The background covers the whole window as one layer, so there is no seam under the top row. -->
