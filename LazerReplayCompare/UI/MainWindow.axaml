@@ -51,7 +51,8 @@
           <GradientStop Offset="1" Color="Transparent" />
         </LinearGradientBrush>
       </Panel.OpacityMask>
-      <local:FocalImage Source="{Binding BackgroundImage}" />
+      <!-- Focal point near the top: banners are much wider than tall, so most of the crop comes off the top and bottom. -->
+      <local:FocalImage Source="{Binding BackgroundImage}" FocalY="0.12" />
       <Border>
         <Border.Background>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
@@ -76,7 +77,9 @@
 
     <!-- Top bar: app, pages, connection state, compact mode -->
     <!-- Doubles as the window's title bar (the content extends under the system title bar). -->
-    <Border x:Name="TitleBar" DockPanel.Dock="Top" MinHeight="56"
+    <!-- Fixed height: the connection pill and compact-mode button under the window buttons may hang below it
+         (ZIndex keeps them above the page and clickable) without making the bar taller. -->
+    <Border x:Name="TitleBar" DockPanel.Dock="Top" Height="64" ZIndex="1"
             Classes="header" Classes.overBanner="{Binding ShowBackdrop}"
             BorderThickness="0,0,0,1"
             Padding="24,0">
@@ -99,7 +102,7 @@
 
         <!-- Window buttons (the window has no system title bar), with the connection state and the compact-mode
              button under them at the right edge. -->
-        <StackPanel Grid.Column="3" Spacing="4" Margin="0,0,-24,10" HorizontalAlignment="Right">
+        <StackPanel Grid.Column="3" Spacing="4" Margin="0,0,-24,0" HorizontalAlignment="Right" VerticalAlignment="Top" Height="104" ClipToBounds="False">
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Classes="caption" Click="MinimizeWindow" ToolTip.Tip="Minimize">
               <Path Data="M0,0.5 L10,0.5" Width="10" Height="1" />
