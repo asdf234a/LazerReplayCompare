@@ -14,6 +14,7 @@ public sealed partial class CompactWindow : Window
     public CompactWindow()
     {
         AvaloniaXamlLoader.Load(this);
+        Opened += (_, _) => WindowCorners.Round(this);
     }
 
     public CompactWindow(MainWindowViewModel viewModel, string theme, Action openFullWindow, Action closeApp)

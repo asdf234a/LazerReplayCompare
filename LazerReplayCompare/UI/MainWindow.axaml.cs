@@ -592,29 +592,40 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// The top bar takes the place of the system title bar: it drags the window, while the minimise/maximise/close
-    /// buttons stay drawn in the top-right corner.
-    /// </summary>
+    /// <summary>The window has no system title bar: the top bar's empty space drags it and the app draws the window buttons.</summary>
     private void setUpTitleBar(Border titleBar)
     {
-        Avalonia.Controls.Chrome.WindowDecorationProperties.SetElementRole(titleBar.FindControl<Border>("DragArea")!, WindowDecorationsElementRole.TitleBar);
+        Opened += (_, _) => WindowCorners.Round(this);
 
-        // The window styles hide the drawn title text and full-screen button; this also catches them if the drawn
-        // decorations are created outside the styles' reach.
-        Opened += (_, _) => Dispatcher.UIThread.Post(hideDecorationExtras, DispatcherPriority.Loaded);
-    }
-
-    private static readonly HashSet<string> hiddenDecorationParts = new() { "PART_FullScreenButton", "PART_TitleTextPanel", "PART_TitlePresenter" };
-
-    private void hideDecorationExtras()
-    {
-        foreach (var visual in Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(this))
+        var maximizeGlyph = titleBar.FindControl<Avalonia.Controls.Shapes.Path>("MaximizeGlyph")!;
+        PropertyChanged += (_, e) =>
         {
-            if (visual is Control { Name: { } name } control && hiddenDecorationParts.Contains(name))
-                control.IsVisible = false;
-        }
+            if (e.Property != WindowStateProperty)
+                return;
+
+            maximizeGlyph.Data = Geometry.Parse(WindowState == WindowState.Maximized
+                ? "M2.5,0.5 L9.5,0.5 L9.5,7.5 M0.5,2.5 L7.5,2.5 L7.5,9.5 L0.5,9.5 Z"
+                : "M0.5,0.5 L9.5,0.5 L9.5,9.5 L0.5,9.5 Z");
+        };
     }
+
+    private void DragWindow(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            return;
+
+        if (e.ClickCount == 2)
+            ToggleMaximizeWindow(sender, e);
+        else
+            BeginMoveDrag(e);
+    }
+
+    private void MinimizeWindow(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void ToggleMaximizeWindow(object? sender, RoutedEventArgs e)
+        => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void CloseWindow(object? sender, RoutedEventArgs e) => Close();
 
     // --- Pages, compact mode, files ---
 

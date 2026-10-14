@@ -251,3 +251,32 @@ public static class BackdropImage
         }
     }
 }
+
+public static class WindowCorners
+{
+    private const int DwmwaWindowCornerPreference = 33;
+    private const int DwmwcpRound = 2;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    /// <summary>
+    /// Asks Windows 11 for rounded corners. Windows without a system title bar don't always get them by default;
+    /// earlier Windows versions keep square corners.
+    /// </summary>
+    public static void Round(Window window)
+    {
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) || window.TryGetPlatformHandle()?.Handle is not { } handle)
+            return;
+
+        try
+        {
+            var preference = DwmwcpRound;
+            DwmSetWindowAttribute(handle, DwmwaWindowCornerPreference, ref preference, sizeof(int));
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+}

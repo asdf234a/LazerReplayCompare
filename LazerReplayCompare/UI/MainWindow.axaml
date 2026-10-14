@@ -8,18 +8,8 @@
         Height="820"
         MinWidth="900"
         MinHeight="600"
-        ExtendClientAreaToDecorationsHint="True">
+        WindowDecorations="BorderOnly">
   <Window.Styles>
-    <!-- Drawn window decorations: no title text and no full-screen button (the top bar already names the app). -->
-    <Style Selector=":is(Control)#PART_FullScreenButton">
-      <Setter Property="IsVisible" Value="False" />
-    </Style>
-    <Style Selector=":is(Control)#PART_TitleTextPanel">
-      <Setter Property="IsVisible" Value="False" />
-    </Style>
-    <Style Selector=":is(Control)#PART_TitlePresenter">
-      <Setter Property="IsVisible" Value="False" />
-    </Style>
     <Style Selector="Border.header">
       <Setter Property="Background" Value="{DynamicResource HeaderBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource HeaderBorderBrush}" />
@@ -92,7 +82,7 @@
             Padding="24,0">
       <Panel>
       <!-- Drag area: behind the controls (not their parent), so clicks on them never reach it. -->
-      <Border x:Name="DragArea" Background="Transparent" Margin="-24,0" />
+      <Border x:Name="DragArea" Background="Transparent" Margin="-24,0" PointerPressed="DragWindow" />
       <!-- Everything sits on the left, clear of the system caption buttons in the top-right corner. -->
       <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="28">
         <StackPanel Spacing="8" Margin="0,12,0,10" VerticalAlignment="Center">
@@ -127,6 +117,19 @@
           <Button Classes="tab" Classes.active="{Binding IsSettingsPage}" Content="Settings" Click="ShowSettingsPage" VerticalAlignment="Stretch" />
         </StackPanel>
       </Grid>
+
+      <!-- Window buttons (the window has no system title bar). -->
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,-24,0">
+        <Button Classes="caption" Click="MinimizeWindow" ToolTip.Tip="Minimize">
+          <Path Data="M0,0.5 L10,0.5" Width="10" Height="1" />
+        </Button>
+        <Button Classes="caption" Click="ToggleMaximizeWindow" ToolTip.Tip="Maximize">
+          <Path x:Name="MaximizeGlyph" Data="M0.5,0.5 L9.5,0.5 L9.5,9.5 L0.5,9.5 Z" Width="10" Height="10" />
+        </Button>
+        <Button Classes="caption close" Click="CloseWindow" ToolTip.Tip="Close">
+          <Path Data="M0,0 L10,10 M10,0 L0,10" Width="10" Height="10" />
+        </Button>
+      </StackPanel>
       </Panel>
     </Border>
 
