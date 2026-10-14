@@ -67,6 +67,7 @@
     <!-- osu!lazer's mod icons (from ppy/osu-resources), drawn the way the game draws them. -->
     <!-- Also the windows' own icon (title bar / taskbar), not just the exe's. -->
     <AvaloniaResource Include="LazerReplayCompare.ico" />
+    <AvaloniaResource Include="Assets\AppLogo.png" />
     <AvaloniaResource Include="Assets\Mods\*.png" />
     <!-- UI font (LRC Sans: a Pretendard subset, see LRCSans-NOTICE.txt) and mod icon text (Baloo 2, see Baloo2-OFL.txt). -->
     <AvaloniaResource Include="Assets\Fonts\*.ttf" />

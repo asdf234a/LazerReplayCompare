@@ -90,10 +90,8 @@
       <Border x:Name="DragArea" Background="Transparent" Margin="-24,0" PointerPressed="DragWindow" />
       <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="20">
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-          <Canvas Width="24" Height="24">
-            <Ellipse Width="20" Height="20" Canvas.Left="2" Canvas.Top="2" Stroke="{DynamicResource TargetAccentBrush}" StrokeThickness="2.2" />
-            <Path Data="M7.5,12.5 L10.5,15.5 L16.5,8.5" Stroke="{DynamicResource TextBrush}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" />
-          </Canvas>
+          <Image Source="avares://LazerReplayCompare/Assets/AppLogo.png" Width="26" Height="26" VerticalAlignment="Center"
+                 RenderOptions.BitmapInterpolationMode="HighQuality" />
           <TextBlock Text="Lazer Replay Compare" FontWeight="Bold" FontSize="15" VerticalAlignment="Center" />
         </StackPanel>
 
