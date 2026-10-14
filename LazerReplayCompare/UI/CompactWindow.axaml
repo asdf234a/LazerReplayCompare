@@ -63,7 +63,7 @@
       <Border Background="{DynamicResource TargetRowBrush}" CornerRadius="10" ClipToBounds="True" IsVisible="{Binding HasTarget}">
         <Grid>
           <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TargetAccentBrush}" />
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="14,10">
+          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" Margin="14,10">
             <StackPanel Spacing="1">
               <StackPanel Orientation="Horizontal" Spacing="4">
                 <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TargetLabelBrush}" Text="Target ·" />
@@ -78,22 +78,18 @@
               <TextBlock Classes="mono" FontSize="17" FontWeight="SemiBold" Text="{Binding TargetScoreText}" TextAlignment="Right" />
               <TextBlock Classes="mono secondary" FontSize="12" Text="{Binding TargetAccuracyText}" TextAlignment="Right" />
             </StackPanel>
+            <Border Grid.Column="2" Classes="toneIcon" Width="28" Height="28" CornerRadius="14" VerticalAlignment="Center"
+                    Classes.good="{Binding IsToneGood}" Classes.warning="{Binding IsToneWarning}"
+                    Classes.info="{Binding IsToneInfo}" Classes.error="{Binding IsToneError}"
+                    ToolTip.Tip="{Binding CorrectionTitle}">
+              <Path Width="24" Height="24" Stretch="None" StrokeThickness="2.5" StrokeLineCap="Round" StrokeJoin="Round"
+                    Data="{Binding CorrectionGlyph}" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransform="scale(0.75)" />
+            </Border>
           </Grid>
         </Grid>
       </Border>
       <TextBlock Classes="muted" FontSize="13" Text="No replay to compare against" IsVisible="{Binding !HasTarget}" />
 
-      <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="8">
-        <ComboBox MinHeight="34" HorizontalAlignment="Stretch" ItemsSource="{Binding MainMetricOptions}" SelectedItem="{Binding SelectedMainMetric, Mode=TwoWay}" />
-        <ComboBox Grid.Column="1" MinHeight="34" HorizontalAlignment="Stretch" ItemsSource="{Binding SubMetricOptions}" SelectedItem="{Binding SelectedSubMetric, Mode=TwoWay}" />
-        <Border Grid.Column="2" Classes="toneIcon" Width="28" Height="28" CornerRadius="14"
-                Classes.good="{Binding IsToneGood}" Classes.warning="{Binding IsToneWarning}"
-                Classes.info="{Binding IsToneInfo}" Classes.error="{Binding IsToneError}"
-                ToolTip.Tip="{Binding CorrectionTitle}">
-          <Path Width="24" Height="24" Stretch="None" StrokeThickness="2.5" StrokeLineCap="Round" StrokeJoin="Round"
-                Data="{Binding CorrectionGlyph}" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransform="scale(0.75)" />
-        </Border>
-      </Grid>
     </StackPanel>
   </StackPanel>
   </Grid>
