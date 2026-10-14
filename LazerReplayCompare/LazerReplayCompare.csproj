@@ -65,7 +65,7 @@
   <ItemGroup>
     <!-- osu!lazer's mod icons (from ppy/osu-resources), drawn the way the game draws them. -->
     <AvaloniaResource Include="Assets\Mods\*.png" />
-    <!-- Stand-in for osu!lazer's Torus font (SIL OFL, see Quicksand-OFL.txt). -->
+    <!-- UI font (LRC Sans: a Pretendard subset, see LRCSans-NOTICE.txt) and mod icon text (Baloo 2, see Baloo2-OFL.txt). -->
     <AvaloniaResource Include="Assets\Fonts\*.ttf" />
   </ItemGroup>
 

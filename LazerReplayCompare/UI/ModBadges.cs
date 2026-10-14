@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Controls;
@@ -22,21 +23,21 @@ public sealed class ModBadges : Control
 
     // ModIcon's geometry, in its own units: an 80×80 box holding the hexagon (mod-icon, 135×100, fitted), the icon
     // (131/135 × 92/135 of the box) and the settings marker (20 across, centred at 64,14); and from x = 58 a 116×80 box
-    // with the extender (mod-icon-extender, 194×100, fitted) and its text (Torus Bold 34, 6 right of centre).
+    // with the extender (mod-icon-extender, 194×100, fitted) and its text (6 right of centre).
     private const double box = 80;
     private const double hexagon_height = box * 100 / 135;
     private const double extended_x = box - 22;
     private const double extended_width = 116;
-    private const double extended_text_size = 34;
+    // Torus Bold 34 in osu!lazer; Baloo 2's glyphs run larger, so a little smaller.
+    private const double extended_text_size = 30;
 
-    // BeatmapLeaderboardScore: icons at 0.3 scale with -10 spacing, i.e. -10 / 0.3 in icon units; later ones on top.
+    // BeatmapLeaderboardScore: icons at 0.3 scale with -10 spacing, i.e. -10 / 0.3 in icon units.
     private const double spacing = -10 / 0.3;
 
     private static readonly Dictionary<string, Bitmap?> textures = new();
 
-    // osu!lazer's UI font is Torus, which can't be bundled (it needs a commercial licence), so it is used when
-    // installed and Quicksand (OFL, similar rounded geometric shapes) stands in otherwise.
-    private static readonly Typeface typeface = new(new FontFamily("Torus, avares://LazerReplayCompare/Assets/Fonts#Quicksand"), FontStyle.Normal, FontWeight.Bold);
+    // osu!lazer uses Torus, which can't be bundled (it needs a commercial licence); Baloo 2 (OFL) stands in.
+    private static readonly Typeface typeface = new(new FontFamily("avares://LazerReplayCompare/Assets/Fonts#Baloo 2"), FontStyle.Normal, FontWeight.Bold);
 
     static ModBadges()
     {
@@ -68,16 +69,33 @@ public sealed class ModBadges : Control
         return new Size((mods.Sum(width) + (mods.Count - 1) * spacing) * unit, BadgeHeight);
     }
 
+    // ModExtensions.AsOrdered: by ModType (in its declaration order), then acronym.
+    private static readonly string[] type_order = { "DifficultyReduction", "DifficultyIncrease", "Conversion", "Automation", "Fun", "System" };
+
+    private static IEnumerable<ReplayMod> ordered(IReadOnlyList<ReplayMod>? mods)
+        => (mods ?? Array.Empty<ReplayMod>())
+           .OrderBy(mod => Array.IndexOf(type_order, mod.Type) is var index and >= 0 ? index : type_order.Length)
+           .ThenBy(mod => mod.Acronym, StringComparer.Ordinal);
+
     private static double width(ReplayMod mod) => string.IsNullOrEmpty(extendedInfo(mod)) ? box : extended_x + extended_width;
 
     public override void Render(DrawingContext context)
     {
         var u = unit;
         var centreY = Bounds.Height / 2;
-        var x = 0.0;
-
-        foreach (var mod in Mods ?? Array.Empty<ReplayMod>())
+        // Positions left to right, drawn right to left so each icon sits on top of the next one, as osu!lazer's mod
+        // displays do (ReverseChildIDFillFlowContainer).
+        var placed = new List<(ReplayMod Mod, double X)>();
+        var next = 0.0;
+        foreach (var mod in ordered(Mods))
         {
+            placed.Add((mod, next));
+            next += width(mod) + spacing;
+        }
+
+        for (var index = placed.Count - 1; index >= 0; index--)
+        {
+            var (mod, x) = placed[index];
             var colour = typeColour(mod.Type);
             // Interpolation.ValueAt(0.1, Black, colour): almost black, tinted towards the mod's colour.
             var iconColour = Color.FromRgb((byte)(colour.R * 0.1), (byte)(colour.G * 0.1), (byte)(colour.B * 0.1));
@@ -91,7 +109,8 @@ public sealed class ModBadges : Control
 
                 var text = new FormattedText(info, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, extended_text_size * u, null);
                 var textCentreX = (x + extended_x + extended_width / 2 + 6) * u;
-                drawHeavy(context, text, new Point(textCentreX - text.Width / 2, centreY - text.Height / 2), colour, u);
+                text.SetForegroundBrush(new SolidColorBrush(colour));
+                context.DrawText(text, new Point(textCentreX - text.Width / 2, centreY - text.Height / 2));
             }
 
             fill(context, texture("mod-icon"), new Rect(x * u, centreY - hexagon_height / 2 * u, box * u, hexagon_height * u), colour);
@@ -118,7 +137,6 @@ public sealed class ModBadges : Control
                 context.DrawGeometry(new SolidColorBrush(colour), null, cog(marker, 6 * u));
             }
 
-            x += width(mod) + spacing;
         }
     }
 
@@ -157,30 +175,65 @@ public sealed class ModBadges : Control
     private static Color darken(Color colour, double amount)
         => Color.FromRgb((byte)(colour.R / (1 + amount)), (byte)(colour.G / (1 + amount)), (byte)(colour.B / (1 + amount)));
 
-    /// <summary>
-    /// Torus Bold is heavier than the stand-in's bold, so the glyphs get a thin outline in their own colour.
-    /// </summary>
-    private static void drawHeavy(DrawingContext context, FormattedText text, Point origin, Color colour, double unit)
+    // Draws the texture multiplied by the colour, as osu!framework colours a sprite: white parts take the colour and
+    // the shadow baked into mod-icon (black, semi-transparent) stays a shadow.
+    private static void fill(DrawingContext context, Bitmap? texture, Rect rect, Color colour)
     {
-        var brush = new SolidColorBrush(colour);
-        if (text.BuildGeometry(origin) is { } geometry)
-        {
-            context.DrawGeometry(brush, new Pen(brush, 1.6 * unit, lineJoin: PenLineJoin.Round), geometry);
+        if (texture == null)
             return;
-        }
 
-        text.SetForegroundBrush(brush);
-        context.DrawText(text, origin);
+        if (tinted(texture, colour) is { } image)
+            context.DrawImage(image, new Rect(image.Size), rect);
     }
 
-    // Draws the texture's shape (its alpha) in a solid colour, as osu!framework does when colouring a sprite.
-    private static void fill(DrawingContext context, Bitmap? shape, Rect rect, Color colour)
-    {
-        if (shape == null)
-            return;
+    private static readonly Dictionary<(Bitmap, Color), Bitmap?> tintedTextures = new();
 
-        using (context.PushOpacityMask(new ImageBrush(shape) { Stretch = Stretch.Fill }, rect))
-            context.FillRectangle(new SolidColorBrush(colour), rect);
+    private static Bitmap? tinted(Bitmap texture, Color colour)
+    {
+        if (tintedTextures.TryGetValue((texture, colour), out var cached))
+            return cached;
+
+        WriteableBitmap? result = null;
+        try
+        {
+            var size = texture.PixelSize;
+            result = new WriteableBitmap(size, texture.Dpi, PixelFormat.Bgra8888, AlphaFormat.Premul);
+            using (var buffer = result.Lock())
+            {
+                texture.CopyPixels(new PixelRect(size), buffer.Address, buffer.RowBytes * size.Height, buffer.RowBytes);
+
+                // Normalise to premultiplied BGRA (the texture keeps whatever layout it was decoded to), then multiply.
+                var rgba = texture.Format == PixelFormat.Rgba8888;
+                var premultiplied = texture.AlphaFormat != AlphaFormat.Unpremul;
+                var length = buffer.RowBytes * size.Height;
+                var pixels = new byte[length];
+                Marshal.Copy(buffer.Address, pixels, 0, length);
+                for (var row = 0; row < size.Height; row++)
+                {
+                    for (var i = row * buffer.RowBytes; i < row * buffer.RowBytes + size.Width * 4; i += 4)
+                    {
+                        if (rgba)
+                            (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
+
+                        var alpha = premultiplied ? 255 : pixels[i + 3];
+                        pixels[i] = (byte)(pixels[i] * alpha / 255 * colour.B / 255);
+                        pixels[i + 1] = (byte)(pixels[i + 1] * alpha / 255 * colour.G / 255);
+                        pixels[i + 2] = (byte)(pixels[i + 2] * alpha / 255 * colour.R / 255);
+                    }
+                }
+
+                Marshal.Copy(pixels, 0, buffer.Address, length);
+            }
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+            result?.Dispose();
+            result = null;
+        }
+
+        tintedTextures[(texture, colour)] = result;
+        return result;
     }
 
     // An eight-toothed cog with a hole (FontAwesome's cog in osu!lazer), radius r.

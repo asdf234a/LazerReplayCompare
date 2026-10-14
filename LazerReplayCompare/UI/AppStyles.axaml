@@ -5,7 +5,8 @@
   <Style Selector="Window">
     <Setter Property="Background" Value="{DynamicResource PageBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-    <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, Inter, sans-serif" />
+    <!-- LRC Sans: Pretendard, subset (see Assets/Fonts/LRCSans-NOTICE.txt). Missing glyphs fall back to system fonts. -->
+    <Setter Property="FontFamily" Value="avares://LazerReplayCompare/Assets/Fonts#LRC Sans" />
     <Setter Property="FontSize" Value="14" />
   </Style>
 
@@ -16,8 +17,9 @@
   <Style Selector="TextBlock.muted">
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
   </Style>
+  <!-- Numbers in the same font, with tabular figures so columns line up. -->
   <Style Selector="TextBlock.mono">
-    <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
+    <Setter Property="FontFeatures" Value="+tnum" />
   </Style>
   <Style Selector="TextBlock.overline">
     <Setter Property="FontSize" Value="12" />
