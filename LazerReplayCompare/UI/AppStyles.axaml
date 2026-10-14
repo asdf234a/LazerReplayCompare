@@ -49,6 +49,14 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="16" />
   </Style>
+  <Style Selector="Border.surface.glass">
+    <Setter Property="Background" Value="{DynamicResource SurfaceGlassBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SurfaceBorderGlassBrush}" />
+  </Style>
+  <Style Selector="Border.targetCard.glass">
+    <Setter Property="Background" Value="{DynamicResource TargetCardGlassBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TargetBorderGlassBrush}" />
+  </Style>
   <Style Selector="Border.chip">
     <Setter Property="Background" Value="{DynamicResource ChipBrush}" />
     <Setter Property="CornerRadius" Value="999" />

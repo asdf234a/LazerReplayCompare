@@ -7,35 +7,51 @@
         Width="1180"
         Height="820"
         MinWidth="900"
-        MinHeight="600">
+        MinHeight="600"
+        ExtendClientAreaToDecorationsHint="True">
   <Window.Styles>
     <Style Selector="Border.header">
       <Setter Property="Background" Value="{DynamicResource HeaderBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource HeaderBorderBrush}" />
     </Style>
     <Style Selector="Border.header.overBanner">
-      <Setter Property="Background">
-        <SolidColorBrush Color="{DynamicResource BannerScrim35Color}" />
-      </Setter>
-      <Setter Property="BorderBrush">
-        <SolidColorBrush Color="{DynamicResource BannerScrim25Color}" />
-      </Setter>
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="Border.pickerPanel.overBanner">
       <Setter Property="Background">
-        <SolidColorBrush Color="{DynamicResource BannerScrim62Color}" />
+        <SolidColorBrush Color="{DynamicResource BannerScrim55Color}" />
       </Setter>
       <Setter Property="Padding" Value="8" />
     </Style>
+    <!-- Reserved whenever the background setting is on, so nothing moves when the image arrives. -->
     <Style Selector="Grid.hero.overBanner">
       <Setter Property="MinHeight" Value="200" />
     </Style>
   </Window.Styles>
 
   <Grid>
-    <!-- Beatmap background banner (behind the top bar and the "now playing" block) -->
-    <Panel Height="340" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBannerOnCompare}">
-      <Border Background="{Binding BackgroundBrush}" />
+    <!-- Beatmap background: a blurred copy behind the whole page (the translucent cards sit on it) ... -->
+    <Panel IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
+      <local:FocalImage Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="HighQuality" />
+      <Border>
+        <Border.Background>
+          <SolidColorBrush Color="{DynamicResource BannerScrim80Color}" />
+        </Border.Background>
+      </Border>
+    </Panel>
+
+    <!-- ... and the sharp image behind the top bar and "now playing", fading out into the blurred copy. -->
+    <Panel Height="380" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
+      <Panel.OpacityMask>
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+          <GradientStop Offset="0" Color="Black" />
+          <GradientStop Offset="0.45" Color="Black" />
+          <GradientStop Offset="0.7" Color="#99000000" />
+          <GradientStop Offset="1" Color="Transparent" />
+        </LinearGradientBrush>
+      </Panel.OpacityMask>
+      <local:FocalImage Source="{Binding BackgroundImage}" />
       <Border>
         <Border.Background>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
@@ -51,8 +67,6 @@
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
             <GradientStop Offset="0" Color="{DynamicResource BannerScrim55Color}" />
             <GradientStop Offset="0.22" Color="{DynamicResource BannerScrim0Color}" />
-            <GradientStop Offset="0.55" Color="{DynamicResource BannerScrim0Color}" />
-            <GradientStop Offset="1" Color="{DynamicResource BannerScrim100Color}" />
           </LinearGradientBrush>
         </Border.Background>
       </Border>
@@ -61,8 +75,9 @@
   <DockPanel>
 
     <!-- Top bar: app, pages, connection state, compact mode -->
-    <Border DockPanel.Dock="Top"
-            Classes="header" Classes.overBanner="{Binding ShowBannerOnCompare}"
+    <!-- Doubles as the window's title bar (the content extends under the system title bar). -->
+    <Border x:Name="TitleBar" DockPanel.Dock="Top" MinHeight="56"
+            Classes="header" Classes.overBanner="{Binding ShowBackdrop}"
             BorderThickness="0,0,0,1"
             Padding="24,0">
       <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="20">
@@ -139,14 +154,14 @@
           </Border>
 
           <!-- Now playing + overlay metrics -->
-          <Grid Classes="hero" Classes.overBanner="{Binding ShowBannerOnCompare}" ColumnDefinitions="*,Auto" ColumnSpacing="24">
+          <Grid Classes="hero" Classes.overBanner="{Binding ShowBackdrop}" ColumnDefinitions="*,Auto" ColumnSpacing="24">
             <StackPanel Spacing="4" VerticalAlignment="Bottom">
               <TextBlock Classes="overline" Text="NOW PLAYING" />
               <TextBlock Text="{Binding BeatmapTitle}" FontSize="28" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
               <TextBlock Classes="secondary" Text="{Binding BeatmapSubtitle}" TextTrimming="CharacterEllipsis" />
               <TextBlock Classes="muted" FontSize="12" Text="{Binding StatusText}" IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
-            <Border Grid.Column="1" Classes="pickerPanel" Classes.overBanner="{Binding ShowBannerOnCompare}" CornerRadius="12" VerticalAlignment="Bottom">
+            <Border Grid.Column="1" Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12" VerticalAlignment="Bottom">
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <TextBlock Classes="secondary" Text="Overlay" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
                 <ComboBox MinWidth="140" ItemsSource="{Binding MainMetricOptions}" SelectedItem="{Binding SelectedMainMetric, Mode=TwoWay}"
@@ -158,19 +173,19 @@
           </Grid>
 
           <!-- Empty / waiting states -->
-          <Border Classes="surface" Padding="28" MinHeight="180" IsVisible="{Binding ShowDisconnectedPlaceholder}">
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="28" MinHeight="180" IsVisible="{Binding ShowDisconnectedPlaceholder}">
             <TextBlock Classes="muted" Text="Comparison resumes once everything is connected" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
-          <Border Classes="surface" Padding="28" MinHeight="180" IsVisible="{Binding ShowNoBeatmap}">
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="28" MinHeight="180" IsVisible="{Binding ShowNoBeatmap}">
             <TextBlock Classes="muted" Text="Select a beatmap in osu!lazer to see its replays" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
-          <Border Classes="surface" Padding="28" MinHeight="180" IsVisible="{Binding IsLoadingReplays}">
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="28" MinHeight="180" IsVisible="{Binding IsLoadingReplays}">
             <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
               <ProgressBar IsIndeterminate="True" Width="160" />
               <TextBlock Classes="muted" Text="Loading replays…" HorizontalAlignment="Center" />
             </StackPanel>
           </Border>
-          <Border Classes="surface" Padding="32" MinHeight="220" IsVisible="{Binding ShowNoReplays}">
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="32" MinHeight="220" IsVisible="{Binding ShowNoReplays}">
             <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
               <Path Width="40" Height="40" Stretch="Uniform" StrokeThickness="1.5" Stroke="{DynamicResource TextMutedBrush}" HorizontalAlignment="Center"
                     Data="M12,3 A9,9 0 1 1 11.99,3 Z M10,9 L15,12 L10,15 Z" />
@@ -183,66 +198,70 @@
 
           <!-- Comparison target -->
           <StackPanel Spacing="18" IsVisible="{Binding ShowCompareContent}">
-            <Border Classes="targetCard" Padding="24,20">
-              <StackPanel Spacing="18">
-                <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
-                  <TextBlock Classes="overline" Foreground="{DynamicResource TargetLabelBrush}" Text="COMPARING AGAINST" VerticalAlignment="Center" />
-                  <Border Grid.Column="1" Classes="chip" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding TargetModeText}" />
-                  </Border>
-                  <TextBlock Grid.Column="2" Classes="muted" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                             Text="Pin a replay in the list to compare against it instead" IsVisible="{Binding ShowPinHint}" />
-                  <Button Grid.Column="3" Content="Unpin" Click="UnpinReplay" IsVisible="{Binding IsTargetPinned}" MinHeight="34" />
-                </Grid>
-
-                <TextBlock Classes="secondary" FontSize="14" TextWrapping="Wrap" Text="{Binding NoTargetText}" IsVisible="{Binding ShowNoTarget}" />
-
-                <StackPanel Spacing="18" IsVisible="{Binding HasTarget}">
-                <Grid ColumnDefinitions="*,1.6*" ColumnSpacing="32">
-                  <StackPanel Spacing="4">
-                    <TextBlock Text="{Binding TargetPlayer}" FontSize="24" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+            <Border x:Name="TargetCard" Classes="targetCard" Classes.glass="{Binding ShowBackdrop}" Padding="24,16">
+              <Grid RowDefinitions="Auto,Auto">
+                <!-- One slim row: target · score · judgement ring · timeline status -->
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="32" IsVisible="{Binding HasTarget}">
+                  <StackPanel Spacing="5" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                      <TextBlock Classes="mono" Text="{Binding TargetScoreText}" />
-                      <TextBlock Classes="secondary" Text="{Binding TargetSummary}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="VS" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource TargetLabelBrush}" VerticalAlignment="Center"
+                                 ToolTip.Tip="Comparing against" />
+                      <Border Classes="chip" Padding="8,2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding TargetModeText}" FontSize="11" />
+                      </Border>
+                      <Button Content="Unpin" Click="UnpinReplay" IsVisible="{Binding IsTargetPinned}" MinHeight="26" Padding="10,0" FontSize="12" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding TargetPlayer}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Classes="muted" FontSize="12" Text="{Binding TargetDetailText}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+
+                  <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <TextBlock Classes="mono" FontSize="22" FontWeight="SemiBold" Text="{Binding TargetScoreText}" HorizontalAlignment="Right" />
+                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right">
+                      <TextBlock Classes="mono" FontSize="12" Text="{Binding TargetAccuracyText}" />
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Classes="muted" FontSize="12" Text="combo" />
+                        <TextBlock Classes="mono" FontSize="12" Text="{Binding MaxComboText}" />
+                      </StackPanel>
                     </StackPanel>
                   </StackPanel>
-                  <Grid Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                    <Border Classes="toneIcon"
-                            Classes.good="{Binding IsToneGood}" Classes.warning="{Binding IsToneWarning}"
-                            Classes.info="{Binding IsToneInfo}" Classes.error="{Binding IsToneError}"
-                            VerticalAlignment="Top">
-                      <Path Width="24" Height="24" Stretch="None" StrokeThickness="2.5" StrokeLineCap="Round" StrokeJoin="Round"
-                            Data="{Binding CorrectionGlyph}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <StackPanel Grid.Column="1" Spacing="2">
-                      <TextBlock Classes="toneTitle"
-                                 Classes.good="{Binding IsToneGood}" Classes.warning="{Binding IsToneWarning}"
-                                 Classes.info="{Binding IsToneInfo}" Classes.error="{Binding IsToneError}"
-                                 FontSize="15" Text="{Binding CorrectionTitle}" />
-                      <TextBlock Classes="secondary" FontSize="13" TextWrapping="Wrap" LineHeight="20" Text="{Binding CorrectionDetail}" />
-                      <ProgressBar IsIndeterminate="True" Height="3" MinHeight="3" Margin="0,6,0,0" IsVisible="{Binding IsCorrectionLoading}" />
-                    </StackPanel>
-                  </Grid>
+
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                    <Panel Width="76" Height="76" Background="Transparent" ToolTip.Tip="{Binding JudgementSummaryText}">
+                      <local:JudgementDonut x:Name="JudgementDonut" Segments="{Binding Judgements}" Thickness="11" Track="{DynamicResource ChipBrush}" />
+                      <TextBlock Classes="mono" FontSize="13" FontWeight="SemiBold" Text="{Binding JudgementTotalText}"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Panel>
+                    <UniformGrid x:Name="JudgementLegend" Columns="2" VerticalAlignment="Center" />
+                  </StackPanel>
+
+                  <Border Grid.Column="3" BorderBrush="{DynamicResource SurfaceBorderBrush}" BorderThickness="1,0,0,0" Padding="20,0,0,0"
+                          VerticalAlignment="Center" ToolTip.Tip="{Binding CorrectionDetail}">
+                    <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="10">
+                      <Border Classes="toneIcon" Width="28" Height="28" CornerRadius="14"
+                              Classes.good="{Binding IsToneGood}" Classes.warning="{Binding IsToneWarning}"
+                              Classes.info="{Binding IsToneInfo}" Classes.error="{Binding IsToneError}"
+                              VerticalAlignment="Center">
+                        <Path Width="24" Height="24" Stretch="None" StrokeThickness="2.5" StrokeLineCap="Round" StrokeJoin="Round"
+                              Data="{Binding CorrectionGlyph}" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransform="scale(0.75)" />
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Classes="toneTitle"
+                                   Classes.good="{Binding IsToneGood}" Classes.warning="{Binding IsToneWarning}"
+                                   Classes.info="{Binding IsToneInfo}" Classes.error="{Binding IsToneError}"
+                                   FontSize="14" Text="{Binding CorrectionTitle}" />
+                        <TextBlock Classes="secondary" FontSize="12" Text="{Binding CorrectionShort}" />
+                        <ProgressBar IsIndeterminate="True" Height="3" MinHeight="3" Margin="0,4,0,0" IsVisible="{Binding IsCorrectionLoading}" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
                 </Grid>
 
-                <StackPanel Spacing="10">
-                  <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Classes="muted" FontSize="13" Text="Judgements" />
-                    <TextBlock Grid.Column="1" Classes="muted mono" FontSize="13" Text="{Binding JudgementTotalText}" />
-                  </Grid>
-                  <Border Height="12" CornerRadius="6" ClipToBounds="True">
-                    <Grid x:Name="JudgementBar" />
-                  </Border>
-                  <Grid ColumnDefinitions="*,Auto">
-                    <WrapPanel x:Name="JudgementLegend" Orientation="Horizontal" />
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                      <TextBlock Classes="muted" FontSize="13" Text="Max combo" />
-                      <TextBlock Classes="mono" FontSize="13" Text="{Binding MaxComboText}" />
-                    </StackPanel>
-                  </Grid>
+                <StackPanel Grid.Row="1" Spacing="6" IsVisible="{Binding ShowNoTarget}">
+                  <TextBlock Text="VS" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource TargetLabelBrush}" />
+                  <TextBlock Classes="secondary" FontSize="14" TextWrapping="Wrap" Text="{Binding NoTargetText}" />
                 </StackPanel>
-                </StackPanel>
-              </StackPanel>
+              </Grid>
             </Border>
 
             <!-- Replays -->
@@ -251,7 +270,7 @@
                 <TextBlock Classes="sectionTitle" Text="Replays on this map" />
                 <TextBlock Classes="muted" FontSize="13" Text="{Binding ReplayCountText}" VerticalAlignment="Bottom" />
               </StackPanel>
-              <Border Classes="surface" ClipToBounds="True">
+              <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" ClipToBounds="True">
                 <Grid RowDefinitions="Auto,Auto">
                   <Grid ColumnDefinitions="52,1.4*,1*,0.8*,1.1*,1*,0.9*,0.6*,0.7*,0.6*" Margin="0,4,0,4">
                     <TextBlock Grid.Column="1" Classes="muted" FontSize="12" Text="Player" VerticalAlignment="Center" Margin="8,0" />
@@ -312,7 +331,7 @@
         <StackPanel MaxWidth="820" Margin="28,22,28,32" Spacing="18">
           <TextBlock Text="Settings" FontSize="24" FontWeight="Bold" />
 
-          <Border Classes="surface" Padding="22,20">
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">
             <StackPanel Spacing="14">
               <StackPanel Spacing="4">
                 <TextBlock Classes="sectionTitle" Text="Replay timeline" />
@@ -351,7 +370,7 @@
             </StackPanel>
           </Border>
 
-          <Border Classes="surface" Padding="22,20">
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">
             <StackPanel Spacing="14">
               <StackPanel Orientation="Horizontal" Spacing="12">
                 <TextBlock Classes="sectionTitle" Text="osu!lazer folder" />
@@ -367,7 +386,7 @@
             </StackPanel>
           </Border>
 
-          <Border Classes="surface" Padding="22,20">
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
               <StackPanel Spacing="4">
                 <TextBlock Classes="sectionTitle" Text="tosu overlays" />
@@ -379,7 +398,7 @@
             </Grid>
           </Border>
 
-          <Border Classes="surface" Padding="22,20">
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Spacing="6" VerticalAlignment="Center">
                 <TextBlock Classes="sectionTitle" Text="Appearance" />

@@ -94,8 +94,15 @@ public static class ThemeService
         // Beatmap background banner: fades towards the page colour and a page-coloured scrim behind the title, so the
         // text keeps its normal colour (and contrast) over any image in both themes.
         var page = Color.Parse(isLight ? palette["PageBrush"].Light : palette["PageBrush"].Dark);
-        foreach (var alpha in new[] { 0, 10, 25, 35, 55, 62, 70, 85, 92, 100 })
+        foreach (var alpha in new[] { 0, 10, 25, 35, 55, 62, 70, 80, 85, 92, 100 })
             target.Resources[$"BannerScrim{alpha}Color"] = Color.FromArgb((byte)Math.Round(alpha * 2.55), page.R, page.G, page.B);
+
+        // Translucent versions of the surfaces for when the blurred background sits behind them.
+        foreach (var (key, alpha) in new[] { ("TargetCardBrush", 0.62), ("SurfaceBrush", 0.6), ("TargetBorderBrush", 0.55), ("SurfaceBorderBrush", 0.5) })
+        {
+            var color = Color.Parse(isLight ? palette[key].Light : palette[key].Dark);
+            target.Resources[key.Replace("Brush", "GlassBrush")] = new SolidColorBrush(Color.FromArgb((byte)Math.Round(alpha * 255), color.R, color.G, color.B));
+        }
 
     }
 }

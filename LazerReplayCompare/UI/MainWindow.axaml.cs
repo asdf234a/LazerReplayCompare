@@ -27,8 +27,8 @@ public sealed partial class MainWindow : Window
     private readonly ReplaySelectionService replaySelection = new();
     private readonly MainWindowViewModel viewModel = new();
 
-    private Grid judgementBar = null!;
-    private WrapPanel judgementLegend = null!;
+    private JudgementDonut judgementDonut = null!;
+    private Avalonia.Controls.Primitives.UniformGrid judgementLegend = null!;
     private ListBox replayList = null!;
 
     private List<ReplayEntry> currentReplays = new();
@@ -47,9 +47,13 @@ public sealed partial class MainWindow : Window
 
         AvaloniaXamlLoader.Load(this);
         DataContext = viewModel;
-        judgementBar = this.FindControl<Grid>("JudgementBar")!;
-        judgementLegend = this.FindControl<WrapPanel>("JudgementLegend")!;
+        judgementDonut = this.FindControl<JudgementDonut>("JudgementDonut")!;
+        judgementLegend = this.FindControl<Avalonia.Controls.Primitives.UniformGrid>("JudgementLegend")!;
         replayList = this.FindControl<ListBox>("ReplayList")!;
+        setUpTitleBar(this.FindControl<Border>("TitleBar")!);
+
+        // In a narrow window the legend would squeeze the target's name; the ring alone (with its tooltip) stays.
+        this.FindControl<Border>("TargetCard")!.SizeChanged += (_, e) => judgementLegend.IsVisible = e.NewSize.Width >= 1000;
 
         ApplySavedSettings();
         viewModel.SettingsChanged += OnSettingsChanged;
@@ -558,11 +562,10 @@ public sealed partial class MainWindow : Window
             RebuildJudgementBar();
     }
 
-    /// <summary>Proportional judgement bar and its legend (theme brushes, so rebuilt when the theme changes).</summary>
+    /// <summary>Legend next to the judgement ring (theme brushes, so rebuilt when the theme changes).</summary>
     private void RebuildJudgementBar()
     {
-        judgementBar.Children.Clear();
-        judgementBar.ColumnDefinitions.Clear();
+        judgementDonut.Refresh();
         judgementLegend.Children.Clear();
 
         foreach (var segment in viewModel.Judgements)
@@ -571,21 +574,37 @@ public sealed partial class MainWindow : Window
                 ? found
                 : Brushes.Gray;
 
-            if (segment.Count > 0)
-            {
-                judgementBar.ColumnDefinitions.Add(new ColumnDefinition(segment.Count, GridUnitType.Star));
-                var bar = new Border { Background = brush, Margin = new Thickness(0, 0, 2, 0) };
-                Grid.SetColumn(bar, judgementBar.ColumnDefinitions.Count - 1);
-                judgementBar.Children.Add(bar);
-            }
-
-            var legend = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 0, 18, 4) };
-            legend.Children.Add(new Rectangle { Width = 8, Height = 8, RadiusX = 2, RadiusY = 2, Fill = brush, VerticalAlignment = VerticalAlignment.Center });
-            legend.Children.Add(new TextBlock { Text = segment.Key, FontSize = 13, Classes = { "secondary" } });
-            legend.Children.Add(new TextBlock { Text = segment.CountText, FontSize = 13, Classes = { "mono" } });
+            var legend = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 6, Margin = new Thickness(0, 1, 16, 1) };
+            legend.Children.Add(new Ellipse { Width = 7, Height = 7, Fill = brush, VerticalAlignment = VerticalAlignment.Center });
+            var name = new TextBlock { Text = segment.Key, FontSize = 11, Classes = { "secondary" } };
+            Grid.SetColumn(name, 1);
+            legend.Children.Add(name);
+            var count = new TextBlock { Text = segment.CountText, FontSize = 11, Classes = { "mono" }, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8, 0, 0, 0) };
+            Grid.SetColumn(count, 2);
+            legend.Children.Add(count);
             judgementLegend.Children.Add(legend);
         }
     }
+
+    /// <summary>
+    /// The top bar takes the place of the system title bar: it drags the window, and keeps clear of the system's
+    /// minimise/maximise/close buttons, which stay drawn in the top-right corner.
+    /// </summary>
+    private void setUpTitleBar(Border titleBar)
+    {
+        Avalonia.Controls.Chrome.WindowDecorationProperties.SetElementRole(titleBar, WindowDecorationsElementRole.TitleBar);
+
+        void update() => titleBar.Padding = new Thickness(24, 0, IsExtendedIntoWindowDecorations ? 24 + CaptionButtonsWidth : 24, 0);
+        update();
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property == IsExtendedIntoWindowDecorationsProperty)
+                update();
+        };
+    }
+
+    /// <summary>Room for the system caption buttons (three 46 px buttons on Windows).</summary>
+    private const double CaptionButtonsWidth = 138;
 
     // --- Pages, compact mode, files ---
 
@@ -597,7 +616,7 @@ public sealed partial class MainWindow : Window
     {
         if (compactWindow == null)
         {
-            compactWindow = new CompactWindow(viewModel, viewModel.Theme, ShowFullWindow);
+            compactWindow = new CompactWindow(viewModel, viewModel.Theme, ShowFullWindow, Close);
             compactWindow.Closed += (_, _) =>
             {
                 compactWindow = null;

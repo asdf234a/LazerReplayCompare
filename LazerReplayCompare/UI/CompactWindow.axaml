@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:LazerReplayCompare"
         x:Class="LazerReplayCompare.CompactWindow"
         x:CompileBindings="False"
         Title="Lazer Replay Compare"
@@ -7,22 +8,24 @@
         SizeToContent="Height"
         CanResize="False"
         Topmost="True"
+        WindowDecorations="BorderOnly"
         Background="{DynamicResource PageBrush}">
-  <Grid>
-    <Panel Height="132" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBanner}">
-      <Border Background="{Binding BackgroundBrush}" />
+  <Grid Background="Transparent" PointerPressed="DragWindow">
+    <!-- The background covers the whole window as one layer, so there is no seam under the top row. -->
+    <Panel ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBackground}">
+      <local:FocalImage Source="{Binding BackgroundImage}" />
       <Border>
         <Border.Background>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
             <GradientStop Offset="0" Color="{DynamicResource BannerScrim35Color}" />
-            <GradientStop Offset="0.45" Color="{DynamicResource BannerScrim55Color}" />
-            <GradientStop Offset="1" Color="{DynamicResource BannerScrim100Color}" />
+            <GradientStop Offset="0.4" Color="{DynamicResource BannerScrim62Color}" />
+            <GradientStop Offset="1" Color="{DynamicResource BannerScrim80Color}" />
           </LinearGradientBrush>
         </Border.Background>
       </Border>
     </Panel>
   <StackPanel>
-    <Border BorderBrush="{DynamicResource HeaderBorderBrush}" BorderThickness="0,0,0,1" Padding="16,8,10,8">
+    <Border Padding="16,8,10,8">
       <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
         <Border Classes="pill" Classes.ok="{Binding AllConnected}" Padding="10,4" ToolTip.Tip="{Binding ConnectionDetails}">
           <StackPanel Orientation="Horizontal" Spacing="6">
@@ -30,13 +33,22 @@
             <TextBlock Text="{Binding ConnectionText}" FontSize="12" VerticalAlignment="Center" />
           </StackPanel>
         </Border>
-        <Button Grid.Column="2" Classes="ghost" MinHeight="32" Padding="8,0" Click="OpenFullWindow" ToolTip.Tip="Open the full window">
-          <Button.Background>
-            <SolidColorBrush Color="{DynamicResource BannerScrim62Color}" />
-          </Button.Background>
-          <Path Width="14" Height="14" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
-                Stroke="{DynamicResource TextSecondaryBrush}" Data="M15,3 L21,3 L21,9 M9,21 L3,21 L3,15 M21,3 L14,10 M3,21 L10,14" />
-        </Button>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+          <Button Classes="ghost" MinHeight="32" Padding="8,0" Click="OpenFullWindow" ToolTip.Tip="Open the full window">
+            <Button.Background>
+              <SolidColorBrush Color="{DynamicResource BannerScrim62Color}" />
+            </Button.Background>
+            <Path Width="14" Height="14" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                  Stroke="{DynamicResource TextSecondaryBrush}" Data="M15,3 L21,3 L21,9 M9,21 L3,21 L3,15 M21,3 L14,10 M3,21 L10,14" />
+          </Button>
+          <Button Classes="ghost" MinHeight="32" Padding="8,0" Click="CloseApp" ToolTip.Tip="Close Lazer Replay Compare">
+            <Button.Background>
+              <SolidColorBrush Color="{DynamicResource BannerScrim62Color}" />
+            </Button.Background>
+            <Path Width="12" Height="12" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round"
+                  Stroke="{DynamicResource TextSecondaryBrush}" Data="M6,6 L18,18 M18,6 L6,18" />
+          </Button>
+        </StackPanel>
       </Grid>
     </Border>
 

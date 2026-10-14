@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
@@ -8,17 +9,19 @@ namespace LazerReplayCompare;
 public sealed partial class CompactWindow : Window
 {
     private readonly Action? openFullWindow;
+    private readonly Action? closeApp;
 
     public CompactWindow()
     {
         AvaloniaXamlLoader.Load(this);
     }
 
-    public CompactWindow(MainWindowViewModel viewModel, string theme, Action openFullWindow)
+    public CompactWindow(MainWindowViewModel viewModel, string theme, Action openFullWindow, Action closeApp)
         : this()
     {
         DataContext = viewModel;
         this.openFullWindow = openFullWindow;
+        this.closeApp = closeApp;
         ThemeService.Apply(this, theme);
     }
 
@@ -26,5 +29,14 @@ public sealed partial class CompactWindow : Window
     {
         openFullWindow?.Invoke();
         Close();
+    }
+
+    private void CloseApp(object? sender, RoutedEventArgs e) => closeApp?.Invoke();
+
+    /// <summary>No title bar here, so dragging any empty part of the window moves it.</summary>
+    private void DragWindow(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            BeginMoveDrag(e);
     }
 }

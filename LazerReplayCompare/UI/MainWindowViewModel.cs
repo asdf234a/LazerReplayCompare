@@ -66,7 +66,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 return;
 
             OnPropertyChanged(nameof(IsComparePage));
-            OnPropertyChanged(nameof(ShowBannerOnCompare));
+            OnPropertyChanged(nameof(ShowBackdrop));
         }
     }
 
@@ -242,6 +242,7 @@ public sealed class MainWindowViewModel : ObservableObject
             OnPropertyChanged(nameof(ShowNoTarget));
             OnPropertyChanged(nameof(TargetPlayer));
             OnPropertyChanged(nameof(TargetSummary));
+            OnPropertyChanged(nameof(TargetDetailText));
             OnPropertyChanged(nameof(TargetScoreText));
             OnPropertyChanged(nameof(TargetAccuracyText));
             OnPropertyChanged(nameof(TargetDateText));
@@ -272,6 +273,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public string TargetAccuracyText => Target == null ? "-" : (Target.Accuracy * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%";
     public string TargetDateText => Target == null ? "-" : ReplayRow.FormatDateOnly(Target.Date);
     public string TargetSummary => Target == null ? "-" : $"{TargetAccuracyText} · {Target.ModsText} · {TargetDateText}";
+    public string TargetDetailText => Target == null ? "-" : $"{Target.ModsText} · {TargetDateText}";
     private PlaySpeed autoSpeed = new(1, false);
 
     /// <summary>Rate/Classic the auto target must match (the current play's).</summary>
@@ -306,10 +308,15 @@ public sealed class MainWindowViewModel : ObservableObject
         get => judgements;
         private set
         {
-            if (Set(ref judgements, value))
-                OnPropertyChanged(nameof(JudgementTotalText));
+            if (!Set(ref judgements, value))
+                return;
+
+            OnPropertyChanged(nameof(JudgementTotalText));
+            OnPropertyChanged(nameof(JudgementSummaryText));
         }
     }
+
+    public string JudgementSummaryText => string.Join("\n", Judgements.Select(segment => $"{segment.Key}  {segment.CountText}"));
 
     public string JudgementTotalText => Judgements.Sum(segment => segment.Count).ToString("N0", CultureInfo.InvariantCulture);
 
@@ -320,6 +327,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private string correctionTitle = string.Empty;
     private string correctionDetail = string.Empty;
+    private string correctionShort = string.Empty;
     private string correctionTone = "neutral";
     private bool isCorrectionLoading;
 
@@ -333,6 +341,13 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         get => correctionDetail;
         private set => Set(ref correctionDetail, value);
+    }
+
+    /// <summary>One short line under the title; the full explanation is the tooltip.</summary>
+    public string CorrectionShort
+    {
+        get => correctionShort;
+        private set => Set(ref correctionShort, value);
     }
 
     /// <summary>good | warning | info | error | neutral — picks the status colours.</summary>
@@ -379,6 +394,7 @@ public sealed class MainWindowViewModel : ObservableObject
         CorrectionTone = "neutral";
         CorrectionTitle = "Checking the replay timeline…";
         CorrectionDetail = "Working out the replay's score at every note.";
+        CorrectionShort = "Working out every note";
     }
 
     public void ShowCorrection(TimelineCorrection? correction, string scaleMetric)
@@ -392,12 +408,14 @@ public sealed class MainWindowViewModel : ObservableObject
                 CorrectionTone = "good";
                 CorrectionTitle = "Exact match";
                 CorrectionDetail = "This replay stores its score at every frame, so the overlay uses it directly.";
+                CorrectionShort = "Recorded score, used directly";
                 break;
 
             case TimelineCorrectionStatus.Exact:
                 CorrectionTone = "good";
                 CorrectionTitle = "Exact match";
                 CorrectionDetail = "The corrected timeline reproduces the recorded score and every judgement count, so the overlay's difference is exact at every note.";
+                CorrectionShort = "Score & judgements reproduced";
                 break;
 
             case TimelineCorrectionStatus.Approximate:
@@ -406,6 +424,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 CorrectionDetail = correction.HitDifference == 0
                     ? $"Judgement counts match, but this replay can't reproduce the recorded score exactly. The overlay's difference can be off by up to {points} points."
                     : $"This replay can't be matched exactly ({correction.HitDifference} judgements differ). The overlay's difference can be off by up to {points} points.";
+                CorrectionShort = correction.HitDifference == 0 ? "Judgements match" : $"{correction.HitDifference} judgements differ";
                 break;
 
             case TimelineCorrectionStatus.Raw:
@@ -414,24 +433,28 @@ public sealed class MainWindowViewModel : ObservableObject
                 CorrectionDetail = correction.ScoreDifference == 0
                     ? "Exactly what osu!lazer's replay playback shows, which here matches the recorded score."
                     : $"Exactly what osu!lazer's replay playback shows ({points} points from the recorded score). Choose Corrected in Settings to match the recorded score.";
+                CorrectionShort = correction.ScoreDifference == 0 ? "Matches the recorded score" : $"{points} points from the recorded score";
                 break;
 
             case TimelineCorrectionStatus.Scaled:
                 CorrectionTone = "info";
                 CorrectionTitle = "Scaled timeline";
                 CorrectionDetail = $"The raw timeline is stretched so its final {scaleMetric} equals the replay's.";
+                CorrectionShort = $"Stretched to the final {scaleMetric}";
                 break;
 
             case TimelineCorrectionStatus.Legacy:
                 CorrectionTone = "info";
-                CorrectionTitle = "Shown as osu!lazer plays it back";
+                CorrectionTitle = "Lazer playback";
                 CorrectionDetail = "osu!stable counts hold notes differently, so this replay can't be matched to its recorded judgements. The timeline is exactly what lazer's replay playback shows.";
+                CorrectionShort = "osu!stable replay";
                 break;
 
             default:
                 CorrectionTone = "neutral";
                 CorrectionTitle = string.Empty;
                 CorrectionDetail = string.Empty;
+                CorrectionShort = string.Empty;
                 break;
         }
     }
@@ -440,8 +463,9 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         IsCorrectionLoading = false;
         CorrectionTone = "error";
-        CorrectionTitle = "Couldn't build the replay timeline";
+        CorrectionTitle = "Timeline failed";
         CorrectionDetail = message;
+        CorrectionShort = "Hover for details";
     }
 
     // --- Overlay metrics ---
@@ -570,16 +594,16 @@ public sealed class MainWindowViewModel : ObservableObject
             if (!Set(ref backgroundImage, value))
                 return;
 
-            // Anchored to the top: most backgrounds keep their subject in the upper half, which a centred crop cuts off.
-            BackgroundBrush = value == null ? null : new ImageBrush(value) { Stretch = Stretch.UniformToFill, AlignmentY = AlignmentY.Top };
-            OnPropertyChanged(nameof(BackgroundBrush));
+            var oldBlurred = BlurredBackground;
+            BlurredBackground = value == null ? null : BackdropImage.CreateBlurred(value);
+            OnPropertyChanged(nameof(BlurredBackground));
+            oldBlurred?.Dispose();
             old?.Dispose();
-            OnPropertyChanged(nameof(ShowBanner));
-            OnPropertyChanged(nameof(ShowBannerOnCompare));
         }
     }
 
-    public IBrush? BackgroundBrush { get; private set; }
+    /// <summary>Small blurred copy of the background, stretched behind the whole window (the translucent cards sit on it).</summary>
+    public Bitmap? BlurredBackground { get; private set; }
 
     public bool ShowBackground
     {
@@ -589,16 +613,16 @@ public sealed class MainWindowViewModel : ObservableObject
             if (!Set(ref showBackground, value))
                 return;
 
-            OnPropertyChanged(nameof(ShowBanner));
-            OnPropertyChanged(nameof(ShowBannerOnCompare));
+            OnPropertyChanged(nameof(ShowBackdrop));
             SettingsChanged?.Invoke();
         }
     }
 
-    /// <summary>Whether the beatmap background banner is drawn.</summary>
-    public bool ShowBanner => ShowBackground && BackgroundImage != null;
-
-    public bool ShowBannerOnCompare => ShowBanner && IsComparePage;
+    /// <summary>
+    /// Whether the compare page uses the background layout (banner, translucent cards). It depends only on the setting,
+    /// not on whether the image has loaded yet, so the layout never shifts when it arrives.
+    /// </summary>
+    public bool ShowBackdrop => ShowBackground && IsComparePage;
 
     // --- osu!lazer folder and overlays ---
 
