@@ -98,7 +98,7 @@ public static class ThemeService
             target.Resources[$"BannerScrim{alpha}Color"] = Color.FromArgb((byte)Math.Round(alpha * 2.55), page.R, page.G, page.B);
 
         // Translucent versions of the surfaces for when the blurred background sits behind them.
-        foreach (var (key, alpha) in new[] { ("TargetCardBrush", 0.62), ("SurfaceBrush", 0.6), ("TargetBorderBrush", 0.55), ("SurfaceBorderBrush", 0.5) })
+        foreach (var (key, alpha) in new[] { ("TargetCardBrush", 0.76), ("SurfaceBrush", 0.6), ("TargetBorderBrush", 0.55), ("SurfaceBorderBrush", 0.5) })
         {
             var color = Color.Parse(isLight ? palette[key].Light : palette[key].Dark);
             target.Resources[key.Replace("Brush", "GlassBrush")] = new SolidColorBrush(Color.FromArgb((byte)Math.Round(alpha * 255), color.R, color.G, color.B));
