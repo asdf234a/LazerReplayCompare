@@ -42,12 +42,12 @@
     </Panel>
 
     <!-- ... and the sharp image behind the top bar and "now playing", fading out into the blurred copy. -->
-    <Panel x:Name="Banner" Height="380" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
+    <Panel x:Name="Banner" Height="460" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
       <Panel.OpacityMask>
         <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
           <GradientStop Offset="0" Color="Black" />
-          <GradientStop Offset="0.45" Color="Black" />
-          <GradientStop Offset="0.7" Color="#99000000" />
+          <GradientStop Offset="0.62" Color="Black" />
+          <GradientStop Offset="0.82" Color="#99000000" />
           <GradientStop Offset="1" Color="Transparent" />
         </LinearGradientBrush>
       </Panel.OpacityMask>
@@ -136,6 +136,13 @@
     <Grid>
       <!-- ===================== Compare ===================== -->
       <ScrollViewer x:Name="CompareScroll" IsVisible="{Binding IsComparePage}" HorizontalScrollBarVisibility="Disabled">
+        <!-- Content fades out under the top bar instead of being cut off (only once scrolled; see code-behind). -->
+        <ScrollViewer.OpacityMask>
+          <LinearGradientBrush StartPoint="0,0" EndPoint="0,28">
+            <GradientStop Offset="0" Color="Black" />
+            <GradientStop Offset="1" Color="Black" />
+          </LinearGradientBrush>
+        </ScrollViewer.OpacityMask>
         <StackPanel MaxWidth="1160" Margin="28,22,28,28" Spacing="18">
 
           <!-- Problems -->

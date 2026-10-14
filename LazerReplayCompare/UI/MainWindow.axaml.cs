@@ -56,7 +56,18 @@ public sealed partial class MainWindow : Window
         var banner = this.FindControl<Panel>("Banner")!;
         var bannerOffset = new TranslateTransform();
         banner.RenderTransform = bannerOffset;
-        this.FindControl<ScrollViewer>("CompareScroll")!.ScrollChanged += (sender, _) => bannerOffset.Y = -((ScrollViewer)sender!).Offset.Y;
+        var compareScroll = this.FindControl<ScrollViewer>("CompareScroll")!;
+        compareScroll.ScrollChanged += (_, _) =>
+        {
+            var offset = compareScroll.Offset.Y;
+            bannerOffset.Y = -offset;
+            // ... and gradually gives way to the blurred copy as the page scrolls.
+            banner.Opacity = Math.Clamp(1 - offset / 320, 0, 1);
+
+            // Fade the content's top edge under the top bar once there is something scrolled past it.
+            if (compareScroll.OpacityMask is LinearGradientBrush { GradientStops: [var top, _] })
+                top.Color = Color.FromArgb((byte)Math.Round(255 * (1 - Math.Clamp(offset / 28, 0, 1))), 0, 0, 0);
+        };
 
         // In a narrow window the legend stacks into one column so the target's name keeps its room.
         this.FindControl<Border>("TargetCard")!.SizeChanged += (_, e) => judgementLegend.Columns = e.NewSize.Width >= 1000 ? 2 : 1;
