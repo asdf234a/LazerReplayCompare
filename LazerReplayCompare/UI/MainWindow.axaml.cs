@@ -1,10 +1,11 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
-using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
+using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
@@ -19,50 +20,39 @@ public sealed partial class MainWindow : Window
 
     private readonly ReplayFinder replayFinder = new();
     private readonly TosuClient tosuClient = new();
+    private readonly ReplayTimelineBuilder timelineBuilder = new();
     private readonly ReplayApiServer apiServer;
     private readonly object replayLock = new();
     private readonly AppSettingsService settingsService = new();
     private readonly ReplaySelectionService replaySelection = new();
     private readonly MainWindowViewModel viewModel = new();
 
-    private TextBox osuLazerBox = null!;
-    private Button refreshButton = null!;
-    private ComboBox themeBox = null!;
-    private ComboBox correctionModeBox = null!;
-    private ComboBox mainMetricBox = null!;
-    private ComboBox subMetricBox = null!;
+    private Grid judgementBar = null!;
+    private WrapPanel judgementLegend = null!;
     private ListBox replayList = null!;
-    private TextBlock statusLabel = null!;
-    private TextBlock beatmapLabel = null!;
-    private TextBlock selectedReplayBadgeLabel = null!;
-    private TextBlock replayCountLabel = null!;
-    private TextBlock detailTitleLabel = null!;
-    private TextBlock detailSubtitleLabel = null!;
-    private TextBlock detailScoreLabel = null!;
-    private TextBlock detailAccuracyLabel = null!;
-    private TextBlock detailRankLabel = null!;
-    private TextBlock detailComboLabel = null!;
-    private TextBlock detailMissLabel = null!;
-    private TextBlock detailModsLabel = null!;
-    private TextBlock detailDateLabel = null!;
-    private TextBlock detailFileLabel = null!;
-    private TextBlock detailBeatmapLabel = null!;
 
     private List<ReplayEntry> currentReplays = new();
     private string currentReplaysMd5 = string.Empty;
     private bool fillingReplayList;
     private TosuSnapshot currentSnapshot = new("lazer", "", "", "", "", "", "", "", "");
-
-    private IList<ReplayRow> ReplayRows => viewModel.ReplayRows;
+    private CompactWindow? compactWindow;
+    private bool closing;
+    private CancellationTokenSource? correctionCancellation;
+    private (CorrectionMode Mode, string MainMetric) lastTimelineSettings;
 
     public MainWindow()
     {
-        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, GetOverlayMetrics);
+        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, GetOverlayMetrics, timelineBuilder);
 
-        InitializeComponent();
+        AvaloniaXamlLoader.Load(this);
         DataContext = viewModel;
-        BindControls();
+        judgementBar = this.FindControl<Grid>("JudgementBar")!;
+        judgementLegend = this.FindControl<WrapPanel>("JudgementLegend")!;
+        replayList = this.FindControl<ListBox>("ReplayList")!;
+
         ApplySavedSettings();
+        viewModel.SettingsChanged += OnSettingsChanged;
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
 
     protected override async void OnOpened(EventArgs e)
@@ -72,13 +62,21 @@ public sealed partial class MainWindow : Window
         try
         {
             apiServer.Start(ApiPort);
+            viewModel.ApiRunning = true;
         }
         catch (Exception ex)
         {
-            statusLabel.Text = $"Replay API unavailable: {ex.Message}";
+            viewModel.ApiRunning = false;
+            viewModel.ApiError = $"Port {ApiPort} is unavailable: {ex.Message}";
         }
 
-        tosuClient.StatusChanged += status => Dispatcher.UIThread.Post(() => statusLabel.Text = status);
+        tosuClient.StatusChanged += status => Dispatcher.UIThread.Post(() =>
+        {
+            if (status.StartsWith("Connected", StringComparison.Ordinal))
+                viewModel.TosuConnected = true;
+            else if (status.StartsWith("tosu disconnected", StringComparison.Ordinal))
+                viewModel.TosuConnected = false;
+        });
         tosuClient.SnapshotReceived += OnSnapshotReceived;
         tosuClient.Start(TosuHost);
 
@@ -90,109 +88,88 @@ public sealed partial class MainWindow : Window
         }
 
         await Task.Delay(2500);
-        if (!OsuLazerPathResolver.IsOsuLazerRoot(osuLazerBox.Text) &&
-            (string.IsNullOrWhiteSpace(settingsService.Current.OsuLazerPath) ||
-             !OsuLazerPathResolver.IsOsuLazerRoot(settingsService.Current.OsuLazerPath)))
+        if (!OsuLazerPathResolver.IsOsuLazerRoot(viewModel.OsuLazerPath))
             await BrowseOsuLazerFolderCore(true);
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        closing = true;
+        compactWindow?.Close();
         tosuClient.Dispose();
         apiServer.Dispose();
         base.OnClosed(e);
     }
 
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
-
-    private void BindControls()
-    {
-        osuLazerBox = this.FindControl<TextBox>("OsuLazerBox")!;
-        refreshButton = this.FindControl<Button>("RefreshButton")!;
-        themeBox = this.FindControl<ComboBox>("ThemeBox")!;
-        correctionModeBox = this.FindControl<ComboBox>("CorrectionModeBox")!;
-        mainMetricBox = this.FindControl<ComboBox>("MainMetricBox")!;
-        subMetricBox = this.FindControl<ComboBox>("SubMetricBox")!;
-        replayList = this.FindControl<ListBox>("ReplayList")!;
-        statusLabel = this.FindControl<TextBlock>("StatusLabel")!;
-        beatmapLabel = this.FindControl<TextBlock>("BeatmapLabel")!;
-        selectedReplayBadgeLabel = this.FindControl<TextBlock>("SelectedReplayBadgeLabel")!;
-        replayCountLabel = this.FindControl<TextBlock>("ReplayCountLabel")!;
-        detailTitleLabel = this.FindControl<TextBlock>("DetailTitleLabel")!;
-        detailSubtitleLabel = this.FindControl<TextBlock>("DetailSubtitleLabel")!;
-        detailScoreLabel = this.FindControl<TextBlock>("DetailScoreLabel")!;
-        detailAccuracyLabel = this.FindControl<TextBlock>("DetailAccuracyLabel")!;
-        detailRankLabel = this.FindControl<TextBlock>("DetailRankLabel")!;
-        detailComboLabel = this.FindControl<TextBlock>("DetailComboLabel")!;
-        detailMissLabel = this.FindControl<TextBlock>("DetailMissLabel")!;
-        detailModsLabel = this.FindControl<TextBlock>("DetailModsLabel")!;
-        detailDateLabel = this.FindControl<TextBlock>("DetailDateLabel")!;
-        detailFileLabel = this.FindControl<TextBlock>("DetailFileLabel")!;
-        detailBeatmapLabel = this.FindControl<TextBlock>("DetailBeatmapLabel")!;
-    }
+    // --- Settings ---
 
     private void ApplySavedSettings()
     {
-        osuLazerBox.Text = OsuLazerPathResolver.IsOsuLazerRoot(settingsService.Current.OsuLazerPath)
-            ? settingsService.Current.OsuLazerPath
-            : OsuLazerPathResolver.Resolve(null) ?? settingsService.Current.OsuLazerPath;
-        var theme = string.IsNullOrWhiteSpace(settingsService.Current.Theme) ? "System" : settingsService.Current.Theme;
-        themeBox.SelectedIndex = theme.Equals("Dark", StringComparison.OrdinalIgnoreCase)
-            ? 1
-            : theme.Equals("Light", StringComparison.OrdinalIgnoreCase)
-                ? 2
-                : 0;
-        ThemeService.Apply(this, theme);
-        var correctionMode = ParseCorrectionMode(settingsService.Current.CorrectionMode);
-        correctionModeBox.SelectedIndex = correctionMode switch
-        {
-            CorrectionMode.Raw => 1,
-            CorrectionMode.Scaled => 2,
-            _ => 0,
-        };
-        PopulateMetricBox(mainMetricBox, settingsService.Current.MainMetric, allowOff: false);
-        PopulateMetricBox(subMetricBox, settingsService.Current.SubMetric, allowOff: true);
-        UpdateSelectedReplayDetails(null);
+        var current = settingsService.Current;
+        viewModel.OsuLazerPath = OsuLazerPathResolver.IsOsuLazerRoot(current.OsuLazerPath)
+            ? current.OsuLazerPath
+            : OsuLazerPathResolver.Resolve(null) ?? current.OsuLazerPath;
+        viewModel.LazerFound = OsuLazerPathResolver.IsOsuLazerRoot(viewModel.OsuLazerPath);
+
+        viewModel.Theme = NormalizeTheme(current.Theme);
+        viewModel.CorrectionMode = ParseCorrectionMode(current.CorrectionMode);
+        viewModel.SetMetrics(MetricRegistry.Normalize(current.MainMetric, MetricRegistry.Default.Key),
+            MetricRegistry.Normalize(current.SubMetric, "Acc", allowOff: true));
+
+        ThemeService.Apply(this, viewModel.Theme);
+        lastTimelineSettings = (viewModel.CorrectionMode, viewModel.SelectedMainMetric?.Key ?? MetricRegistry.Default.Key);
     }
 
-    private CorrectionMode GetCurrentCorrectionMode()
+    private void OnSettingsChanged()
     {
-        return ParseCorrectionMode(settingsService.Current.CorrectionMode);
+        settingsService.SetTheme(viewModel.Theme);
+        settingsService.SetCorrectionMode(viewModel.CorrectionMode);
+        if (viewModel.SelectedMainMetric is { } main)
+            settingsService.SetMainMetric(main.Key);
+        if (viewModel.SelectedSubMetric is { } sub)
+            settingsService.SetSubMetric(sub.Key);
+
+        ThemeService.Apply(this, viewModel.Theme);
+        if (compactWindow != null)
+            ThemeService.Apply(compactWindow, viewModel.Theme);
+        RebuildJudgementBar();
+
+        // The correction shown for the target depends on the timeline mode (and on the main metric when scaled).
+        var timelineSettings = (viewModel.CorrectionMode, viewModel.SelectedMainMetric?.Key ?? MetricRegistry.Default.Key);
+        var affectsTimeline = timelineSettings.Item1 != lastTimelineSettings.Mode ||
+                              (timelineSettings.Item1 == CorrectionMode.Scaled && timelineSettings.Item2 != lastTimelineSettings.MainMetric);
+        lastTimelineSettings = timelineSettings;
+        if (affectsTimeline)
+            UpdateTarget();
     }
+
+    private CorrectionMode GetCurrentCorrectionMode() => ParseCorrectionMode(settingsService.Current.CorrectionMode);
 
     private (string MainMetric, string SubMetric) GetOverlayMetrics()
-    {
-        return (NormalizeMetric(settingsService.Current.MainMetric, "Score"),
-            NormalizeMetric(settingsService.Current.SubMetric, "Acc", allowOff: true));
-    }
+        => (MetricRegistry.Normalize(settingsService.Current.MainMetric, MetricRegistry.Default.Key),
+            MetricRegistry.Normalize(settingsService.Current.SubMetric, "Acc", allowOff: true));
 
     private (string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay) GetCurrentReplays()
     {
         lock (replayLock)
         {
             var replays = currentReplays.ToList();
-            var selected = replaySelection.GetSelected(replays);
-
-            return (currentReplaysMd5, replays, selected);
+            return (currentReplaysMd5, replays, replaySelection.GetSelected(replays));
         }
     }
 
-    private async void BrowseOsuLazerFolder(object? sender, RoutedEventArgs e)
-    {
-        await BrowseOsuLazerFolderCore(false);
-    }
+    // --- osu!lazer folder ---
+
+    private async void BrowseOsuLazerFolder(object? sender, RoutedEventArgs e) => await BrowseOsuLazerFolderCore(false);
 
     private async Task BrowseOsuLazerFolderCore(bool firstRun)
     {
-        var topLevel = TopLevel.GetTopLevel(this);
+        var topLevel = GetTopLevel(this);
         if (topLevel == null)
             return;
 
-        var startLocation = !string.IsNullOrWhiteSpace(osuLazerBox.Text) && Directory.Exists(osuLazerBox.Text)
-            ? await topLevel.StorageProvider.TryGetFolderFromPathAsync(osuLazerBox.Text)
+        var startLocation = !string.IsNullOrWhiteSpace(viewModel.OsuLazerPath) && Directory.Exists(viewModel.OsuLazerPath)
+            ? await topLevel.StorageProvider.TryGetFolderFromPathAsync(viewModel.OsuLazerPath)
             : null;
 
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
@@ -202,11 +179,7 @@ public sealed partial class MainWindow : Window
             SuggestedStartLocation = startLocation,
         });
 
-        var folder = folders.FirstOrDefault();
-        if (folder == null)
-            return;
-
-        var path = folder.TryGetLocalPath();
+        var path = folders.FirstOrDefault()?.TryGetLocalPath();
         if (string.IsNullOrWhiteSpace(path))
             return;
 
@@ -214,97 +187,93 @@ public sealed partial class MainWindow : Window
         RefreshReplays();
     }
 
-    private void ThemeSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (themeBox.SelectedItem is not ComboBoxItem item || item.Content is not string theme)
-            return;
+    private void OsuLazerPathCommitted(object? sender, RoutedEventArgs e) => CommitOsuLazerPath();
 
-        settingsService.SetTheme(theme);
-        ThemeService.Apply(this, theme);
+    private void OsuLazerPathKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+            CommitOsuLazerPath();
     }
 
-    private void CorrectionModeSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private void CommitOsuLazerPath()
     {
-        if (correctionModeBox.SelectedItem is not ComboBoxItem item || item.Content is not string value)
+        var path = (viewModel.OsuLazerPath ?? string.Empty).Trim();
+        if (string.Equals(path, settingsService.Current.OsuLazerPath, StringComparison.Ordinal))
             return;
 
-        settingsService.SetCorrectionMode(ParseCorrectionMode(value));
-        statusLabel.Text = $"Timeline mode: {value}";
+        SetOsuLazerPath(path);
+        RefreshReplays();
     }
 
-    private void MainMetricSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private void SetOsuLazerPath(string path)
     {
-        if (mainMetricBox.SelectedItem is not ComboBoxItem item || item.Tag is not string value)
-            return;
-
-        settingsService.SetMainMetric(NormalizeMetric(value, "Score"));
-        statusLabel.Text = $"Overlay main metric: {item.Content}";
+        viewModel.OsuLazerPath = path;
+        viewModel.LazerFound = OsuLazerPathResolver.IsOsuLazerRoot(path);
+        settingsService.SetOsuLazerPath(path);
     }
 
-    private void SubMetricSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (subMetricBox.SelectedItem is not ComboBoxItem item || item.Tag is not string value)
-            return;
-
-        settingsService.SetSubMetric(NormalizeMetric(value, "Acc", allowOff: true));
-        statusLabel.Text = $"Overlay sub metric: {item.Content}";
-    }
+    // --- tosu ---
 
     private void OnSnapshotReceived(TosuSnapshot snapshot)
     {
         Dispatcher.UIThread.Post(() =>
         {
+            viewModel.TosuConnected = true;
             var oldChecksum = currentSnapshot.BeatmapChecksum;
             currentSnapshot = snapshot;
-            beatmapLabel.Text = string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum)
-                ? "None selected"
-                : FormatBeatmapDisplay(snapshot);
-            detailBeatmapLabel.Text = string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum) ? "-" : snapshot.BeatmapChecksum;
 
-            if (!OsuLazerPathResolver.IsOsuLazerRoot(osuLazerBox.Text) &&
-                OsuLazerPathResolver.Resolve(snapshot) is { } detectedPath)
+            var hasBeatmap = !string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum);
+            viewModel.HasBeatmap = hasBeatmap;
+            viewModel.BeatmapTitle = hasBeatmap ? FirstNonEmpty(snapshot.BeatmapTitle, snapshot.BeatmapChecksum) : "No beatmap selected";
+            viewModel.BeatmapSubtitle = hasBeatmap
+                ? string.Join(" · ", new[] { snapshot.BeatmapArtist, snapshot.BeatmapVersion }.Where(part => !string.IsNullOrWhiteSpace(part)))
+                : "Select a beatmap in osu!lazer";
+
+            if (!viewModel.LazerFound && OsuLazerPathResolver.Resolve(snapshot) is { } detectedPath)
                 SetOsuLazerPath(detectedPath);
 
-            if (!string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum) && snapshot.BeatmapChecksum != oldChecksum)
+            if (hasBeatmap && snapshot.BeatmapChecksum != oldChecksum)
                 RefreshReplays();
         });
     }
 
-    private void RefreshReplays(object? sender, RoutedEventArgs e)
+    /// <summary>The beatmap path exactly as the overlays send it to /timeline, so both share the timeline cache.</summary>
+    private static string BuildBeatmapPath(TosuSnapshot snapshot)
     {
-        RefreshReplays();
+        if (string.IsNullOrWhiteSpace(snapshot.SongsFolder) || string.IsNullOrWhiteSpace(snapshot.BeatmapFile))
+            return string.Empty;
+
+        return snapshot.Client == "lazer"
+            ? $"{snapshot.SongsFolder}\\{snapshot.BeatmapFile}"
+            : $"{snapshot.SongsFolder}\\{snapshot.BeatmapFolder}\\{snapshot.BeatmapFile}";
     }
+
+    // --- Replays ---
+
+    private void RefreshReplays(object? sender, RoutedEventArgs e) => RefreshReplays();
 
     private void RefreshReplays()
     {
         if (string.IsNullOrWhiteSpace(currentSnapshot.BeatmapChecksum))
         {
-            statusLabel.Text = "Select a beatmap in osu!lazer first";
+            viewModel.StatusText = "Select a beatmap in osu!lazer first";
             return;
         }
 
         var md5 = currentSnapshot.BeatmapChecksum;
-        var osuLazerRoot = (osuLazerBox.Text ?? string.Empty).Trim();
-        if (!string.Equals(settingsService.Current.OsuLazerPath, osuLazerRoot, StringComparison.Ordinal))
-            SetOsuLazerPath(osuLazerRoot);
+        var osuLazerRoot = (viewModel.OsuLazerPath ?? string.Empty).Trim();
+        var realmPath = System.IO.Path.Combine(osuLazerRoot, "client.realm");
+        var filesRoot = System.IO.Path.Combine(osuLazerRoot, "files");
 
-        var realmPath = Path.Combine(osuLazerRoot, "client.realm");
-        var filesRoot = Path.Combine(osuLazerRoot, "files");
-
-        if (!File.Exists(realmPath))
+        if (!File.Exists(realmPath) || !Directory.Exists(filesRoot))
         {
-            statusLabel.Text = $"client.realm not found: {realmPath}";
+            viewModel.LazerFound = false;
             return;
         }
 
-        if (!Directory.Exists(filesRoot))
-        {
-            statusLabel.Text = $"files folder not found: {filesRoot}";
-            return;
-        }
-
-        statusLabel.Text = "Loading replays...";
-        refreshButton.IsEnabled = false;
+        viewModel.LazerFound = true;
+        viewModel.IsLoadingReplays = true;
+        viewModel.StatusText = string.Empty;
 
         _ = Task.Run(() =>
         {
@@ -320,18 +289,16 @@ public sealed partial class MainWindow : Window
 
                 Dispatcher.UIThread.Post(() =>
                 {
+                    viewModel.IsLoadingReplays = false;
                     FillReplayList(replays);
-                    statusLabel.Text = $"{replays.Count} replay score(s) found";
-                    replayCountLabel.Text = $"{replays.Count} replay{(replays.Count == 1 ? string.Empty : "s")} found";
-                    refreshButton.IsEnabled = true;
                 });
             }
             catch (Exception ex)
             {
                 Dispatcher.UIThread.Post(() =>
                 {
-                    statusLabel.Text = ex.Message;
-                    refreshButton.IsEnabled = true;
+                    viewModel.IsLoadingReplays = false;
+                    viewModel.StatusText = $"Couldn't read replays: {ex.Message}";
                 });
             }
         });
@@ -340,26 +307,19 @@ public sealed partial class MainWindow : Window
     private void FillReplayList(IReadOnlyList<ReplayEntry> replays)
     {
         fillingReplayList = true;
-        ReplayRows.Clear();
+        foreach (var row in viewModel.ReplayRows)
+            row.PropertyChanged -= ReplayRow_PropertyChanged;
+        viewModel.ReplayRows.Clear();
 
-        foreach (var replay in replays)
+        foreach (var replay in Sort(replays.Select(replay => new ReplayRow(replay) { IsPinned = replaySelection.IsSelected(replay) })))
         {
-            var row = new ReplayRow(replay)
-            {
-                IsPinned = replaySelection.IsSelected(replay),
-            };
-            row.PropertyChanged += ReplayRow_PropertyChanged;
-            ReplayRows.Add(row);
+            replay.PropertyChanged += ReplayRow_PropertyChanged;
+            viewModel.ReplayRows.Add(replay);
         }
 
         fillingReplayList = false;
-        replayList.SelectedIndex = ReplayRows.Count > 0 ? 0 : -1;
-        UpdateSelectedReplayDetails(GetDetailReplay());
-    }
-
-    private void ReplaySelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        UpdateSelectedReplayDetails(GetDetailReplay());
+        viewModel.NotifyReplaysChanged();
+        UpdateTarget();
     }
 
     private void ReplayRow_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -367,137 +327,233 @@ public sealed partial class MainWindow : Window
         if (fillingReplayList || e.PropertyName != nameof(ReplayRow.IsPinned) || sender is not ReplayRow row)
             return;
 
-        if (row.IsPinned)
-        {
-            lock (replayLock)
-                replaySelection.Select(row.Entry);
-
-            fillingReplayList = true;
-            foreach (var replayRow in ReplayRows)
-            {
-                if (!ReferenceEquals(replayRow, row))
-                    replayRow.IsPinned = false;
-            }
-            fillingReplayList = false;
-
-            statusLabel.Text = $"Selected replay: {row.Player} / {row.ScoreText}";
-            selectedReplayBadgeLabel.Text = $"{row.Player} / {row.ScoreText} / {row.AccuracyText}";
-            UpdateSelectedReplayDetails(row.Entry);
-            return;
-        }
-
+        fillingReplayList = true;
         lock (replayLock)
         {
-            if (replaySelection.IsSelected(row.Entry))
+            if (row.IsPinned)
+                replaySelection.Select(row.Entry);
+            else if (replaySelection.IsSelected(row.Entry))
                 replaySelection.Clear();
         }
 
-        statusLabel.Text = "Selected replay cleared";
-        selectedReplayBadgeLabel.Text = "Auto best replay";
-        UpdateSelectedReplayDetails(GetDetailReplay());
-    }
-
-    private ReplayEntry? GetDetailReplay()
-    {
-        if (!string.IsNullOrWhiteSpace(replaySelection.SelectedReplayPath))
+        foreach (var other in viewModel.ReplayRows)
         {
-            var pinned = ReplayRows.FirstOrDefault(row => replaySelection.IsSelected(row.Entry));
-            if (pinned != null)
-                return pinned.Entry;
+            if (!ReferenceEquals(other, row))
+                other.IsPinned = false;
         }
 
-        if (replayList.SelectedItem is ReplayRow selected)
-            return selected.Entry;
-
-        return ReplayRows.FirstOrDefault()?.Entry;
+        fillingReplayList = false;
+        UpdateTarget();
     }
 
-    private void UpdateSelectedReplayDetails(ReplayEntry? replay)
+    private void UnpinReplay(object? sender, RoutedEventArgs e)
     {
-        if (replay is null)
+        fillingReplayList = true;
+        lock (replayLock)
+            replaySelection.Clear();
+        foreach (var row in viewModel.ReplayRows)
+            row.IsPinned = false;
+        fillingReplayList = false;
+        UpdateTarget();
+    }
+
+    // --- Sorting ---
+
+    private void SortReplays(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string tag } || !Enum.TryParse<ReplaySortKey>(tag, out var key))
+            return;
+
+        if (viewModel.SortKey == key)
+            viewModel.SortDescending = !viewModel.SortDescending;
+        else
         {
-            detailTitleLabel.Text = "No replay selected";
-            detailSubtitleLabel.Text = "Select a beatmap, then choose a replay.";
-            detailScoreLabel.Text = "-";
-            detailAccuracyLabel.Text = "-";
-            detailRankLabel.Text = "-";
-            detailComboLabel.Text = "-";
-            detailMissLabel.Text = "-";
-            detailMissLabel.Foreground = new SolidColorBrush(Color.Parse("#64748B"));
-            detailModsLabel.Text = "-";
-            detailDateLabel.Text = "-";
-            detailFileLabel.Text = "-";
-            detailBeatmapLabel.Text = string.IsNullOrWhiteSpace(currentSnapshot.BeatmapChecksum) ? "-" : currentSnapshot.BeatmapChecksum;
+            viewModel.SortKey = key;
+            viewModel.SortDescending = key != ReplaySortKey.Miss;
+        }
+
+        var sorted = Sort(viewModel.ReplayRows).ToList();
+        fillingReplayList = true;
+        viewModel.ReplayRows.Clear();
+        foreach (var row in sorted)
+            viewModel.ReplayRows.Add(row);
+        fillingReplayList = false;
+    }
+
+    private IEnumerable<ReplayRow> Sort(IEnumerable<ReplayRow> rows)
+    {
+        Func<ReplayRow, IComparable> keySelector = viewModel.SortKey switch
+        {
+            ReplaySortKey.Date => row => DateTimeOffset.TryParse(row.Entry.Date, out var date) ? date : DateTimeOffset.MinValue,
+            ReplaySortKey.Accuracy => row => row.Entry.Accuracy,
+            ReplaySortKey.Miss => row => row.Miss,
+            ReplaySortKey.Combo => row => row.Entry.MaxCombo,
+            _ => row => row.Entry.Score,
+        };
+
+        return viewModel.SortDescending ? rows.OrderByDescending(keySelector) : rows.OrderBy(keySelector);
+    }
+
+    // --- Comparison target ---
+
+    /// <summary>
+    /// The pinned replay, otherwise the best score (the overlay may pick a different same-rate replay in auto mode).
+    /// Also starts working out how the target's timeline matches its recorded result.
+    /// </summary>
+    private void UpdateTarget()
+    {
+        ReplayEntry? target;
+        bool pinned;
+        lock (replayLock)
+        {
+            var selected = replaySelection.GetSelected(currentReplays);
+            pinned = selected != null;
+            target = selected ?? currentReplays.FirstOrDefault();
+        }
+
+        viewModel.IsTargetPinned = pinned;
+        viewModel.Target = target;
+
+        correctionCancellation?.Cancel();
+        if (target == null)
+        {
+            viewModel.ShowCorrection(null, string.Empty);
             return;
         }
 
-        detailTitleLabel.Text = replay.Player;
-        detailSubtitleLabel.Text = replay.ModsText;
-        detailScoreLabel.Text = replay.Score.ToString("N0", CultureInfo.InvariantCulture);
-        detailAccuracyLabel.Text = (replay.Accuracy * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%";
-        detailRankLabel.Text = replay.Rank;
-        detailComboLabel.Text = replay.MaxCombo.ToString(CultureInfo.InvariantCulture) + " x";
-        var miss = GetStatistic(replay, "Miss");
-        detailMissLabel.Text = miss.ToString(CultureInfo.InvariantCulture);
-        detailMissLabel.Foreground = miss == 0
-            ? new SolidColorBrush(Color.Parse("#74E658"))
-            : new SolidColorBrush(Color.Parse("#FFAB40"));
-        detailModsLabel.Text = replay.ModsText;
-        detailDateLabel.Text = FormatDate(replay.Date);
-        detailFileLabel.Text = replay.FilePath;
-        detailBeatmapLabel.Text = string.IsNullOrWhiteSpace(currentSnapshot.BeatmapChecksum) ? "-" : currentSnapshot.BeatmapChecksum;
-    }
-
-    private static int GetStatistic(ReplayEntry replay, string key)
-    {
-        return replay.Statistics.TryGetValue(key, out var value) ? value : 0;
-    }
-
-    private static string FormatDate(string value)
-    {
-        return DateTimeOffset.TryParse(value, out var date)
-            ? date.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-            : value;
-    }
-
-    private void OpenSelectedReplayFolder(object? sender = null, RoutedEventArgs? e = null)
-    {
-        var replay = GetDetailReplay();
-        if (replay == null)
-            return;
-
-        if (File.Exists(replay.FilePath))
+        var beatmapPath = BuildBeatmapPath(currentSnapshot);
+        if (string.IsNullOrWhiteSpace(beatmapPath) || !File.Exists(beatmapPath))
         {
-            Process.Start(new ProcessStartInfo
+            viewModel.ShowCorrectionError("The beatmap file isn't available yet, so the replay can't be checked.");
+            return;
+        }
+
+        var cancellation = correctionCancellation = new CancellationTokenSource();
+        var mode = viewModel.CorrectionMode;
+        var metric = viewModel.SelectedMainMetric ?? viewModel.MainMetricOptions[0];
+        var metricName = MetricRegistry.Find(metric.Key)?.DisplayName ?? metric.Key;
+        viewModel.ShowCorrectionLoading();
+
+        _ = Task.Run(() =>
+        {
+            try
             {
-                FileName = "explorer.exe",
-                Arguments = $"/select,\"{replay.FilePath}\"",
-                UseShellExecute = true,
-            });
-        }
+                var timeline = timelineBuilder.GetOrBuild(target.FilePath, beatmapPath, 0, mode, metric.Key);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (!cancellation.IsCancellationRequested)
+                        viewModel.ShowCorrection(timeline.Correction, metricName);
+                });
+            }
+            catch (Exception ex)
+            {
+                InternalLogger.Log(ex);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (!cancellation.IsCancellationRequested)
+                        viewModel.ShowCorrectionError(ex.Message);
+                });
+            }
+        });
     }
 
-    private void SetOsuLazerPath(string path)
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        osuLazerBox.Text = path;
-        settingsService.SetOsuLazerPath(path);
+        if (e.PropertyName == nameof(MainWindowViewModel.Judgements))
+            RebuildJudgementBar();
     }
 
-    private static string FormatBeatmapDisplay(TosuSnapshot snapshot)
+    /// <summary>Proportional judgement bar and its legend (theme brushes, so rebuilt when the theme changes).</summary>
+    private void RebuildJudgementBar()
     {
-        if (!string.IsNullOrWhiteSpace(snapshot.BeatmapArtist) ||
-            !string.IsNullOrWhiteSpace(snapshot.BeatmapTitle) ||
-            !string.IsNullOrWhiteSpace(snapshot.BeatmapVersion))
+        judgementBar.Children.Clear();
+        judgementBar.ColumnDefinitions.Clear();
+        judgementLegend.Children.Clear();
+
+        foreach (var segment in viewModel.Judgements)
         {
-            var artist = string.IsNullOrWhiteSpace(snapshot.BeatmapArtist) ? "Unknown artist" : snapshot.BeatmapArtist;
-            var title = string.IsNullOrWhiteSpace(snapshot.BeatmapTitle) ? "Unknown title" : snapshot.BeatmapTitle;
-            return string.IsNullOrWhiteSpace(snapshot.BeatmapVersion)
-                ? $"{artist} - {title}"
-                : $"{artist} - {title} [{snapshot.BeatmapVersion}]";
+            var brush = this.TryFindResource($"Judgement{segment.Key}Brush", ActualThemeVariant, out var resource) && resource is IBrush found
+                ? found
+                : Brushes.Gray;
+
+            if (segment.Count > 0)
+            {
+                judgementBar.ColumnDefinitions.Add(new ColumnDefinition(segment.Count, GridUnitType.Star));
+                var bar = new Border { Background = brush, Margin = new Thickness(0, 0, 2, 0) };
+                Grid.SetColumn(bar, judgementBar.ColumnDefinitions.Count - 1);
+                judgementBar.Children.Add(bar);
+            }
+
+            var legend = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 0, 18, 4) };
+            legend.Children.Add(new Rectangle { Width = 8, Height = 8, RadiusX = 2, RadiusY = 2, Fill = brush, VerticalAlignment = VerticalAlignment.Center });
+            legend.Children.Add(new TextBlock { Text = segment.Key, FontSize = 13, Classes = { "secondary" } });
+            legend.Children.Add(new TextBlock { Text = segment.CountText, FontSize = 13, Classes = { "mono" } });
+            judgementLegend.Children.Add(legend);
+        }
+    }
+
+    // --- Pages, compact mode, files ---
+
+    private void ShowComparePage(object? sender, RoutedEventArgs e) => viewModel.IsSettingsPage = false;
+
+    private void ShowSettingsPage(object? sender, RoutedEventArgs e) => viewModel.IsSettingsPage = true;
+
+    private void OpenCompactMode(object? sender, RoutedEventArgs e)
+    {
+        if (compactWindow == null)
+        {
+            compactWindow = new CompactWindow(viewModel, viewModel.Theme, ShowFullWindow);
+            compactWindow.Closed += (_, _) =>
+            {
+                compactWindow = null;
+                // Closing the compact window while the full one is hidden would leave the app running invisibly.
+                if (!closing && !IsVisible)
+                    ShowFullWindow();
+            };
         }
 
-        return snapshot.BeatmapChecksum;
+        compactWindow.Show();
+        Hide();
     }
+
+    private void ShowFullWindow()
+    {
+        Show();
+        Activate();
+    }
+
+    private void ReplayDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (replayList.SelectedItem is ReplayRow row && File.Exists(row.Entry.FilePath))
+            OpenInExplorer($"/select,\"{row.Entry.FilePath}\"");
+    }
+
+    private void OpenOverlayFolder(object? sender, RoutedEventArgs e)
+    {
+        if (viewModel.HasOverlayFolder)
+            OpenInExplorer($"\"{viewModel.OverlayFolder}\"");
+    }
+
+    private static void OpenInExplorer(string arguments)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = arguments, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+
+    // --- Helpers ---
+
+    private static string FirstNonEmpty(params string[] values) => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+
+    private static string NormalizeTheme(string? theme)
+        => string.Equals(theme, "Dark", StringComparison.OrdinalIgnoreCase) ? "Dark"
+            : string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase) ? "Light"
+            : "System";
 
     private static CorrectionMode ParseCorrectionMode(string? value)
     {
@@ -506,83 +562,5 @@ public sealed partial class MainWindow : Window
         if (string.Equals(value, "Scaled", StringComparison.OrdinalIgnoreCase))
             return CorrectionMode.Scaled;
         return CorrectionMode.Corrected;
-    }
-
-    private static string NormalizeMetric(string? value, string fallback, bool allowOff = false)
-        => MetricRegistry.Normalize(value, fallback, allowOff);
-
-    /// <summary>Fills a metric picker from <see cref="MetricRegistry"/> and selects <paramref name="selected"/>.</summary>
-    private static void PopulateMetricBox(ComboBox box, string? selected, bool allowOff)
-    {
-        var items = MetricRegistry.All.Select(metric => new ComboBoxItem { Content = metric.DisplayName, Tag = metric.Key }).ToList();
-        if (allowOff)
-            items.Add(new ComboBoxItem { Content = MetricRegistry.Off, Tag = MetricRegistry.Off });
-
-        box.ItemsSource = items;
-        var key = NormalizeMetric(selected, allowOff ? MetricRegistry.Off : MetricRegistry.Default.Key, allowOff);
-        box.SelectedIndex = Math.Max(0, items.FindIndex(item => (string)item.Tag! == key));
-    }
-
-}
-
-public sealed class ReplayRow : INotifyPropertyChanged
-{
-    private bool isPinned;
-
-    public ReplayRow(ReplayEntry entry)
-    {
-        Entry = entry;
-    }
-
-    public ReplayEntry Entry { get; }
-    public string Player => Entry.Player;
-    public string DateText => FormatDateOnly(Entry.Date);
-    public string ModsText => Entry.ModsText;
-    public string ScoreText => Entry.Score.ToString("N0", CultureInfo.InvariantCulture);
-    public string AccuracyText => (Entry.Accuracy * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%";
-    public string MissText => GetStatistic(Entry, "Miss").ToString(CultureInfo.InvariantCulture);
-    public string ComboText => Entry.MaxCombo.ToString(CultureInfo.InvariantCulture) + " x";
-    public string Rank => Entry.Rank;
-    public IBrush MissBrush => GetStatistic(Entry, "Miss") == 0
-        ? new SolidColorBrush(Color.Parse("#74E658"))
-        : new SolidColorBrush(Color.Parse("#FFAB40"));
-
-    public bool IsPinned
-    {
-        get => isPinned;
-        set
-        {
-            if (isPinned == value)
-                return;
-
-            isPinned = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    private static int GetStatistic(ReplayEntry replay, string key)
-    {
-        return replay.Statistics.TryGetValue(key, out var value) ? value : 0;
-    }
-
-    private static string FormatDate(string value)
-    {
-        return DateTimeOffset.TryParse(value, out var date)
-            ? date.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-            : value;
-    }
-
-    private static string FormatDateOnly(string value)
-    {
-        return DateTimeOffset.TryParse(value, out var date)
-            ? date.LocalDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-            : value;
-    }
-
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

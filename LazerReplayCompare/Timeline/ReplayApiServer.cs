@@ -9,15 +9,17 @@ public sealed class ReplayApiServer : IDisposable
     private readonly Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays;
     private readonly Func<CorrectionMode> getDefaultCorrectionMode;
     private readonly Func<(string MainMetric, string SubMetric)> getOverlayMetrics;
-    private readonly ReplayTimelineBuilder timelineBuilder = new();
+    private readonly ReplayTimelineBuilder timelineBuilder;
     private readonly CancellationTokenSource cancellation = new();
     private TcpListener? listener;
 
     public ReplayApiServer(
         Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays,
         Func<CorrectionMode> getDefaultCorrectionMode,
-        Func<(string MainMetric, string SubMetric)> getOverlayMetrics)
+        Func<(string MainMetric, string SubMetric)> getOverlayMetrics,
+        ReplayTimelineBuilder timelineBuilder)
     {
+        this.timelineBuilder = timelineBuilder;
         this.getReplays = getReplays;
         this.getDefaultCorrectionMode = getDefaultCorrectionMode;
         this.getOverlayMetrics = getOverlayMetrics;
@@ -115,7 +117,7 @@ public sealed class ReplayApiServer : IDisposable
                 var correctionMode = ParseCorrectionMode(correction, getDefaultCorrectionMode());
                 var scaleMetric = GetQueryValue(query, "scaleMetric") ?? GetQueryValue(query, "metric") ?? getOverlayMetrics().MainMetric;
 
-                WriteJson(stream, timelineBuilder.Build(replayPath ?? string.Empty, beatmapPath, rate, correctionMode, scaleMetric: scaleMetric));
+                WriteJson(stream, timelineBuilder.GetOrBuild(replayPath ?? string.Empty, beatmapPath, rate, correctionMode, scaleMetric));
                 return;
             }
 

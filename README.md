@@ -8,7 +8,8 @@ It works with tosu overlays. While you play, it can show the score difference ag
 
 - Finds replay scores saved by osu!lazer.
 - Shows replays for the beatmap currently selected in osu!lazer.
-- Lets you pin one replay as the comparison target.
+- Lets you pin one replay as the comparison target, and shows how exactly its timeline matches the recorded score.
+- Compact always-on-top window for while you play.
 - Compares against the highest score with the same playback speed by default.
 - Handles Mirror by flipping mania columns during replay timeline calculation.
 - Provides overlays for live score difference and detailed replay comparison.
@@ -27,7 +28,7 @@ You need the .NET 10 Desktop Runtime installed on Windows: https://dotnet.micros
 2. Start osu!lazer.
 3. Start tosu.
 4. In osu!lazer, select the beatmap you want to play.
-5. If the app does not find your osu!lazer folder automatically, click `...` and select your osu!lazer folder.
+5. If the app does not find your osu!lazer folder automatically, click **Choose folder** on the banner (or Settings → osu!lazer folder) and select it.
 6. Copy the overlay folders from `static` into your tosu `static` folder.
 7. Open the overlay from tosu.
 8. Play the map.

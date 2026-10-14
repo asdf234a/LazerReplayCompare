@@ -1,0 +1,353 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Shared by MainWindow and CompactWindow. Colours are the palette in App/ThemeService.cs. -->
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{DynamicResource PageBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, Inter, sans-serif" />
+    <Setter Property="FontSize" Value="14" />
+  </Style>
+
+  <!-- Text -->
+  <Style Selector="TextBlock.secondary">
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+  <Style Selector="TextBlock.mono">
+    <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
+  </Style>
+  <Style Selector="TextBlock.overline">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LetterSpacing" Value="0.8" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+  <Style Selector="TextBlock.sectionTitle">
+    <Setter Property="FontSize" Value="16" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="TextBlock.ahead, TextBlock.fullCombo">
+    <Setter Property="Foreground" Value="{DynamicResource PositiveTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.behind, TextBlock.miss">
+    <Setter Property="Foreground" Value="{DynamicResource NegativeTextBrush}" />
+  </Style>
+
+  <!-- Surfaces -->
+  <Style Selector="Border.surface">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SurfaceBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+  </Style>
+  <Style Selector="Border.targetCard">
+    <Setter Property="Background" Value="{DynamicResource TargetCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TargetBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="16" />
+  </Style>
+  <Style Selector="Border.chip">
+    <Setter Property="Background" Value="{DynamicResource ChipBrush}" />
+    <Setter Property="CornerRadius" Value="999" />
+    <Setter Property="Padding" Value="10,4" />
+  </Style>
+  <Style Selector="Border.chip TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource ChipTextBrush}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Border.targetBadge">
+    <Setter Property="Background" Value="{DynamicResource TargetBadgeBrush}" />
+    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="Padding" Value="6,1" />
+  </Style>
+  <Style Selector="Border.targetBadge TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource TargetBadgeTextBrush}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Connection pill -->
+  <Style Selector="Border.pill">
+    <Setter Property="CornerRadius" Value="999" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="Background" Value="{DynamicResource ErrorBackgroundBrush}" />
+  </Style>
+  <Style Selector="Border.pill TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource ErrorTextBrush}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="Medium" />
+  </Style>
+  <Style Selector="Border.pill Ellipse">
+    <Setter Property="Fill" Value="{DynamicResource NegativeTextBrush}" />
+  </Style>
+  <Style Selector="Border.pill.ok">
+    <Setter Property="Background" Value="{DynamicResource GoodBackgroundBrush}" />
+  </Style>
+  <Style Selector="Border.pill.ok TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource GoodTextBrush}" />
+  </Style>
+  <Style Selector="Border.pill.ok Ellipse">
+    <Setter Property="Fill" Value="{DynamicResource PositiveTextBrush}" />
+  </Style>
+
+  <!-- Banners -->
+  <Style Selector="Border.banner">
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="14,12" />
+  </Style>
+  <Style Selector="Border.banner.error">
+    <Setter Property="Background" Value="{DynamicResource ErrorBannerBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ErrorBannerBorderBrush}" />
+  </Style>
+  <Style Selector="Border.banner.error TextBlock.title">
+    <Setter Property="Foreground" Value="{DynamicResource ErrorBannerTextBrush}" />
+  </Style>
+  <Style Selector="Border.banner.error TextBlock.detail">
+    <Setter Property="Foreground" Value="{DynamicResource ErrorBannerSubtextBrush}" />
+  </Style>
+  <Style Selector="Border.banner.error Path">
+    <Setter Property="Stroke" Value="{DynamicResource ErrorBannerTextBrush}" />
+  </Style>
+  <Style Selector="Border.banner.warning">
+    <Setter Property="Background" Value="{DynamicResource WarningBannerBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource WarningBannerBorderBrush}" />
+  </Style>
+  <Style Selector="Border.banner.warning TextBlock.title">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBannerTextBrush}" />
+  </Style>
+  <Style Selector="Border.banner.warning TextBlock.detail">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBannerSubtextBrush}" />
+  </Style>
+  <Style Selector="Border.banner.warning Path">
+    <Setter Property="Stroke" Value="{DynamicResource WarningBannerTextBrush}" />
+  </Style>
+  <Style Selector="Border.banner TextBlock.title">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Border.banner TextBlock.detail">
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+
+  <!-- Correction status (icon circle + title) -->
+  <Style Selector="Border.toneIcon">
+    <Setter Property="Width" Value="32" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Background" Value="{DynamicResource ChipBrush}" />
+  </Style>
+  <Style Selector="Border.toneIcon Path">
+    <Setter Property="Stroke" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.toneTitle">
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Border.toneIcon.good">
+    <Setter Property="Background" Value="{DynamicResource GoodBackgroundBrush}" />
+  </Style>
+  <Style Selector="Border.toneIcon.good Path">
+    <Setter Property="Stroke" Value="{DynamicResource GoodTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.toneTitle.good">
+    <Setter Property="Foreground" Value="{DynamicResource GoodTextBrush}" />
+  </Style>
+  <Style Selector="Border.toneIcon.warning">
+    <Setter Property="Background" Value="{DynamicResource WarningBackgroundBrush}" />
+  </Style>
+  <Style Selector="Border.toneIcon.warning Path">
+    <Setter Property="Stroke" Value="{DynamicResource WarningTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.toneTitle.warning">
+    <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
+  </Style>
+  <Style Selector="Border.toneIcon.info">
+    <Setter Property="Background" Value="{DynamicResource InfoBackgroundBrush}" />
+  </Style>
+  <Style Selector="Border.toneIcon.info Path">
+    <Setter Property="Stroke" Value="{DynamicResource InfoTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.toneTitle.info">
+    <Setter Property="Foreground" Value="{DynamicResource InfoTextBrush}" />
+  </Style>
+  <Style Selector="Border.toneIcon.error">
+    <Setter Property="Background" Value="{DynamicResource ErrorBackgroundBrush}" />
+  </Style>
+  <Style Selector="Border.toneIcon.error Path">
+    <Setter Property="Stroke" Value="{DynamicResource ErrorTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.toneTitle.error">
+    <Setter Property="Foreground" Value="{DynamicResource ErrorTextBrush}" />
+  </Style>
+
+  <!-- Buttons -->
+  <Style Selector="Button">
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Background" Value="{DynamicResource ButtonBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{DynamicResource PrimaryButtonBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonTextBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource PrimaryButtonBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonTextBrush}" />
+    <Setter Property="Opacity" Value="0.9" />
+  </Style>
+  <Style Selector="Button.warning">
+    <Setter Property="Background" Value="{DynamicResource WarningButtonBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource WarningButtonTextBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.warning:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource WarningButtonBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource WarningButtonTextBrush}" />
+    <Setter Property="Opacity" Value="0.9" />
+  </Style>
+  <Style Selector="Button.ghost">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
+  <Style Selector="Button.tab">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0,0,0,2" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="MinHeight" Value="58" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
+  <Style Selector="Button.tab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="Button.tab.active">
+    <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.tab.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="Button.sortHeader">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Right" />
+  </Style>
+  <Style Selector="Button.sortHeader:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+
+  <!-- Pin toggle in replay rows -->
+  <Style Selector="ToggleButton.pin">
+    <Setter Property="Width" Value="36" />
+    <Setter Property="Height" Value="36" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ToggleButton.pin:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.pin:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource TargetBadgeBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TargetAccentBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.pin Path">
+    <Setter Property="Stroke" Value="{Binding $parent[ToggleButton].Foreground}" />
+  </Style>
+  <Style Selector="ToggleButton.pin:checked Path">
+    <Setter Property="Stroke" Value="{DynamicResource TargetAccentBrush}" />
+  </Style>
+
+  <!-- Inputs -->
+  <Style Selector="ComboBox">
+    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="TextBox">
+    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+
+  <!-- Option cards (timeline mode) -->
+  <Style Selector="Border.option">
+    <Setter Property="Background" Value="{DynamicResource OptionBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OptionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="14,12" />
+  </Style>
+  <Style Selector="Border.option.selected">
+    <Setter Property="Background" Value="{DynamicResource OptionSelectedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OptionSelectedBorderBrush}" />
+  </Style>
+
+  <!-- Replay list -->
+  <Style Selector="ListBox.replayList">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="ListBox.replayList ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+  <Style Selector="ListBox.replayList ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RowHoverBrush}" />
+  </Style>
+  <Style Selector="ListBox.replayList ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RowHoverBrush}" />
+  </Style>
+  <Style Selector="Border.replayRow">
+    <Setter Property="BorderBrush" Value="{DynamicResource RowDividerBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Border.replayRow.target">
+    <Setter Property="Background" Value="{DynamicResource TargetRowBrush}" />
+  </Style>
+</Styles>

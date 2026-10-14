@@ -1,0 +1,69 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LazerReplayCompare.CompactWindow"
+        x:CompileBindings="False"
+        Title="Lazer Replay Compare"
+        Width="400"
+        SizeToContent="Height"
+        CanResize="False"
+        Topmost="True"
+        Background="{DynamicResource HeaderBrush}">
+  <StackPanel>
+    <Border BorderBrush="{DynamicResource HeaderBorderBrush}" BorderThickness="0,0,0,1" Padding="16,8,10,8">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+        <Border Classes="pill" Classes.ok="{Binding AllConnected}" Padding="10,4" ToolTip.Tip="{Binding ConnectionDetails}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Ellipse Width="7" Height="7" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding ConnectionText}" FontSize="12" VerticalAlignment="Center" />
+          </StackPanel>
+        </Border>
+        <Button Grid.Column="2" Classes="ghost" MinHeight="32" Padding="8,0" Click="OpenFullWindow" ToolTip.Tip="Open the full window">
+          <Path Width="14" Height="14" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                Stroke="{DynamicResource TextSecondaryBrush}" Data="M15,3 L21,3 L21,9 M9,21 L3,21 L3,15 M21,3 L14,10 M3,21 L10,14" />
+        </Button>
+      </Grid>
+    </Border>
+
+    <StackPanel Margin="16,12,16,14" Spacing="10">
+      <StackPanel Spacing="1">
+        <TextBlock Text="{Binding BeatmapTitle}" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+        <TextBlock Classes="muted" FontSize="12" Text="{Binding BeatmapSubtitle}" TextTrimming="CharacterEllipsis" />
+      </StackPanel>
+
+      <Border Background="{DynamicResource TargetRowBrush}" CornerRadius="10" ClipToBounds="True" IsVisible="{Binding HasTarget}">
+        <Grid>
+          <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TargetAccentBrush}" />
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="14,10">
+            <StackPanel Spacing="1">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TargetLabelBrush}" Text="Target ·" />
+                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TargetLabelBrush}" Text="{Binding TargetModeText}" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock FontWeight="SemiBold" Text="{Binding TargetPlayer}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Classes="secondary" Text="{Binding TargetDateText}" />
+              </StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+              <TextBlock Classes="mono" FontSize="17" FontWeight="SemiBold" Text="{Binding TargetScoreText}" TextAlignment="Right" />
+              <TextBlock Classes="mono secondary" FontSize="12" Text="{Binding TargetAccuracyText}" TextAlignment="Right" />
+            </StackPanel>
+          </Grid>
+        </Grid>
+      </Border>
+      <TextBlock Classes="muted" FontSize="13" Text="No replay to compare against" IsVisible="{Binding !HasTarget}" />
+
+      <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="8">
+        <ComboBox MinHeight="34" HorizontalAlignment="Stretch" ItemsSource="{Binding MainMetricOptions}" SelectedItem="{Binding SelectedMainMetric, Mode=TwoWay}" />
+        <ComboBox Grid.Column="1" MinHeight="34" HorizontalAlignment="Stretch" ItemsSource="{Binding SubMetricOptions}" SelectedItem="{Binding SelectedSubMetric, Mode=TwoWay}" />
+        <Border Grid.Column="2" Classes="toneIcon" Width="28" Height="28" CornerRadius="14"
+                Classes.good="{Binding IsToneGood}" Classes.warning="{Binding IsToneWarning}"
+                Classes.info="{Binding IsToneInfo}" Classes.error="{Binding IsToneError}"
+                ToolTip.Tip="{Binding CorrectionTitle}">
+          <Path Width="24" Height="24" Stretch="None" StrokeThickness="2.5" StrokeLineCap="Round" StrokeJoin="Round"
+                Data="{Binding CorrectionGlyph}" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransform="scale(0.75)" />
+        </Border>
+      </Grid>
+    </StackPanel>
+  </StackPanel>
+</Window>

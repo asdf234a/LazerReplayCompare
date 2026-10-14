@@ -3,7 +3,14 @@
              x:Class="LazerReplayCompare.App"
              RequestedThemeVariant="Default">
   <Application.Styles>
-    <FluentTheme />
+    <!-- Neutral accent for Fluent controls: the pink accent is reserved for the comparison target. -->
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Dark" Accent="#C9D1DE" />
+        <ColorPaletteResources x:Key="Light" Accent="#3A4250" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
+    <StyleInclude Source="avares://LazerReplayCompare/UI/AppStyles.axaml" />
   </Application.Styles>
 
   <Application.Resources>

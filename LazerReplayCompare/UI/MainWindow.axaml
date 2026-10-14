@@ -4,364 +4,338 @@
         x:Class="LazerReplayCompare.MainWindow"
         x:CompileBindings="False"
         Title="Lazer Replay Compare"
-        Width="1280"
-        Height="780"
-        MinWidth="1080"
-        MinHeight="640"
-        Background="{DynamicResource PageBackgroundBrush}"
-        Foreground="{DynamicResource BodyTextBrush}"
-        FontFamily="Inter, Segoe UI, Arial">
-  <Window.Styles>
-    <Style Selector="Border.card">
-      <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="16" />
-    </Style>
+        Width="1180"
+        Height="820"
+        MinWidth="900"
+        MinHeight="600">
+  <DockPanel>
 
-    <Style Selector="Border.infoCard">
-      <Setter Property="Background" Value="{DynamicResource CardAltBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="12" />
-      <Setter Property="Padding" Value="14" />
-    </Style>
-
-    <Style Selector="Border.badge">
-      <Setter Property="Background" Value="{DynamicResource BadgeBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Padding" Value="12,8" />
-    </Style>
-
-    <Style Selector="TextBlock.muted">
-      <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
-    </Style>
-
-    <Style Selector="TextBox.pathInput">
-      <Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Padding" Value="13,9" />
-      <Setter Property="FontSize" Value="14" />
-    </Style>
-
-    <Style Selector="Button">
-      <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Padding" Value="18,10" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-    </Style>
-
-    <Style Selector="Button.primary">
-      <Setter Property="Background" Value="{DynamicResource AccentBlueBrush}" />
-      <Setter Property="Foreground" Value="White" />
-      <Setter Property="BorderBrush" Value="{DynamicResource AccentBlueBrush}" />
-    </Style>
-
-    <Style Selector="ComboBox">
-      <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Padding" Value="12,8" />
-      <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
-    </Style>
-
-    <Style Selector="ListBox.replayList">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-    </Style>
-
-    <Style Selector="ListBox.replayList ListBoxItem">
-      <Setter Property="Padding" Value="0" />
-      <Setter Property="Margin" Value="0,4" />
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="CornerRadius" Value="10" />
-    </Style>
-
-    <Style Selector="ListBox.replayList ListBoxItem:pointerover">
-      <Setter Property="Background" Value="{DynamicResource RowHoverBrush}" />
-    </Style>
-
-    <Style Selector="ListBox.replayList ListBoxItem:selected">
-      <Setter Property="Background" Value="{DynamicResource RowSelectedBrush}" />
-    </Style>
-  </Window.Styles>
-
-  <Grid RowDefinitions="Auto,*" Margin="26" RowSpacing="22">
-    <Border Grid.Row="0" Classes="card" Padding="20">
-      <Grid RowDefinitions="Auto,Auto" RowSpacing="18">
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
-          <Canvas Width="44" Height="44" VerticalAlignment="Center">
-            <Path Stroke="{DynamicResource AccentBlueBrush}"
-                  StrokeThickness="2.5"
-                  StrokeLineCap="Round"
-                  StrokeJoin="Round"
-                  Data="M2,22 L12,22 L17,8 L23,36 L31,18 L38,18 L44,18" />
+    <!-- Top bar: app, pages, connection state, compact mode -->
+    <Border DockPanel.Dock="Top"
+            Background="{DynamicResource HeaderBrush}"
+            BorderBrush="{DynamicResource HeaderBorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="24,0">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="20">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <Canvas Width="24" Height="24">
+            <Ellipse Width="20" Height="20" Canvas.Left="2" Canvas.Top="2" Stroke="{DynamicResource TargetAccentBrush}" StrokeThickness="2.2" />
+            <Path Data="M7.5,12.5 L10.5,15.5 L16.5,8.5" Stroke="{DynamicResource TextBrush}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" />
           </Canvas>
+          <TextBlock Text="Lazer Replay Compare" FontWeight="Bold" FontSize="15" VerticalAlignment="Center" />
+        </StackPanel>
 
-          <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
-            <TextBlock Text="Lazer Replay Compare"
-                       FontSize="24"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource HeadingTextBrush}" />
-            <TextBlock Text="Compare a saved lazer replay with your current osu!lazer play."
-                       FontSize="14"
-                       Classes="muted" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+          <Button Classes="tab" Classes.active="{Binding IsComparePage}" Content="Compare" Click="ShowComparePage" />
+          <Button Classes="tab" Classes.active="{Binding IsSettingsPage}" Content="Settings" Click="ShowSettingsPage" />
+        </StackPanel>
+
+        <Border Grid.Column="3" Classes="pill" Classes.ok="{Binding AllConnected}" VerticalAlignment="Center"
+                ToolTip.Tip="{Binding ConnectionDetails}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Ellipse Width="8" Height="8" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding ConnectionText}" VerticalAlignment="Center" />
           </StackPanel>
+        </Border>
 
-        </Grid>
-
-        <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
-          <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
-            <TextBlock Text="osu!lazer folder"
-                       FontWeight="SemiBold"
-                       FontSize="14"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource BodyTextBrush}" />
-            <TextBox x:Name="OsuLazerBox"
-                     Grid.Column="1"
-                     Classes="pathInput"
-                     PlaceholderText="Select your osu!lazer folder" />
-            <Button Grid.Column="2"
-                    Classes="primary"
-                    Content="Browse"
-                    Click="BrowseOsuLazerFolder" />
-            <Button Grid.Column="3"
-                    x:Name="RefreshButton"
-                    Content="Refresh"
-                    Click="RefreshReplays" />
-          </Grid>
-
-          <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12">
-            <Border Classes="badge" MinWidth="260">
-              <StackPanel>
-                <TextBlock Text="Selected replay" FontSize="12" Classes="muted" />
-                <TextBlock x:Name="SelectedReplayBadgeLabel"
-                           Text="Auto best replay"
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource BodyTextBrush}" />
-              </StackPanel>
-            </Border>
-
-            <Border Classes="badge" MinWidth="360">
-              <StackPanel>
-                <TextBlock Text="Beatmap" FontSize="12" Classes="muted" />
-                <TextBlock x:Name="BeatmapLabel"
-                           Text="None selected"
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource BodyTextBrush}" />
-              </StackPanel>
-            </Border>
-
-            <Border Classes="badge" MinWidth="240">
-              <StackPanel>
-                <TextBlock Text="Status" FontSize="12" Classes="muted" />
-                <TextBlock x:Name="StatusLabel"
-                           Text="Waiting for osu!lazer selection..."
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource BodyTextBrush}" />
-              </StackPanel>
-            </Border>
+        <Button Grid.Column="4" Click="OpenCompactMode" VerticalAlignment="Center"
+                ToolTip.Tip="Small always-on-top window for while you play">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="2" Stroke="{DynamicResource TextSecondaryBrush}"
+                  Data="M3,3 L21,3 L21,21 L3,21 Z M12,12 L19,12 L19,19 L12,19 Z" />
+            <TextBlock Text="Compact mode" VerticalAlignment="Center" />
           </StackPanel>
-
-          <Border Grid.Row="2" Classes="badge">
-            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10">
-              <TextBlock Text="Settings" FontWeight="SemiBold" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="1" Text="Theme" Classes="muted" VerticalAlignment="Center" />
-              <ComboBox Grid.Column="2"
-                        x:Name="ThemeBox"
-                        Width="116"
-                        SelectionChanged="ThemeSelectionChanged">
-                <ComboBoxItem Content="System" />
-                <ComboBoxItem Content="Dark" />
-                <ComboBoxItem Content="Light" />
-              </ComboBox>
-              <TextBlock Grid.Column="3" Text="Timeline" Classes="muted" VerticalAlignment="Center" />
-              <ComboBox Grid.Column="4"
-                        x:Name="CorrectionModeBox"
-                        Width="126"
-                        SelectionChanged="CorrectionModeSelectionChanged">
-                <ComboBoxItem Content="Corrected" />
-                <ComboBoxItem Content="Raw" />
-                <ComboBoxItem Content="Scaled" />
-              </ComboBox>
-              <TextBlock Grid.Column="5" Text="Main" Classes="muted" VerticalAlignment="Center" />
-              <ComboBox Grid.Column="6"
-                        x:Name="MainMetricBox"
-                        Width="132"
-                        SelectionChanged="MainMetricSelectionChanged">
-                <!-- Items come from MetricRegistry (MainWindow.PopulateMetricBox). -->
-              </ComboBox>
-              <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="10">
-                <TextBlock Text="Sub" Classes="muted" VerticalAlignment="Center" />
-                <ComboBox x:Name="SubMetricBox"
-                          Width="132"
-                          SelectionChanged="SubMetricSelectionChanged">
-                  <!-- Items come from MetricRegistry (MainWindow.PopulateMetricBox). -->
-                </ComboBox>
-              </StackPanel>
-            </Grid>
-          </Border>
-        </Grid>
+        </Button>
       </Grid>
     </Border>
 
-    <Grid Grid.Row="1" ColumnDefinitions="1.55*,0.9*" ColumnSpacing="22">
-      <Border Grid.Column="0" Classes="card" Padding="18">
-        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="Replay scores"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource HeadingTextBrush}" />
-            <TextBlock x:Name="ReplayCountLabel"
-                       Grid.Column="1"
-                       Text="0 replays found"
-                       Classes="muted"
-                       VerticalAlignment="Center" />
-          </Grid>
+    <Grid>
+      <!-- ===================== Compare ===================== -->
+      <ScrollViewer IsVisible="{Binding IsComparePage}" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MaxWidth="1160" Margin="28,22,28,28" Spacing="18">
 
-          <Grid Grid.Row="1"
-                ColumnDefinitions="34,1.05*,1.2*,1.05*,0.9*,0.8*,0.55*,0.8*,0.55*"
-                Margin="8,4,8,0">
-            <TextBlock Grid.Column="1" Text="Player" Classes="muted" />
-            <TextBlock Grid.Column="2" Text="Date" Classes="muted" />
-            <TextBlock Grid.Column="3" Text="Mods" Classes="muted" />
-            <TextBlock Grid.Column="4" Text="Score" Classes="muted" TextAlignment="Right" />
-            <TextBlock Grid.Column="5" Text="Accuracy" Classes="muted" TextAlignment="Right" />
-            <TextBlock Grid.Column="6" Text="Miss" Classes="muted" TextAlignment="Right" />
-            <TextBlock Grid.Column="7" Text="Combo" Classes="muted" TextAlignment="Right" />
-            <TextBlock Grid.Column="8" Text="Rank" Classes="muted" TextAlignment="Center" />
-          </Grid>
+          <!-- Problems -->
+          <Border Classes="banner error" IsVisible="{Binding ShowTosuBanner}">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+              <Path Width="18" Height="18" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" VerticalAlignment="Center"
+                    Data="M12,2 A10,10 0 1 1 11.99,2 Z M12,7 L12,13 M12,17 L12,17.5" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock Classes="title" Text="tosu isn't running" />
+                <TextBlock Classes="detail" Text="Start tosu so the overlay can follow your play. This reconnects automatically." TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+          </Border>
 
-          <ListBox x:Name="ReplayList"
-                   Grid.Row="2"
-                   Classes="replayList"
-                   ItemsSource="{Binding ReplayRows}"
-                   SelectionChanged="ReplaySelectionChanged">
-            <ListBox.ItemTemplate>
-              <DataTemplate x:DataType="local:ReplayRow">
-                <Border Classes="infoCard" Padding="10,11" Margin="0,2">
-                  <Grid ColumnDefinitions="34,1.05*,1.2*,1.05*,0.9*,0.8*,0.55*,0.8*,0.55*" ColumnSpacing="10">
-                    <CheckBox IsChecked="{Binding IsPinned, Mode=TwoWay}"
-                              VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1" Text="{Binding Player}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="2" Text="{Binding DateText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="3" Text="{Binding ModsText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="4" Text="{Binding ScoreText}" TextAlignment="Right" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="5" Text="{Binding AccuracyText}" Foreground="{DynamicResource AccentBlueBrush}" TextAlignment="Right" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="6" Text="{Binding MissText}" Foreground="{Binding MissBrush}" TextAlignment="Right" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="7" Text="{Binding ComboText}" TextAlignment="Right" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="8" Text="{Binding Rank}" TextAlignment="Center" VerticalAlignment="Center" />
-                  </Grid>
-                </Border>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-        </Grid>
-      </Border>
+          <Border Classes="banner warning" IsVisible="{Binding ShowLazerBanner}">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+              <Path Width="18" Height="18" Stretch="Uniform" StrokeThickness="2" StrokeJoin="Round" VerticalAlignment="Center"
+                    Data="M3,7 L3,17 C3,18.1 3.9,19 5,19 L19,19 C20.1,19 21,18.1 21,17 L21,9 C21,7.9 20.1,7 19,7 L11,7 L9,5 L5,5 C3.9,5 3,5.9 3,7 Z" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock Classes="title" Text="osu!lazer folder not found" />
+                <TextBlock Classes="detail" Text="Choose the folder that contains client.realm." TextWrapping="Wrap" />
+              </StackPanel>
+              <Button Grid.Column="2" Classes="warning" Content="Choose folder" Click="BrowseOsuLazerFolder" />
+            </Grid>
+          </Border>
 
-      <Border Grid.Column="1" Classes="card" Padding="20">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <StackPanel Spacing="18">
-            <TextBlock Text="Selected replay"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource HeadingTextBrush}" />
+          <Border Classes="banner error" IsVisible="{Binding ShowApiBanner}">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+              <Path Width="18" Height="18" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" VerticalAlignment="Center"
+                    Data="M12,2 A10,10 0 1 1 11.99,2 Z M12,7 L12,13 M12,17 L12,17.5" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock Classes="title" Text="Overlay API couldn't start" />
+                <TextBlock Classes="detail" Text="{Binding ApiError}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+          </Border>
 
-            <StackPanel Spacing="5">
-              <TextBlock x:Name="DetailTitleLabel"
-                         Text="No replay selected"
-                         FontSize="23"
-                         FontWeight="SemiBold"
-                         Foreground="{DynamicResource HeadingTextBrush}" />
-              <TextBlock x:Name="DetailSubtitleLabel"
-                         Text="Select a beatmap, then choose a replay."
-                         Classes="muted" />
+          <!-- Now playing + overlay metrics -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="24">
+            <StackPanel Spacing="4" VerticalAlignment="Bottom">
+              <TextBlock Classes="overline" Text="NOW PLAYING" />
+              <TextBlock Text="{Binding BeatmapTitle}" FontSize="24" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+              <TextBlock Classes="secondary" Text="{Binding BeatmapSubtitle}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Classes="muted" FontSize="12" Text="{Binding StatusText}" IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Bottom">
+              <TextBlock Classes="muted" Text="Overlay" VerticalAlignment="Center" FontSize="13" />
+              <ComboBox MinWidth="140" ItemsSource="{Binding MainMetricOptions}" SelectedItem="{Binding SelectedMainMetric, Mode=TwoWay}"
+                        ToolTip.Tip="Main value the overlay compares" />
+              <ComboBox MinWidth="140" ItemsSource="{Binding SubMetricOptions}" SelectedItem="{Binding SelectedSubMetric, Mode=TwoWay}"
+                        ToolTip.Tip="Second value the overlay shows (or Off)" />
+            </StackPanel>
+          </Grid>
 
-            <UniformGrid Columns="2" Rows="3">
-              <Border Classes="infoCard" Margin="0,0,8,8">
-                <StackPanel Spacing="8">
-                  <TextBlock Text="Score" Classes="muted" />
-                  <TextBlock x:Name="DetailScoreLabel" Text="-" FontSize="22" FontWeight="SemiBold" />
-                </StackPanel>
-              </Border>
-              <Border Classes="infoCard" Margin="0,0,0,8">
-                <StackPanel Spacing="8">
-                  <TextBlock Text="Accuracy" Classes="muted" />
-                  <TextBlock x:Name="DetailAccuracyLabel" Text="-" FontSize="22" FontWeight="SemiBold" />
-                </StackPanel>
-              </Border>
-              <Border Classes="infoCard" Margin="0,0,8,8">
-                <StackPanel Spacing="8">
-                  <TextBlock Text="Miss" Classes="muted" />
-                  <TextBlock x:Name="DetailMissLabel" Text="-" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource GoodBrush}" />
-                </StackPanel>
-              </Border>
-              <Border Classes="infoCard" Margin="0,0,0,8">
-                <StackPanel Spacing="8">
-                  <TextBlock Text="Max Combo" Classes="muted" />
-                  <TextBlock x:Name="DetailComboLabel" Text="-" FontSize="22" FontWeight="SemiBold" />
-                </StackPanel>
-              </Border>
-              <Border Classes="infoCard" Margin="0,0,8,0">
-                <StackPanel Spacing="8">
-                  <TextBlock Text="Rank" Classes="muted" />
-                  <TextBlock x:Name="DetailRankLabel" Text="-" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource AccentBlueBrush}" />
-                </StackPanel>
-              </Border>
-              <Border Classes="infoCard">
-                <StackPanel Spacing="8">
-                  <TextBlock Text="Mods" Classes="muted" />
-                  <TextBlock x:Name="DetailModsLabel" Text="-" FontSize="22" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-              </Border>
-            </UniformGrid>
+          <!-- Empty / waiting states -->
+          <Border Classes="surface" Padding="28" MinHeight="180" IsVisible="{Binding ShowDisconnectedPlaceholder}">
+            <TextBlock Classes="muted" Text="Comparison resumes once everything is connected" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <Border Classes="surface" Padding="28" MinHeight="180" IsVisible="{Binding ShowNoBeatmap}">
+            <TextBlock Classes="muted" Text="Select a beatmap in osu!lazer to see its replays" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <Border Classes="surface" Padding="28" MinHeight="180" IsVisible="{Binding IsLoadingReplays}">
+            <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <ProgressBar IsIndeterminate="True" Width="160" />
+              <TextBlock Classes="muted" Text="Loading replays…" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <Border Classes="surface" Padding="32" MinHeight="220" IsVisible="{Binding ShowNoReplays}">
+            <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Path Width="40" Height="40" Stretch="Uniform" StrokeThickness="1.5" Stroke="{DynamicResource TextMutedBrush}" HorizontalAlignment="Center"
+                    Data="M12,3 A9,9 0 1 1 11.99,3 Z M10,9 L15,12 L10,15 Z" />
+              <TextBlock Text="No saved replays for this map yet" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+              <TextBlock Classes="secondary" MaxWidth="400" TextWrapping="Wrap" TextAlignment="Center" FontSize="13"
+                         Text="Finish a play of it in osu!lazer and the score shows up here. The overlay stays hidden until there is something to compare against." />
+              <Button Content="Rescan replays" HorizontalAlignment="Center" Click="RefreshReplays" Margin="0,6,0,0" />
+            </StackPanel>
+          </Border>
 
-            <Border Classes="infoCard">
-              <StackPanel Spacing="16">
-                <StackPanel Spacing="5">
-                  <TextBlock Text="Replay Date" Classes="muted" />
-                  <TextBlock x:Name="DetailDateLabel" Text="-" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-                <StackPanel Spacing="5">
-                  <TextBlock Text="Beatmap ID" Classes="muted" />
-                  <TextBlock x:Name="DetailBeatmapLabel" Text="-" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-                <StackPanel Spacing="5">
-                  <TextBlock Text="Replay file path" Classes="muted" />
-                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                    <TextBlock x:Name="DetailFileLabel"
-                               Text="-"
-                               TextWrapping="Wrap"
-                               VerticalAlignment="Center" />
-                    <Button Grid.Column="1"
-                            Width="42"
-                            Height="38"
-                            Padding="0"
-                            Click="OpenSelectedReplayFolder">
-                      <Path Width="18"
-                            Height="20"
-                            Stretch="Uniform"
-                            Stroke="{DynamicResource BodyTextBrush}"
-                            StrokeThickness="1.8"
-                            Data="M4,2 L12,2 L17,7 L17,18 L4,18 Z M12,2 L12,7 L17,7" />
-                    </Button>
+          <!-- Comparison target -->
+          <StackPanel Spacing="18" IsVisible="{Binding ShowCompareContent}">
+            <Border Classes="targetCard" Padding="24,20">
+              <StackPanel Spacing="18">
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
+                  <TextBlock Classes="overline" Foreground="{DynamicResource TargetLabelBrush}" Text="COMPARING AGAINST" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="chip" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding TargetModeText}" />
+                  </Border>
+                  <TextBlock Grid.Column="2" Classes="muted" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                             Text="Pin a replay in the list to compare against it instead" IsVisible="{Binding ShowPinHint}" />
+                  <Button Grid.Column="3" Content="Unpin" Click="UnpinReplay" IsVisible="{Binding IsTargetPinned}" MinHeight="34" />
+                </Grid>
+
+                <Grid ColumnDefinitions="*,1.6*" ColumnSpacing="32">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding TargetPlayer}" FontSize="24" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Classes="mono" Text="{Binding TargetScoreText}" />
+                      <TextBlock Classes="secondary" Text="{Binding TargetSummary}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </StackPanel>
+                  <Grid Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <Border Classes="toneIcon"
+                            Classes.good="{Binding IsToneGood}" Classes.warning="{Binding IsToneWarning}"
+                            Classes.info="{Binding IsToneInfo}" Classes.error="{Binding IsToneError}"
+                            VerticalAlignment="Top">
+                      <Path Width="24" Height="24" Stretch="None" StrokeThickness="2.5" StrokeLineCap="Round" StrokeJoin="Round"
+                            Data="{Binding CorrectionGlyph}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Spacing="2">
+                      <TextBlock Classes="toneTitle"
+                                 Classes.good="{Binding IsToneGood}" Classes.warning="{Binding IsToneWarning}"
+                                 Classes.info="{Binding IsToneInfo}" Classes.error="{Binding IsToneError}"
+                                 FontSize="15" Text="{Binding CorrectionTitle}" />
+                      <TextBlock Classes="secondary" FontSize="13" TextWrapping="Wrap" LineHeight="20" Text="{Binding CorrectionDetail}" />
+                      <ProgressBar IsIndeterminate="True" Height="3" MinHeight="3" Margin="0,6,0,0" IsVisible="{Binding IsCorrectionLoading}" />
+                    </StackPanel>
+                  </Grid>
+                </Grid>
+
+                <StackPanel Spacing="10">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="muted" FontSize="13" Text="Judgements" />
+                    <TextBlock Grid.Column="1" Classes="muted mono" FontSize="13" Text="{Binding JudgementTotalText}" />
+                  </Grid>
+                  <Border Height="12" CornerRadius="6" ClipToBounds="True">
+                    <Grid x:Name="JudgementBar" />
+                  </Border>
+                  <Grid ColumnDefinitions="*,Auto">
+                    <WrapPanel x:Name="JudgementLegend" Orientation="Horizontal" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <TextBlock Classes="muted" FontSize="13" Text="Max combo" />
+                      <TextBlock Classes="mono" FontSize="13" Text="{Binding MaxComboText}" />
+                    </StackPanel>
                   </Grid>
                 </StackPanel>
               </StackPanel>
             </Border>
+
+            <!-- Replays -->
+            <StackPanel Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="12" Margin="4,0">
+                <TextBlock Classes="sectionTitle" Text="Replays on this map" />
+                <TextBlock Classes="muted" FontSize="13" Text="{Binding ReplayCountText}" VerticalAlignment="Bottom" />
+              </StackPanel>
+              <Border Classes="surface" ClipToBounds="True">
+                <Grid RowDefinitions="Auto,Auto">
+                  <Grid ColumnDefinitions="52,1.4*,1*,0.8*,1.1*,1*,0.9*,0.6*,0.7*,0.6*" Margin="0,4,0,4">
+                    <TextBlock Grid.Column="1" Classes="muted" FontSize="12" Text="Player" VerticalAlignment="Center" Margin="8,0" />
+                    <Button Grid.Column="2" Classes="sortHeader" HorizontalContentAlignment="Left" Margin="8,0" Content="{Binding DateHeader}" Tag="Date" Click="SortReplays" />
+                    <TextBlock Grid.Column="3" Classes="muted" FontSize="12" Text="Mods" VerticalAlignment="Center" Margin="8,0" />
+                    <Button Grid.Column="4" Classes="sortHeader" Margin="8,0" Content="{Binding ScoreHeader}" Tag="Score" Click="SortReplays" />
+                    <TextBlock Grid.Column="5" Classes="muted" FontSize="12" Text="vs target" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                    <Button Grid.Column="6" Classes="sortHeader" Margin="8,0" Content="{Binding AccuracyHeader}" Tag="Accuracy" Click="SortReplays" />
+                    <Button Grid.Column="7" Classes="sortHeader" Margin="8,0" Content="{Binding MissHeader}" Tag="Miss" Click="SortReplays" />
+                    <Button Grid.Column="8" Classes="sortHeader" Margin="8,0" Content="{Binding ComboHeader}" Tag="Combo" Click="SortReplays" />
+                    <TextBlock Grid.Column="9" Classes="muted" FontSize="12" Text="Rank" TextAlignment="Center" VerticalAlignment="Center" Margin="8,0,16,0" />
+                  </Grid>
+
+                  <ListBox Grid.Row="1" x:Name="ReplayList" Classes="replayList" ItemsSource="{Binding ReplayRows}"
+                           DoubleTapped="ReplayDoubleTapped" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="local:ReplayRow">
+                        <Border Classes="replayRow" Classes.target="{Binding IsTarget}">
+                          <Grid>
+                            <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TargetAccentBrush}" IsVisible="{Binding IsTarget}" />
+                            <Grid ColumnDefinitions="52,1.4*,1*,0.8*,1.1*,1*,0.9*,0.6*,0.7*,0.6*" MinHeight="48">
+                              <ToggleButton Classes="pin" IsChecked="{Binding IsPinned, Mode=TwoWay}" ToolTip.Tip="{Binding PinTooltip}"
+                                            HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,0,0,0">
+                                <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                                      Data="M12,17 L12,22 M9,3 L15,3 L14,9 L18,13 L6,13 L10,9 Z" />
+                              </ToggleButton>
+                              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="8,0">
+                                <TextBlock Text="{Binding Player}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                <Border Classes="targetBadge" IsVisible="{Binding IsTarget}" VerticalAlignment="Center">
+                                  <TextBlock Text="TARGET" />
+                                </Border>
+                              </StackPanel>
+                              <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding DateText}" VerticalAlignment="Center" Margin="8,0" />
+                              <TextBlock Grid.Column="3" Classes="secondary mono" Text="{Binding ModsText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="8,0" />
+                              <TextBlock Grid.Column="4" Classes="mono" Text="{Binding ScoreText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                              <TextBlock Grid.Column="5" Classes="mono muted" Classes.ahead="{Binding IsAheadOfTarget}" Classes.behind="{Binding IsBehindTarget}"
+                                         Text="{Binding VsTargetText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                              <TextBlock Grid.Column="6" Classes="mono" Text="{Binding AccuracyText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                              <TextBlock Grid.Column="7" Classes="mono miss" Classes.fullCombo="{Binding IsFullCombo}" Text="{Binding MissText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                              <TextBlock Grid.Column="8" Classes="mono" Text="{Binding ComboText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                              <TextBlock Grid.Column="9" Text="{Binding Rank}" FontWeight="Bold" Foreground="{DynamicResource RankTextBrush}" TextAlignment="Center" VerticalAlignment="Center" Margin="8,0,16,0" />
+                            </Grid>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Grid>
+              </Border>
+              <TextBlock Classes="muted" FontSize="13" Margin="4,0" Text="Double-click a row to show the replay file" />
+            </StackPanel>
           </StackPanel>
-        </ScrollViewer>
-      </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- ===================== Settings ===================== -->
+      <ScrollViewer IsVisible="{Binding IsSettingsPage}" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MaxWidth="820" Margin="28,22,28,32" Spacing="18">
+          <TextBlock Text="Settings" FontSize="24" FontWeight="Bold" />
+
+          <Border Classes="surface" Padding="22,20">
+            <StackPanel Spacing="14">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="sectionTitle" Text="Replay timeline" />
+                <TextBlock Classes="muted" FontSize="13" Text="How the replay's score at each note is worked out." />
+              </StackPanel>
+              <Border Classes="option" Classes.selected="{Binding IsCorrectedMode}">
+                <RadioButton GroupName="timeline" IsChecked="{Binding IsCorrectedMode, Mode=TwoWay}">
+                  <StackPanel Spacing="3" Margin="4,0,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="Corrected" FontWeight="SemiBold" />
+                      <Border Classes="chip" Padding="6,1"><TextBlock Text="RECOMMENDED" FontSize="11" /></Border>
+                    </StackPanel>
+                    <TextBlock Classes="secondary" FontSize="13" TextWrapping="Wrap"
+                               Text="Matches the replay's recorded score and judgements. Falls back to the closest approximation when an exact match isn't possible." />
+                  </StackPanel>
+                </RadioButton>
+              </Border>
+              <Border Classes="option" Classes.selected="{Binding IsRawMode}">
+                <RadioButton GroupName="timeline" IsChecked="{Binding IsRawMode, Mode=TwoWay}">
+                  <StackPanel Spacing="3" Margin="4,0,0,0">
+                    <TextBlock Text="Raw" FontWeight="SemiBold" />
+                    <TextBlock Classes="secondary" FontSize="13" TextWrapping="Wrap"
+                               Text="Exactly what osu!lazer's replay playback shows. Can be a few points off the recorded score." />
+                  </StackPanel>
+                </RadioButton>
+              </Border>
+              <Border Classes="option" Classes.selected="{Binding IsScaledMode}">
+                <RadioButton GroupName="timeline" IsChecked="{Binding IsScaledMode, Mode=TwoWay}">
+                  <StackPanel Spacing="3" Margin="4,0,0,0">
+                    <TextBlock Text="Scaled" FontWeight="SemiBold" />
+                    <TextBlock Classes="secondary" FontSize="13" TextWrapping="Wrap"
+                               Text="Raw timeline stretched so its final main-metric value equals the replay's." />
+                  </StackPanel>
+                </RadioButton>
+              </Border>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="surface" Padding="22,20">
+            <StackPanel Spacing="14">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock Classes="sectionTitle" Text="osu!lazer folder" />
+                <TextBlock FontSize="13" Foreground="{DynamicResource GoodTextBrush}" Text="Found" IsVisible="{Binding LazerFound}" VerticalAlignment="Center" />
+                <TextBlock FontSize="13" Foreground="{DynamicResource WarningTextBrush}" Text="Not found" IsVisible="{Binding ShowLazerBanner}" VerticalAlignment="Center" />
+              </StackPanel>
+              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                <TextBox x:Name="OsuLazerBox" Text="{Binding OsuLazerPath, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="13"
+                         PlaceholderText="Select your osu!lazer folder" LostFocus="OsuLazerPathCommitted" KeyDown="OsuLazerPathKeyDown" />
+                <Button Grid.Column="1" Content="Browse…" Click="BrowseOsuLazerFolder" />
+                <Button Grid.Column="2" x:Name="RefreshButton" Classes="ghost" Content="Rescan replays" Click="RefreshReplays" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="surface" Padding="22,20">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="sectionTitle" Text="tosu overlays" />
+                <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
+                           Text="Copy the overlay folders into tosu's static folder, then add them in tosu. Overlay files changed? Copy them again." />
+              </StackPanel>
+              <Button Grid.Column="1" Classes="primary" Content="Open overlay folder" Click="OpenOverlayFolder"
+                      IsVisible="{Binding HasOverlayFolder}" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+
+          <Border Classes="surface" Padding="22,20">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="sectionTitle" Text="Appearance" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
+                <RadioButton GroupName="theme" Content="System" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
+                <RadioButton GroupName="theme" Content="Dark" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
+                <RadioButton GroupName="theme" Content="Light" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
     </Grid>
-  </Grid>
+  </DockPanel>
 </Window>

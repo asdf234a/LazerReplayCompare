@@ -6,23 +6,16 @@ It reads osu!lazer's `client.realm` and `files` storage, finds replay files for 
 
 ## Features
 
-- Shows a Windows UI when launched.
+- Shows a Windows UI when launched, with two pages:
+  - **Compare**: the beatmap selected in osu!lazer, the overlay's main/sub metric pickers, the replay being compared against (best score, or the one you pinned) with how exactly its timeline matches the recorded score and its judgement breakdown, and a sortable list of the map's replays (score difference to the target, pin buttons).
+  - **Settings**: replay timeline mode (Corrected / Raw / Scaled), osu!lazer folder, overlay folder and theme (System / Dark / Light).
+- Shows problems (tosu not running, osu!lazer folder not found, overlay API port in use) as banners at the top, and the connection state in the top bar.
+- Compact mode: a small always-on-top window with the target, the metric pickers and the match status, for while you play.
 - Uses one osu!lazer root folder and automatically resolves:
   - `client.realm`
   - `files`
-- Lets you choose the osu!lazer folder with the `...` button.
 - Reads the currently selected beatmap checksum from tosu.
 - Finds osu!lazer replay files for the current beatmap.
-- Shows replay rows in this order:
-  - player
-  - date
-  - mods
-  - score
-  - accuracy
-  - miss
-  - max combo
-  - rank
-  - file
 - Includes mod settings in API data, so plugins can compare by playback speed or implement their own mod filters.
 - Provides a replay timeline API. It first uses lazer replay frame headers when present, then falls back to a drawable-free port of osu!lazer's own mania replay playback (judged with lazer's hit windows and scored with lazer's score processor).
 
@@ -75,7 +68,7 @@ LazerReplayCompare\publish\LazerReplayCompare.exe
 2. Start tosu.
 3. Select a beatmap in osu!lazer.
 4. Start `LazerReplayCompare.exe`.
-5. If the osu!lazer folder is wrong, choose the correct folder with the `...` button.
+5. If the osu!lazer folder is wrong, choose the correct folder from the banner or in Settings.
 6. Check that replay rows appear in the UI.
 7. Start the tosu overlay plugin that uses this API.
 
