@@ -239,8 +239,8 @@ public sealed partial class MainWindow : Window
                 ? string.Join(" · ", new[] { snapshot.BeatmapArtist, snapshot.BeatmapVersion }.Where(part => !string.IsNullOrWhiteSpace(part)))
                 : "Select a beatmap in osu!lazer";
 
-            if (snapshot.BackgroundPath != loadedBackgroundPath)
-                LoadBackground(snapshot.BackgroundPath);
+            if (snapshot.BeatmapChecksum != backgroundBeatmap)
+                OnBackgroundBeatmapChanged(snapshot);
 
             if (!viewModel.LazerFound && OsuLazerPathResolver.Resolve(snapshot) is { } detectedPath)
                 SetOsuLazerPath(detectedPath);
@@ -252,24 +252,55 @@ public sealed partial class MainWindow : Window
         });
     }
 
-    private string loadedBackgroundPath = string.Empty;
+    private const string TosuBackgroundUrl = "http://" + TosuHost + "/files/beatmap/background";
+    private static readonly HttpClient tosuHttp = new() { Timeout = TimeSpan.FromSeconds(5) };
 
-    /// <summary>Decodes the beatmap background off the UI thread (reduced to banner size); none when it is missing.</summary>
-    private void LoadBackground(string path)
+    /// <summary>Beatmap the shown (or loading) background belongs to, and where it is coming from ("" = not chosen yet).</summary>
+    private string backgroundBeatmap = string.Empty;
+    private string backgroundSource = string.Empty;
+
+    /// <summary>
+    /// Background sources, best first: the file tosu points at (when it exists — for lazer tosu reports the original
+    /// file name, which is not how lazer stores files), the file found through the osu!lazer database once the replay
+    /// lookup has run (see RefreshReplays), and finally tosu's own background endpoint.
+    /// </summary>
+    private void OnBackgroundBeatmapChanged(TosuSnapshot snapshot)
     {
-        loadedBackgroundPath = path;
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-        {
-            viewModel.BackgroundImage = null;
-            return;
-        }
+        backgroundBeatmap = snapshot.BeatmapChecksum;
+        backgroundSource = string.Empty;
+        viewModel.BackgroundImage = null;
 
-        _ = Task.Run(() =>
+        if (string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum))
+            return;
+
+        if (File.Exists(snapshot.BackgroundPath))
+            LoadBackground(snapshot.BeatmapChecksum, snapshot.BackgroundPath);
+        else if (!viewModel.LazerFound)
+            LoadBackground(snapshot.BeatmapChecksum, TosuBackgroundUrl);
+    }
+
+    /// <summary>Called with the database lookup's result for <paramref name="beatmap"/>.</summary>
+    private void OnDatabaseBackground(string beatmap, string path)
+    {
+        if (beatmap != backgroundBeatmap || backgroundSource.Length > 0)
+            return;
+
+        LoadBackground(beatmap, string.IsNullOrWhiteSpace(path) ? TosuBackgroundUrl : path);
+    }
+
+    /// <summary>Decodes a background file or URL off the UI thread (reduced to banner size).</summary>
+    private void LoadBackground(string beatmap, string source)
+    {
+        backgroundSource = source;
+
+        _ = Task.Run(async () =>
         {
             Avalonia.Media.Imaging.Bitmap? bitmap = null;
             try
             {
-                using var stream = File.OpenRead(path);
+                await using var stream = source.StartsWith("http", StringComparison.Ordinal)
+                    ? (Stream)new MemoryStream(await tosuHttp.GetByteArrayAsync(source))
+                    : File.OpenRead(source);
                 bitmap = Avalonia.Media.Imaging.Bitmap.DecodeToWidth(stream, 1600);
             }
             catch (Exception ex)
@@ -279,10 +310,20 @@ public sealed partial class MainWindow : Window
 
             Dispatcher.UIThread.Post(() =>
             {
-                if (path == loadedBackgroundPath)
-                    viewModel.BackgroundImage = bitmap;
-                else
+                if (beatmap != backgroundBeatmap || source != backgroundSource)
+                {
                     bitmap?.Dispose();
+                    return;
+                }
+
+                if (bitmap == null && source != TosuBackgroundUrl)
+                {
+                    // The file could not be read; tosu may still be able to serve it.
+                    LoadBackground(beatmap, TosuBackgroundUrl);
+                    return;
+                }
+
+                viewModel.BackgroundImage = bitmap;
             });
         });
     }
@@ -329,7 +370,7 @@ public sealed partial class MainWindow : Window
         {
             try
             {
-                var replays = replayFinder.FindReplays(md5, realmPath, filesRoot);
+                var (replays, backgroundPath) = replayFinder.FindReplaysAndBackground(md5, realmPath, filesRoot);
                 lock (replayLock)
                 {
                     currentReplays = replays;
@@ -341,6 +382,7 @@ public sealed partial class MainWindow : Window
                 {
                     viewModel.IsLoadingReplays = false;
                     FillReplayList(replays);
+                    OnDatabaseBackground(md5, backgroundPath);
                 });
             }
             catch (Exception ex)
@@ -349,6 +391,7 @@ public sealed partial class MainWindow : Window
                 {
                     viewModel.IsLoadingReplays = false;
                     viewModel.StatusText = $"Couldn't read replays: {ex.Message}";
+                    OnDatabaseBackground(md5, string.Empty);
                 });
             }
         });

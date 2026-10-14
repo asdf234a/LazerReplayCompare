@@ -12,6 +12,14 @@ public sealed class ReplayFinder
     private readonly object sync = new();
 
     public List<ReplayEntry> FindReplays(string beatmapMd5, string realmPath, string filesRoot)
+        => FindReplaysAndBackground(beatmapMd5, realmPath, filesRoot).Replays;
+
+    /// <summary>
+    /// The beatmap's saved replays, plus its background image file (lazer stores files by hash, so the background's
+    /// original file name from the beatmap metadata is looked up in the beatmap set's files). Background is empty
+    /// when the beatmap or its background is not in the database.
+    /// </summary>
+    public (List<ReplayEntry> Replays, string BackgroundPath) FindReplaysAndBackground(string beatmapMd5, string realmPath, string filesRoot)
     {
         lock (sync)
         {
@@ -40,6 +48,7 @@ public sealed class ReplayFinder
 
                 using var realm = Realm.GetInstance(config);
 
+                var backgroundPath = FindBackgroundPath(realm, beatmapMd5, filesRoot);
                 var entries = new List<ReplayEntry>();
                 foreach (var score in realm.All<ScoreInfo>().AsEnumerable())
                 {
@@ -87,16 +96,38 @@ public sealed class ReplayFinder
                     }
                 }
 
-                return entries
+                var replays = entries
                     .GroupBy(entry => entry.FilePath, StringComparer.OrdinalIgnoreCase)
                     .Select(group => group.First())
                     .OrderByDescending(entry => entry.Score)
                     .ToList();
+                return (replays, backgroundPath);
             }
             finally
             {
                 TryDeleteTemporaryRealm(tempRealmPath);
             }
+        }
+    }
+
+    private static string FindBackgroundPath(Realm realm, string beatmapMd5, string filesRoot)
+    {
+        try
+        {
+            var beatmap = realm.All<osu.Game.Beatmaps.BeatmapInfo>().Where(info => info.MD5Hash == beatmapMd5).AsEnumerable().FirstOrDefault();
+            var fileName = beatmap?.Metadata?.BackgroundFile;
+            if (beatmap?.BeatmapSet == null || string.IsNullOrWhiteSpace(fileName))
+                return string.Empty;
+
+            var usage = beatmap.BeatmapSet.Files.AsEnumerable()
+                               .FirstOrDefault(file => string.Equals(file.Filename, fileName, StringComparison.OrdinalIgnoreCase));
+            var path = GetLazerFilePath(filesRoot, usage?.File?.Hash);
+            return File.Exists(path) ? path : string.Empty;
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+            return string.Empty;
         }
     }
 
