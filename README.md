@@ -2,7 +2,7 @@
 
 LazerReplayCompare races your osu!lazer mania play against your own saved replays. While you play, a tosu overlay shows, note by note, whether you are ahead of or behind the replay you are comparing against.
 
-## What's new in 2.0.0
+## What's new in 1.0.0
 
 - **Redesigned app.** The beatmap's background sits behind a slim comparison card, and the window has its own title bar.
 - **Judgement ring.** The comparison card shows the target replay's judgements as a ring chart, next to its score and accuracy.
