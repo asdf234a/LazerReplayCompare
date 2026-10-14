@@ -26,6 +26,20 @@ internal sealed class PreRoundingManiaHitWindows : HitWindows
     };
 
     private readonly double multiplier;
+
+    /// <summary>The overall difficulty as ModHardRock / ModEasy adjusted it before 2025.710 (float maths, as in BeatmapDifficulty).</summary>
+    public static float LegacyOverallDifficulty(float overallDifficulty, IEnumerable<Mod> mods)
+    {
+        foreach (var mod in mods)
+        {
+            if (mod is ModHardRock)
+                overallDifficulty = Math.Min(overallDifficulty * 1.4f, 10.0f);
+            else if (mod is ModEasy)
+                overallDifficulty *= 0.5f;
+        }
+
+        return overallDifficulty;
+    }
     private readonly Dictionary<HitResult, double> windows = new Dictionary<HitResult, double>();
 
     public PreRoundingManiaHitWindows(double multiplier, double overallDifficulty)
@@ -65,11 +79,19 @@ internal sealed class PreRoundingManiaHitWindows : HitWindows
         return score.Date < new DateTimeOffset(release.Year, release.MonthDay / 100, release.MonthDay % 100, 0, 0, 0, TimeSpan.Zero);
     }
 
-    /// <summary>Replaces the hit windows of every note, hold head and hold tail with the pre-2025.710 ones.</summary>
+    /// <summary>
+    /// Replaces the hit windows of every note, hold head and hold tail with the pre-2025.710 ones.
+    /// <para>
+    /// Two other things changed in the same release (ppy/osu#33982), and both are undone here: Hard Rock / Easy used to
+    /// scale the overall difficulty (×1.4 capped at 10, ×0.5) instead of the hit windows, and the Classic mod did not
+    /// change mania hit windows at all (its stable-like windows were added then).
+    /// </para>
+    /// </summary>
     public static void Apply(IBeatmap playable, IEnumerable<Mod> mods)
     {
-        var rate = mods.OfType<ModRateAdjust>().FirstOrDefault()?.SpeedChange.Value ?? 1;
-        var windows = new PreRoundingManiaHitWindows(rate, playable.Difficulty.OverallDifficulty);
+        var modList = mods.ToList();
+        var rate = modList.OfType<ModRateAdjust>().FirstOrDefault()?.SpeedChange.Value ?? 1;
+        var windows = new PreRoundingManiaHitWindows(rate, LegacyOverallDifficulty(playable.Difficulty.OverallDifficulty, modList));
 
         foreach (var hitObject in playable.HitObjects)
         {
