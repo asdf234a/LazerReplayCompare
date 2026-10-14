@@ -4,6 +4,7 @@
         x:Class="LazerReplayCompare.MainWindow"
         x:CompileBindings="False"
         Title="Lazer Replay Compare"
+        Icon="avares://LazerReplayCompare/LazerReplayCompare.ico"
         Width="1180"
         Height="820"
         MinWidth="900"

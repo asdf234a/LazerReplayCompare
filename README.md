@@ -1,75 +1,91 @@
 # LazerReplayCompare
 
-LazerReplayCompare is a helper app for osu!lazer players who want to compare their current play with their saved lazer replays in real time.
+LazerReplayCompare races your osu!lazer mania play against your own saved replays. While you play, a tosu overlay shows, note by note, whether you are ahead of or behind the replay you are comparing against.
 
-It works with tosu overlays. While you play, it can show the score difference against your best matching replay, or against a replay you manually select in the app.
+## What's new in 2.0.0
 
-## What It Does
-
-- Finds replay scores saved by osu!lazer.
-- Shows replays for the beatmap currently selected in osu!lazer.
-- Lets you pin one replay as the comparison target, and shows how exactly its timeline matches the recorded score.
-- Compact always-on-top window for while you play.
-- Compares against the highest score with the same playback speed by default.
-- Handles Mirror by flipping mania columns during replay timeline calculation.
-- Provides overlays for live score difference and detailed replay comparison.
+- **Redesigned app.** The beatmap's background sits behind a slim comparison card, and the window has its own title bar.
+- **Judgement ring.** The comparison card shows the target replay's judgements as a ring chart, next to its score and accuracy.
+- **osu!lazer mod icons.** Mods are shown with the same icons, colours, rate tabs (`1.20x`, `OD8`) and ordering osu!lazer uses.
+- **Compact mode.** A small always-on-top window with the beatmap background, for while you play.
+- **Matching auto target.** The automatic target is your best replay at the same speed and Classic setting as the current play, the same rule the overlay uses.
+- **Timeline accuracy.** The app shows how closely the replay's timeline matches its recorded score: exact, approximate, raw or scaled.
+- **New app icon.** The icon is a pink line overtaking a ghost line.
 
 ## Download
 
-Download `LazerReplayCompare.exe` from the latest release:
+Download from the latest release: https://github.com/asdf234a/LazerReplayCompare/releases/latest
 
-https://github.com/asdf234a/LazerReplayCompare/releases/latest
+- `LazerReplayCompare.exe`: the app.
+- The overlay folders, from `static` in this repository or the release.
 
-You need the .NET 10 Desktop Runtime installed on Windows: https://dotnet.microsoft.com/download/dotnet/10.0
+You need the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) on Windows.
 
-## How To Use
+## How to use
 
-1. Download and run `LazerReplayCompare.exe`.
-2. Start osu!lazer.
-3. Start tosu.
-4. In osu!lazer, select the beatmap you want to play.
-5. If the app does not find your osu!lazer folder automatically, click **Choose folder** on the banner (or Settings → osu!lazer folder) and select it.
-6. Copy the overlay folders from `static` into your tosu `static` folder.
-7. Open the overlay from tosu.
-8. Play the map.
+1. Run `LazerReplayCompare.exe`.
+2. Start osu!lazer and tosu.
+3. Copy the overlay folders from `static` into tosu's `static` folder, then open an overlay from tosu.
+4. Select a beatmap in osu!lazer. The app lists your saved replays for it.
+5. Play. The overlay compares you against the target replay as you go.
+
+If the app can't find your osu!lazer folder, click **Choose folder** on the banner, or go to Settings → osu!lazer folder.
+
+Keep the app running while you use the overlay. Its overlay API listens on port `24052`; tosu is expected on `24050`.
+
+## Choosing the target replay
+
+- **Auto (default).** The target is your highest score at the same playback rate and Classic setting as the current play. If no saved replay matches, there is nothing to compare against until you pin one.
+- **Pinned.** Pin a replay in the list to compare against it instead, whatever its mods or speed. Unpin it to go back to auto.
 
 ## Overlays
 
-`LazerReplayCompareLive by Codex`
+- `LazerReplayCompareLive by Codex` shows a detailed live comparison: score, accuracy, combo, judgements, the target replay, and whether it was pinned or chosen automatically.
+- `LazerSameModScoreDiff by Codex` shows only the difference, in a compact format.
 
-Shows a detailed live comparison: score, accuracy, combo, judgements, replay target, and whether the target was selected manually or chosen automatically.
+## Overlay metrics
 
-`LazerSameModScoreDiff by Codex`
+The **Main** and **Sub** settings choose what the overlay compares. **Main** is the large value; **Sub** is the smaller one below it and can be **Off**.
 
-Shows only the score difference in a compact format.
+| Metric | Meaning |
+|---|---|
+| `Score` | Score difference. Positive means you are ahead of the replay. |
+| `Acc` | Accuracy difference, as osu!lazer/tosu show it. |
+| `BMS` | BMS-style judgement score: 320 = 2 points, 300 = 1, everything else 0. |
+| `PPacc` | pp-style accuracy: 320 = 100, 300 = 93.75, 200 = 62.5, 100 = 31.25, 50 = 15.625, Miss = 0, averaged as a percentage. |
+| `PPscore` | The same values as `PPacc`, summed and rounded (ten 320s = 1000). |
+| `V1acc` | Classic accuracy, where 320 and 300 both count as 100%. |
 
-## Choosing A Replay
+For example, `Main = Score, Sub = Acc` is the classic display, and `Main = BMS, Sub = Off` shows only the BMS comparison.
 
-If no replay is checked in LazerReplayCompare, the overlay automatically compares against the highest score with the same playback speed.
+## Timeline modes
 
-If you check a replay in the app, that replay becomes the comparison target even if its mod or speed is different.
+Settings → Replay timeline chooses how the replay's note-by-note score is built:
 
-## Overlay Metrics
+- **Corrected (default).** Rebuilds the timeline so it reproduces the replay's recorded score and judgements. The comparison card says whether the match is exact or approximate, and by how much.
+- **Raw.** Exactly what osu!lazer's replay playback shows, even when that differs from the recorded score.
+- **Scaled.** The raw timeline, stretched so its final value equals the replay's.
 
-The app has `Main` and `Sub` overlay metric settings.
-
-`Main` controls the large value shown between the replay and live score. `Sub` controls the smaller value below it. `Sub` can also be set to `Off`.
-
-- `Score`: current score difference. Positive means your live score is ahead of the replay.
-- `Acc`: the normal accuracy percentage difference shown by osu!lazer/tosu.
-- `BMS`: BMS-style judgement score difference. 320 = 2 points, 300 = 1 point, all other judgements = 0.
-- `PPacc`: pp-style accuracy difference. 320 = 100, 300 = 93.75, 200 = 62.5, 100 = 31.25, 50 = 15.625, Miss = 0, then averaged as a percentage.
-- `PPscore`: absolute pp-style judgement score difference. It uses the same values as `PPacc`, but sums them and rounds to an integer. For example, ten 320s = 1000 points.
-- `V1acc`: classic accuracy difference where 320 and 300 both count as 100%.
-
-Example:
-
-- `Main = Score`, `Sub = Acc`: classic score-difference display.
-- `Main = PPacc`, `Sub = Acc`: shows pp-style judgement quality as the main comparison, with normal accuracy difference below it.
-- `Main = BMS`, `Sub = Off`: shows only the BMS-style comparison.
+The first timeline for a replay can take a moment to build. Until it is ready, the overlay uses the raw replay data.
 
 ## Notes
 
-- Keep `LazerReplayCompare.exe` running while using the overlay.
-- The app is intended for osu!lazer mania replay comparison.
-- The first timeline calculation can take a moment. If you start playing before it finishes, the overlay may temporarily use raw replay data and update once calculation is ready.
+- The app is for osu!lazer **mania** replays. Mirror is handled by flipping the columns.
+- Settings are stored in `%LocalAppData%\LazerReplayCompare\settings.json`.
+
+## Building from source
+
+The app references osu!lazer's own assemblies, so it needs an osu!lazer installation:
+
+```
+dotnet publish LazerReplayCompare -c Release -r win-x64 -p:SelfContained=false -p:PublishSingleFile=true
+```
+
+By default it looks for osu!lazer in `%LocalAppData%\osulazer\current`. Pass `-p:OsuLazerCurrentPath=<folder>` to use another one.
+
+## Credits
+
+- Mod icon textures come from osu!lazer's resources ([ppy/osu-resources](https://github.com/ppy/osu-resources)). See `LazerReplayCompare/Assets/Mods/NOTICE.txt`.
+- The UI font is a subset of [Pretendard](https://github.com/orioncactus/pretendard), included as "LRC Sans" (SIL Open Font License). See `LazerReplayCompare/Assets/Fonts/LRCSans-NOTICE.txt`.
+- Mod tab text uses [Baloo 2](https://github.com/EkType/Baloo2) (SIL Open Font License).
+- This is a fan-made tool and isn't affiliated with ppy or osu!.
