@@ -37,6 +37,7 @@ public sealed partial class MainWindow : Window
     private TosuSnapshot currentSnapshot = new("lazer", "", "", "", "", "", "", "", "");
     private CompactWindow? compactWindow;
     private bool closing;
+    private bool started;
     private CancellationTokenSource? correctionCancellation;
     private (CorrectionMode Mode, string MainMetric) lastTimelineSettings;
 
@@ -58,6 +59,12 @@ public sealed partial class MainWindow : Window
     protected override async void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
+
+        // Opened is raised again whenever the window is shown after Hide() (e.g. back from compact mode); the API
+        // server, tosu connection and first-run folder check must only start once.
+        if (started)
+            return;
+        started = true;
 
         try
         {

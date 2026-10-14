@@ -29,9 +29,13 @@ public sealed class ReplayApiServer : IDisposable
 
     public void Start(int port)
     {
+        if (listener != null)
+            return;
+
+        var started = new TcpListener(IPAddress.Loopback, port);
+        started.Start();
         Port = port;
-        listener = new TcpListener(IPAddress.Loopback, port);
-        listener.Start();
+        listener = started;
         _ = Task.Run(ServeAsync);
     }
 
