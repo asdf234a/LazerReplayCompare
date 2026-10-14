@@ -170,6 +170,8 @@ public sealed class ReplayFinder
             if (modsValue is not IEnumerable modsEnumerable)
                 return new List<ReplayMod>();
 
+            var lazerMods = GetLazerMods(score);
+
             return modsEnumerable
                 .Cast<object>()
                 .Select(mod =>
@@ -179,7 +181,12 @@ public sealed class ReplayFinder
                     var display = settings.Count == 0 ? acronym : $"{acronym}({FormatSettings(settings)})";
                     var matchKey = settings.Count == 0 ? acronym : $"{acronym}({BuildSettingsKey(settings)})";
 
-                    return new ReplayMod(acronym, settings, display, matchKey);
+                    var lazerMod = lazerMods.GetValueOrDefault(acronym);
+
+                    return new ReplayMod(acronym, settings, display, matchKey,
+                        Name: lazerMod?.Name ?? string.Empty,
+                        Type: lazerMod?.Type.ToString() ?? string.Empty,
+                        ExtendedInfo: lazerMod?.ExtendedIconInformation ?? string.Empty);
                 })
                 .Where(mod => !string.IsNullOrWhiteSpace(mod.Acronym))
                 .OrderBy(mod => mod.Acronym, StringComparer.Ordinal)
@@ -190,6 +197,22 @@ public sealed class ReplayFinder
         {
             InternalLogger.Log(ex);
             return new List<ReplayMod>();
+        }
+    }
+
+    /// <summary>The score's mods as osu!lazer mod instances (with their settings), for icon details.</summary>
+    private static Dictionary<string, osu.Game.Rulesets.Mods.Mod> GetLazerMods(ScoreInfo score)
+    {
+        try
+        {
+            return score.Mods
+                        .GroupBy(mod => mod.Acronym, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+            return new Dictionary<string, osu.Game.Rulesets.Mods.Mod>(StringComparer.OrdinalIgnoreCase);
         }
     }
 

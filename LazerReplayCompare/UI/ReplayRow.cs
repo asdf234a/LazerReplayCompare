@@ -18,6 +18,8 @@ public sealed class ReplayRow : ObservableObject
     public string Player => Entry.Player;
     public string DateText => FormatDateOnly(Entry.Date);
     public string ModsText => Entry.ModsText;
+    public IReadOnlyList<ReplayMod> Mods => Entry.Mods;
+    public bool HasMods => Entry.Mods.Count > 0;
     public string ScoreText => Entry.Score.ToString("N0", CultureInfo.InvariantCulture);
     public string AccuracyText => (Entry.Accuracy * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%";
     public int Miss => Entry.Statistics.GetValueOrDefault("Miss");

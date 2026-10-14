@@ -1,10 +1,16 @@
 namespace LazerReplayCompare;
 
+/// <param name="Name">osu!lazer's name for the mod ("Double Time"), which also names its icon.</param>
+/// <param name="Type">osu!lazer's ModType ("DifficultyIncrease", …), which picks the icon colour.</param>
+/// <param name="ExtendedInfo">What osu!lazer shows next to the icon ("1.20x", "OD8"), if anything.</param>
 public record ReplayMod(
     string Acronym,
     Dictionary<string, string> Settings,
     string Display,
-    string MatchKey);
+    string MatchKey,
+    string Name = "",
+    string Type = "",
+    string ExtendedInfo = "");
 
 public record ReplayEntry(
     string FilePath,

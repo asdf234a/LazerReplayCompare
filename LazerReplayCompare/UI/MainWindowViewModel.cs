@@ -243,6 +243,8 @@ public sealed class MainWindowViewModel : ObservableObject
             OnPropertyChanged(nameof(TargetPlayer));
             OnPropertyChanged(nameof(TargetSummary));
             OnPropertyChanged(nameof(TargetDetailText));
+            OnPropertyChanged(nameof(TargetMods));
+            OnPropertyChanged(nameof(TargetHasMods));
             OnPropertyChanged(nameof(TargetScoreText));
             OnPropertyChanged(nameof(TargetAccuracyText));
             OnPropertyChanged(nameof(TargetDateText));
@@ -274,6 +276,8 @@ public sealed class MainWindowViewModel : ObservableObject
     public string TargetDateText => Target == null ? "-" : ReplayRow.FormatDateOnly(Target.Date);
     public string TargetSummary => Target == null ? "-" : $"{TargetAccuracyText} · {Target.ModsText} · {TargetDateText}";
     public string TargetDetailText => Target == null ? "-" : $"{Target.ModsText} · {TargetDateText}";
+    public IReadOnlyList<ReplayMod> TargetMods => Target?.Mods ?? (IReadOnlyList<ReplayMod>)Array.Empty<ReplayMod>();
+    public bool TargetHasMods => TargetMods.Count > 0;
     private PlaySpeed autoSpeed = new(1, false);
 
     /// <summary>Rate/Classic the auto target must match (the current play's).</summary>

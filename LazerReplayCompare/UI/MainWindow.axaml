@@ -243,7 +243,12 @@
                       <Button Content="Unpin" Click="UnpinReplay" IsVisible="{Binding IsTargetPinned}" MinHeight="26" Padding="10,0" FontSize="12" />
                     </StackPanel>
                     <TextBlock Text="{Binding TargetPlayer}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Classes="muted" FontSize="12" Text="{Binding TargetDetailText}" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" ToolTip.Tip="{Binding Target.ModsText}">
+                      <local:ModBadges Mods="{Binding TargetMods}" BadgeHeight="18" VerticalAlignment="Center" IsVisible="{Binding TargetHasMods}" />
+                      <TextBlock Classes="muted" FontSize="12" Text="NM" VerticalAlignment="Center" IsVisible="{Binding !TargetHasMods}" />
+                      <TextBlock Classes="muted" FontSize="12" Text="·" VerticalAlignment="Center" />
+                      <TextBlock Classes="muted" FontSize="12" Text="{Binding TargetDateText}" VerticalAlignment="Center" />
+                    </StackPanel>
                   </StackPanel>
 
                   <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Right">
@@ -303,7 +308,7 @@
               </StackPanel>
               <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" ClipToBounds="True">
                 <Grid RowDefinitions="Auto,Auto">
-                  <Grid ColumnDefinitions="52,1.4*,1*,0.8*,1.1*,1*,0.9*,0.6*,0.7*,0.6*" Margin="0,4,0,4">
+                  <Grid ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*" Margin="0,4,0,4">
                     <TextBlock Grid.Column="1" Classes="muted" FontSize="12" Text="Player" VerticalAlignment="Center" Margin="8,0" />
                     <Button Grid.Column="2" Classes="sortHeader" HorizontalContentAlignment="Left" Margin="8,0" Content="{Binding DateHeader}" Tag="Date" Click="SortReplays" />
                     <TextBlock Grid.Column="3" Classes="muted" FontSize="12" Text="Mods" VerticalAlignment="Center" Margin="8,0" />
@@ -322,7 +327,7 @@
                         <Border Classes="replayRow" Classes.target="{Binding IsTarget}">
                           <Grid>
                             <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TargetAccentBrush}" IsVisible="{Binding IsTarget}" />
-                            <Grid ColumnDefinitions="52,1.4*,1*,0.8*,1.1*,1*,0.9*,0.6*,0.7*,0.6*" MinHeight="48">
+                            <Grid ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*" MinHeight="48">
                               <ToggleButton Classes="pin" IsChecked="{Binding IsPinned, Mode=TwoWay}" ToolTip.Tip="{Binding PinTooltip}"
                                             HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,0,0,0">
                                 <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
@@ -335,7 +340,10 @@
                                 </Border>
                               </StackPanel>
                               <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding DateText}" VerticalAlignment="Center" Margin="8,0" />
-                              <TextBlock Grid.Column="3" Classes="secondary mono" Text="{Binding ModsText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="8,0" />
+                              <Panel Grid.Column="3" Margin="8,0" VerticalAlignment="Center" ClipToBounds="True" Background="Transparent" ToolTip.Tip="{Binding ModsText}">
+                                <local:ModBadges Mods="{Binding Mods}" BadgeHeight="22" HorizontalAlignment="Left" IsVisible="{Binding HasMods}" />
+                                <TextBlock Classes="secondary mono" Text="NM" IsVisible="{Binding !HasMods}" />
+                              </Panel>
                               <TextBlock Grid.Column="4" Classes="mono" Text="{Binding ScoreText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                               <TextBlock Grid.Column="5" Classes="mono muted" Classes.ahead="{Binding IsAheadOfTarget}" Classes.behind="{Binding IsBehindTarget}"
                                          Text="{Binding VsTargetText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />

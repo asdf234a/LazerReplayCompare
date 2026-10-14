@@ -63,6 +63,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- osu!lazer's mod icons (from ppy/osu-resources), drawn the way the game draws them. -->
+    <AvaloniaResource Include="Assets\Mods\*.png" />
+    <!-- Stand-in for osu!lazer's Torus font (SIL OFL, see Quicksand-OFL.txt). -->
+    <AvaloniaResource Include="Assets\Fonts\*.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\LazerReplayCompare.Core\LazerReplayCompare.Core.csproj" />
   </ItemGroup>
 
