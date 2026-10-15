@@ -45,9 +45,13 @@ public sealed partial class MainWindow : Window
     private Grid replayHeader = null!;
     private bool narrowPage;
 
-    // the banner's height and the page content's width (StackPanel MaxWidth + margins), before the zoom
-    private const double banner_height = 460;
+    // the banner's least height and the page content's width (StackPanel MaxWidth + margins), before the zoom
+    private const double banner_min_height = 460;
     private const double page_content_width = 1160 + 2 * 28;
+    // The banner's fade into the blurred copy, from its top (0) to its bottom (1): sharp down to a bit under half way,
+    // then gradually blurred. The blurred sides fade the same way.
+    private static readonly (double Offset, byte Alpha)[] banner_fade =
+        [(0.42, 255), (0.52, 242), (0.62, 210), (0.72, 160), (0.82, 100), (0.91, 45), (1, 0)];
     // how far the sharp banner fades into the blurred sides, before the zoom
     private const double banner_side_fade = 120;
 
@@ -117,8 +121,8 @@ public sealed partial class MainWindow : Window
             var offset = scroll.Offset.Y;
             bannerScroll = offset;
             bannerOffset.Y = -offset * viewModel.Zoom;
-            // ... and gradually gives way to the blurred copy as the page scrolls.
-            banner.Opacity = Math.Clamp(1 - offset / 320, 0, 1);
+            // ... and gradually gives way to the blurred copy as the page scrolls (gone once its sharp part is scrolled past).
+            banner.Opacity = Math.Clamp(1 - offset / Math.Max(1, banner.Height / viewModel.Zoom * banner_fade[0].Offset), 0, 1);
             fadeBannerSides();
         }
 
@@ -135,6 +139,8 @@ public sealed partial class MainWindow : Window
         {
             if (e.PropertyName == nameof(MainWindowViewModel.ShowDetailsPage))
                 followScroll(viewModel.ShowDetailsPage ? detailsScroll : compareScroll);
+            else if (e.PropertyName == nameof(MainWindowViewModel.BackgroundImage))
+                layoutBanner();   // its height follows the image's shape
         };
 
         // In a narrow window the legend stacks into one column so the target's name keeps its room.
@@ -1184,11 +1190,14 @@ public sealed partial class MainWindow : Window
 
         var zoom = viewModel.Zoom;
         var width = Bounds.Width;
-        banner.Height = banner_height * zoom;
-
         var fade = banner_side_fade * zoom;
         var column = Math.Min(width, page_content_width * zoom + fade);
         bannerColumn.Width = column;
+
+        // tall enough for the whole image across the column (no taller than 4:3, nor than the window)
+        var aspect = viewModel.BackgroundImage is { Size: { Width: > 0 } size } ? Math.Min(size.Height / size.Width, 0.75) : 9 / 16.0;
+        banner.Height = Math.Max(banner_min_height * zoom, Math.Min(column * aspect, Bounds.Height));
+        banner.OpacityMask = fadeDown(new RelativePoint(0, 0, RelativeUnit.Relative), new RelativePoint(0, 1, RelativeUnit.Relative));
 
         var side = (width - column) / 2;
         bannerSides.IsVisible = side > 1;
@@ -1238,20 +1247,19 @@ public sealed partial class MainWindow : Window
         if (!bannerSides.IsVisible)
             return;
 
+        // the banner's own fade, at the banner's place in the window
         var top = -bannerScroll * viewModel.Zoom;
         bannerSides.Opacity = banner.Opacity;
-        bannerSides.OpacityMask = new LinearGradientBrush
-        {
-            // the banner's own fade (see its OpacityMask), at the banner's place in the window
-            StartPoint = new RelativePoint(0, top, RelativeUnit.Absolute),
-            EndPoint = new RelativePoint(0, top + banner.Height, RelativeUnit.Absolute),
-            GradientStops =
-            {
-                new GradientStop(Colors.Black, 0.62),
-                new GradientStop(Color.FromArgb(0x99, 0, 0, 0), 0.82),
-                new GradientStop(Colors.Transparent, 1),
-            },
-        };
+        bannerSides.OpacityMask = fadeDown(new RelativePoint(0, top, RelativeUnit.Absolute), new RelativePoint(0, top + banner.Height, RelativeUnit.Absolute));
+    }
+
+    /// <summary>The banner's fade (<see cref="banner_fade"/>) from <paramref name="top"/> down to <paramref name="bottom"/>.</summary>
+    private static LinearGradientBrush fadeDown(RelativePoint top, RelativePoint bottom)
+    {
+        var brush = new LinearGradientBrush { StartPoint = top, EndPoint = bottom };
+        foreach (var (offset, alpha) in banner_fade)
+            brush.GradientStops.Add(new GradientStop(Color.FromArgb(alpha, 0, 0, 0), offset));
+        return brush;
     }
 
     private void setNarrowPage(bool narrow)

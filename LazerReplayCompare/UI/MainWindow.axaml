@@ -53,18 +53,10 @@
       </Panel>
     </Panel>
 
-    <!-- ... and the sharp image behind the top bar and "now playing", fading out into the blurred copy. -->
-    <!-- Its height follows the page zoom, and the sharp image is only as wide as the page's content: in a wider
-         window it fades into the blurred sides at its edges (see layoutBanner). -->
-    <Panel x:Name="Banner" Height="460" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
-      <Panel.OpacityMask>
-        <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-          <GradientStop Offset="0" Color="Black" />
-          <GradientStop Offset="0.62" Color="Black" />
-          <GradientStop Offset="0.82" Color="#99000000" />
-          <GradientStop Offset="1" Color="Transparent" />
-        </LinearGradientBrush>
-      </Panel.OpacityMask>
+    <!-- ... and the sharp image behind the top of the page, tall enough to show all of it, gradually giving way to the
+         blurred copy from about halfway down. It is only as wide as the page's content: in a wider window it fades
+         into the blurred sides at its edges (see layoutBanner). -->
+    <Panel x:Name="Banner" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
       <Panel x:Name="BannerColumn" HorizontalAlignment="Center">
         <local:FocalImage Source="{Binding BackgroundImage}" />
       </Panel>
