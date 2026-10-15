@@ -47,11 +47,12 @@ public sealed partial class MainWindow : Window
     private bool closing;
     private bool started;
     private CancellationTokenSource? correctionCancellation;
-    private CorrectionMode lastCorrectionMode;
+    private (CorrectionMode Mode, string ScaleMetric) lastTimelineSettings;
+    private FileSystemWatcher? customItemsWatcher;
 
     public MainWindow()
     {
-        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, timelineBuilder);
+        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, () => settingsService.OverlayDisplay, timelineBuilder);
 
         AvaloniaXamlLoader.Load(this);
         DataContext = viewModel;
@@ -148,6 +149,7 @@ public sealed partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         closing = true;
+        customItemsWatcher?.Dispose();
         compactWindow?.Close();
         tosuClient.Dispose();
         apiServer.Dispose();
@@ -171,7 +173,12 @@ public sealed partial class MainWindow : Window
         viewModel.CorrectionMode = ParseCorrectionMode(current.CorrectionMode);
 
         ThemeService.Apply(this, viewModel.Theme);
-        lastCorrectionMode = viewModel.CorrectionMode;
+
+        // custom overlay items: metrics.json next to the settings, watched so new items appear in the pickers at once
+        OverlayItems.CustomPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LazerReplayCompare", "metrics.json");
+        viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay);
+        watchCustomItems();
+        lastTimelineSettings = (viewModel.CorrectionMode, OverlayItems.ScaleMetric(viewModel.OverlayDisplay.MainItem));
     }
 
     private void OnSettingsChanged()
@@ -179,21 +186,68 @@ public sealed partial class MainWindow : Window
         settingsService.SetTheme(viewModel.Theme);
         settingsService.SetShowBackground(viewModel.ShowBackground);
         settingsService.SetCorrectionMode(viewModel.CorrectionMode);
+        var display = viewModel.OverlayDisplay;
+        settingsService.SetOverlayDisplay(display.MainItem, display.MainShow, display.SubItem, display.SubShow);
 
         ThemeService.Apply(this, viewModel.Theme);
         if (compactWindow != null)
             ThemeService.Apply(compactWindow, viewModel.Theme);
         RebuildJudgementBar();
 
-        // The correction shown for the target depends on the timeline mode.
-        if (viewModel.CorrectionMode != lastCorrectionMode)
-        {
-            lastCorrectionMode = viewModel.CorrectionMode;
+        // The correction shown for the target depends on the timeline mode (and on the Main item when scaled).
+        var timelineSettings = (viewModel.CorrectionMode, OverlayItems.ScaleMetric(display.MainItem));
+        var affectsTimeline = timelineSettings.Item1 != lastTimelineSettings.Mode ||
+                              (timelineSettings.Item1 == CorrectionMode.Scaled && timelineSettings.Item2 != lastTimelineSettings.ScaleMetric);
+        lastTimelineSettings = timelineSettings;
+        if (affectsTimeline)
             UpdateTarget();
-        }
     }
 
     private CorrectionMode GetCurrentCorrectionMode() => ParseCorrectionMode(settingsService.Current.CorrectionMode);
+
+    /// <summary>Refreshes the overlay pickers when metrics.json changes (the overlays get the new items through /state).</summary>
+    private void watchCustomItems()
+    {
+        var path = OverlayItems.CustomPath;
+        var folder = System.IO.Path.GetDirectoryName(path);
+        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+            return;
+
+        try
+        {
+            customItemsWatcher = new FileSystemWatcher(folder, System.IO.Path.GetFileName(path))
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size,
+                EnableRaisingEvents = true,
+            };
+            void changed(object? sender, FileSystemEventArgs e) => Dispatcher.UIThread.Post(async () =>
+            {
+                await Task.Delay(150);   // editors write in several steps
+                viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay);
+            });
+            customItemsWatcher.Changed += changed;
+            customItemsWatcher.Created += changed;
+            customItemsWatcher.Renamed += (sender, e) => changed(sender, e);
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+
+    private void OpenCustomItems(object? sender, RoutedEventArgs e)
+    {
+        OverlayItems.CustomPath = OverlayItems.CustomPath;   // recreates the example file if it was deleted
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = OverlayItems.CustomPath, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+            OpenInExplorer($"/select,\"{OverlayItems.CustomPath}\"");
+        }
+    }
 
     private (string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay) GetCurrentReplays()
     {
@@ -697,9 +751,10 @@ public sealed partial class MainWindow : Window
 
         var cancellation = correctionCancellation = new CancellationTokenSource();
         var mode = viewModel.CorrectionMode;
-        // shown (and scaled) by score: each overlay picks its own item in its config.json
-        var metric = MetricRegistry.Default;
-        var metricName = "score";
+        // a scaled timeline is stretched by the Main overlay's item
+        var mainItem = viewModel.OverlayDisplay.MainItem;
+        var metric = MetricRegistry.Find(OverlayItems.ScaleMetric(mainItem)) ?? MetricRegistry.Default;
+        var metricName = OverlayItems.NameOf(mainItem == OverlayItems.Off ? "score" : mainItem).ToLowerInvariant();
         viewModel.ShowCorrectionLoading();
 
         _ = Task.Run(() =>

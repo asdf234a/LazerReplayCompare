@@ -7,12 +7,12 @@ It reads osu!lazer's `client.realm` and `files` storage, finds replay files for 
 ## Features
 
 - Shows a Windows UI when launched, with two pages:
-  - **Compare**: the beatmap selected in osu!lazer or osu!stable (over its background image, which can be turned off in Settings), the replay being compared against (in auto mode the best score at the current play's rate and Classic mod — the same rule as the overlays — or the one you pinned) with how exactly its timeline matches the recorded score and its judgement breakdown, and a sortable list of the map's replays (score difference to the target, pin buttons).
+  - **Compare**: the beatmap selected in osu!lazer or osu!stable (over its background image, which can be turned off in Settings), what the Main and Sub overlays show (an item and Diff / Live / Replay each), the replay being compared against (in auto mode the best score at the current play's rate and Classic mod — the same rule as the overlays — or the one you pinned) with how exactly its timeline matches the recorded score and its judgement breakdown, and a sortable list of the map's replays (score difference to the target, pin buttons).
   - **Replay details** (click a replay): its recorded result and judgement ring, and an analysis of every press and release judged by the engine of the game that recorded it — hit error distribution (long notes judged differently stacked on top), early/late and unstable rate, an offset hint, every press over the song (column highlight up to 10 keys) and long-note release charts. Charts show their numbers on hover.
   - **Settings**: replay timeline mode (Corrected / Raw / Scaled), osu!lazer folder, osu!stable folder, overlay folder, theme (System / Dark / Light) and whether to show the beatmap background.
 - Shows problems (tosu not running, osu!lazer or — while playing osu!stable — osu!stable folder not found, overlay API port in use) as banners at the top, and the connection state in the top bar.
 - Compact mode: a small always-on-top window with the target and the match status, for while you play.
-- What each overlay shows is set in its own `config.json` (see the main README), read again while it runs.
+- Custom overlay items (weighted judgement counts) in `%LocalAppData%\LazerReplayCompare\metrics.json`, read again when it changes.
 - Uses one osu!lazer root folder and automatically resolves:
   - `client.realm`
   - `files`
@@ -92,7 +92,7 @@ GET http://127.0.0.1:24052/metrics
 
 ### Overlay items
 
-The overlays work out their items themselves (`static/lazerReplayCompareShared/metrics.js`): `score`, `score_acc`, `acc`, `stable_acc`, `lazer_acc`, plus judgement-count items from `static/lazerReplayCompareShared/metrics.json`. Each overlay picks its items in its own `config.json`, so changing what they show needs neither a rebuild nor the app.
+The overlays work out their items themselves (`static/lazerReplayCompareShared/metrics.js`): `score`, `score_acc`, `acc`, `stable_acc`, `lazer_acc`, plus custom items. `/state` tells them what to show — `display.main` / `display.sub` as `{ item, show }` (`show`: `diff`, `value` or `target`), picked in the app — and lists every item in `items`, custom ones (from `metrics.json`, `OverlayItems` in Core) with their weights.
 
 `/perfect` returns `scores`: the score after 0, 1, 2… judgements if every judgement were MAX, as the client scores the beatmap with those mods (osu!lazer: standardised score, hold note heads and tails judged apart; osu!stable: ScoreV1, one judgement per hold note). `score_acc` is the live (or replay) score divided by it at the same judgement count.
 

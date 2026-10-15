@@ -8,6 +8,7 @@ public sealed class ReplayApiServer : IDisposable
 {
     private readonly Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays;
     private readonly Func<CorrectionMode> getDefaultCorrectionMode;
+    private readonly Func<OverlayDisplay> getOverlayDisplay;
     private readonly ReplayTimelineBuilder timelineBuilder;
 
     // /perfect results by beatmap, client and mods (most recent last)
@@ -19,11 +20,13 @@ public sealed class ReplayApiServer : IDisposable
     public ReplayApiServer(
         Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays,
         Func<CorrectionMode> getDefaultCorrectionMode,
+        Func<OverlayDisplay> getOverlayDisplay,
         ReplayTimelineBuilder timelineBuilder)
     {
         this.timelineBuilder = timelineBuilder;
         this.getReplays = getReplays;
         this.getDefaultCorrectionMode = getDefaultCorrectionMode;
+        this.getOverlayDisplay = getOverlayDisplay;
     }
 
     public int Port { get; private set; }
@@ -213,12 +216,21 @@ public sealed class ReplayApiServer : IDisposable
         var selectedReplayKey = replay == null
             ? string.Empty
             : $"{replay.FilePath}|{replay.Score}|{replay.Timestamp}|{replay.ModsKey}";
-        // Which item each overlay shows is set in its own config.json; a scaled timeline is asked for with that item.
+        // A scaled timeline is asked for with the overlay's own item, so the item is part of the overlays' cache keys.
         var timelineKey = $"{md5}|{selectedReplayKey}|{correctionMode}|{replayListVersion}";
+        var display = getOverlayDisplay();
 
         return new
         {
             correctionMode,
+            // what the overlays show, chosen in the app
+            display = new
+            {
+                main = new { item = display.MainItem, show = display.MainShow },
+                sub = new { item = display.SubItem, show = display.SubShow },
+            },
+            // built-in items, and custom ones (judgement-count formulas) from metrics.json
+            items = OverlayItems.ToJson(),
             beatmapMd5 = md5,
             selectedReplay = replay,
             replayCount = replayList.Count,

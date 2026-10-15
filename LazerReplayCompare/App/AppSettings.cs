@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace LazerReplayCompare;
 
@@ -8,6 +9,19 @@ public sealed class AppSettings
     public string OsuStablePath { get; set; } = string.Empty;
     public string Theme { get; set; } = "System";
     public string CorrectionMode { get; set; } = "Corrected";
+
+    // What the overlays show: an item (OverlayItems) and how (OverlayShow), for Main and Sub.
+    public string MainItem { get; set; } = string.Empty;
+    public string MainShow { get; set; } = OverlayShow.Diff;
+    public string SubItem { get; set; } = string.Empty;
+    public string SubShow { get; set; } = OverlayShow.Value;
+
+    // Before 1.2 the overlays' metrics: read once into MainItem / SubItem, then dropped.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MainMetric { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SubMetric { get; set; }
     public bool ShowBackground { get; set; } = true;
 
     private static string SettingsPath => Path.Combine(
@@ -23,7 +37,13 @@ public sealed class AppSettings
                 return new AppSettings();
 
             var json = File.ReadAllText(SettingsPath);
-            return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            if (string.IsNullOrWhiteSpace(settings.MainItem) && !string.IsNullOrWhiteSpace(settings.MainMetric))
+                settings.MainItem = settings.MainMetric;
+            if (string.IsNullOrWhiteSpace(settings.SubItem) && !string.IsNullOrWhiteSpace(settings.SubMetric))
+                settings.SubItem = settings.SubMetric;
+            settings.MainMetric = settings.SubMetric = null;
+            return settings;
         }
         catch (Exception ex)
         {

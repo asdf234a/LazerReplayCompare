@@ -25,6 +25,12 @@ public abstract class ObservableObject : INotifyPropertyChanged
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
+/// <summary>An entry of an overlay picker (an item, or how it is shown).</summary>
+public sealed record OverlayOption(string Key, string Name)
+{
+    public override string ToString() => Name;
+}
+
 /// <param name="Key">Judgement name; the window maps it to a theme brush (Judgement{Key}Brush).</param>
 public sealed record JudgementSegment(string Key, int Count)
 {
@@ -48,7 +54,7 @@ public sealed class MainWindowViewModel : ObservableObject
 {
     public ObservableCollection<ReplayRow> ReplayRows { get; } = new();
 
-    /// <summary>Raised when the user changes the timeline mode, the theme or the background setting.</summary>
+    /// <summary>Raised when the user changes what the overlays show, the timeline mode, the theme or the background setting.</summary>
     public event Action? SettingsChanged;
 
     // --- Pages ---
@@ -552,6 +558,86 @@ public sealed class MainWindowViewModel : ObservableObject
         CorrectionDetail = message;
         CorrectionShort = "Hover for details";
     }
+
+    // --- What the overlays show ---
+
+    private OverlayOption? selectedMainItem;
+    private OverlayOption? selectedMainShow;
+    private OverlayOption? selectedSubItem;
+    private OverlayOption? selectedSubShow;
+    private bool fillingOverlayOptions;
+
+    public ObservableCollection<OverlayOption> MainItemOptions { get; } = new();
+    public ObservableCollection<OverlayOption> SubItemOptions { get; } = new();
+
+    public IReadOnlyList<OverlayOption> ShowOptions { get; } =
+    [
+        new(OverlayShow.Diff, "Diff"),
+        new(OverlayShow.Value, "Live"),
+        new(OverlayShow.Target, "Replay"),
+    ];
+
+    public OverlayOption? SelectedMainItem
+    {
+        get => selectedMainItem;
+        set => setOverlayOption(ref selectedMainItem, value);
+    }
+
+    public OverlayOption? SelectedMainShow
+    {
+        get => selectedMainShow;
+        set => setOverlayOption(ref selectedMainShow, value);
+    }
+
+    public OverlayOption? SelectedSubItem
+    {
+        get => selectedSubItem;
+        set => setOverlayOption(ref selectedSubItem, value);
+    }
+
+    public OverlayOption? SelectedSubShow
+    {
+        get => selectedSubShow;
+        set => setOverlayOption(ref selectedSubShow, value);
+    }
+
+    private void setOverlayOption(ref OverlayOption? field, OverlayOption? value, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+    {
+        // a picker briefly loses its selection while its list is rebuilt
+        if (value == null || fillingOverlayOptions || !Set(ref field, value, name))
+            return;
+
+        SettingsChanged?.Invoke();
+    }
+
+    /// <summary>Fills the pickers with <paramref name="items"/> (each can also be Off) and selects <paramref name="display"/>.</summary>
+    public void SetOverlayItems(IReadOnlyList<OverlayItem> items, OverlayDisplay display)
+    {
+        fillingOverlayOptions = true;
+        var options = items.Select(item => new OverlayOption(item.Key, item.Name)).Append(new OverlayOption(OverlayItems.Off, "Off")).ToList();
+        foreach (var list in new[] { MainItemOptions, SubItemOptions })
+        {
+            list.Clear();
+            foreach (var option in options)
+                list.Add(option);
+        }
+
+        selectedMainItem = MainItemOptions.FirstOrDefault(o => o.Key == display.MainItem) ?? MainItemOptions[0];
+        selectedSubItem = SubItemOptions.FirstOrDefault(o => o.Key == display.SubItem) ?? SubItemOptions[0];
+        selectedMainShow = ShowOptions.FirstOrDefault(o => o.Key == display.MainShow) ?? ShowOptions[0];
+        selectedSubShow = ShowOptions.FirstOrDefault(o => o.Key == display.SubShow) ?? ShowOptions[1];
+        fillingOverlayOptions = false;
+
+        OnPropertyChanged(nameof(SelectedMainItem));
+        OnPropertyChanged(nameof(SelectedMainShow));
+        OnPropertyChanged(nameof(SelectedSubItem));
+        OnPropertyChanged(nameof(SelectedSubShow));
+    }
+
+    /// <summary>The pickers' choices.</summary>
+    public OverlayDisplay OverlayDisplay => new(
+        SelectedMainItem?.Key ?? "score", SelectedMainShow?.Key ?? OverlayShow.Diff,
+        SelectedSubItem?.Key ?? "acc", SelectedSubShow?.Key ?? OverlayShow.Value);
 
     // --- Timeline mode and theme (radio groups) ---
 

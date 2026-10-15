@@ -1,28 +1,27 @@
-// The Main and Sub overlays: one item, as set in the overlay's own config.json.
+// The Main and Sub overlays: one item each, picked in the LazerReplayCompare app (Compare page).
 //
-// config.json:
-//   "item": score | score_acc | acc | stable_acc | lazer_acc | a key from lazerReplayCompareShared/metrics.json | off
-//   "show": diff   – live minus the compared replay at the same note
-//           value  – the live value
-//           target – the compared replay's value at the same note
-// Changes to config.json apply while the overlay runs.
+// item: score | score_acc | acc | stable_acc | lazer_acc | a custom item from the app's metrics.json | off
+// show: diff   – live minus the compared replay at the same note
+//       value  – the live value
+//       target – the compared replay's value at the same note
 
 import { createCounter } from './counter.js';
-import { OFF, itemValue, needsPerfect, resolveItem, scaleKeyOf, timelineFactor, watchConfig } from './metrics.js';
+import { OFF, itemValue, needsPerfect, resolveItem, scaleKeyOf, setItems, timelineFactor } from './metrics.js';
 import { createSession } from './session.js';
 
 const SHOW_MODES = ['diff', 'value', 'target'];
 
 /**
  * @param {object} options
- * @param {string} options.name                          Overlay name (console messages).
- * @param {{ item: string, show: string }} options.defaults  Used until config.json says otherwise.
+ * @param {string} options.name                              Overlay name (console messages).
+ * @param {'main' | 'sub'} options.role                      Which of the app's choices it follows.
+ * @param {{ item: string, show: string }} options.defaults  Used until the app answers.
  */
-export function startSingleItemOverlay({ name, defaults }) {
-    const config = { ...defaults };
+export function startSingleItemOverlay({ name, role, defaults }) {
+    const display = { ...defaults };
     const counter = createCounter(document.querySelector('#counter'));
 
-    const currentItem = () => resolveItem(config.item, defaults.item);
+    const currentItem = () => resolveItem(display.item, defaults.item);
 
     const session = createSession({
         name,
@@ -30,6 +29,13 @@ export function startSingleItemOverlay({ name, defaults }) {
         // a scaled timeline is stretched by what this overlay shows
         scaleMetric: () => scaleKeyOf(currentItem()),
         needsPerfect: () => needsPerfect(currentItem()),
+        onState: (data) => {
+            setItems(data?.items);
+            const chosen = data?.display?.[role];
+            if (!chosen) return;
+            display.item = chosen.item ?? display.item;
+            display.show = SHOW_MODES.includes(chosen.show) ? chosen.show : display.show;
+        },
     });
 
     function render() {
@@ -40,7 +46,7 @@ export function startSingleItemOverlay({ name, defaults }) {
             return;
         }
 
-        if (config.show === 'value') {
+        if (display.show === 'value') {
             const value = itemValue(key, session.liveSource());
             if (value == null) counter.hide();
             else counter.show(key, value, false);
@@ -55,7 +61,7 @@ export function startSingleItemOverlay({ name, defaults }) {
             return;
         }
 
-        if (config.show === 'target') {
+        if (display.show === 'target') {
             counter.show(key, replay, false);
             return;
         }
@@ -65,14 +71,5 @@ export function startSingleItemOverlay({ name, defaults }) {
         else counter.show(key, live - replay, true);
     }
 
-    watchConfig(new URL('config.json', location.href).href, (json) => {
-        config.item = json?.item ?? defaults.item;
-        config.show = SHOW_MODES.includes(String(json?.show).toLowerCase()) ? String(json.show).toLowerCase() : defaults.show;
-        session.refresh();
-        render();
-    });
-
-    // custom items from metrics.json may arrive after the config that names them
-    setInterval(render, 1000);
     render();
 }

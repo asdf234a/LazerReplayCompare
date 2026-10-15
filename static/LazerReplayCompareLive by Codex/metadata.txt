@@ -1,4 +1,4 @@
 Name: LazerReplayCompareLive
 Author: Codex
 Version: 2.0.0
-Description: Live play and the compared replay side by side: two items (set in config.json) and every judgement count. Requires LazerReplayCompare running on port 24052.
+Description: Live play and the compared replay side by side: the Main and Sub items picked in the app and every judgement count. Requires LazerReplayCompare running on port 24052.

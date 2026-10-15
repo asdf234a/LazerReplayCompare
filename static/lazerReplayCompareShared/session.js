@@ -24,8 +24,9 @@ const LAZER_COMPARE_HOST = window.LAZER_COMPARE_HOST || '127.0.0.1:24052';
  * @param {() => void} options.onUpdate            Called whenever something shown may have changed.
  * @param {() => string} [options.scaleMetric]     App metric to stretch scaled timelines by (from the shown item).
  * @param {() => boolean} [options.needsPerfect]   Whether perfect scores are needed (score_acc is shown).
+ * @param {(data: object) => void} [options.onState]  Called with every /state answer (what to show, custom items).
  */
-export function createSession({ name, onUpdate, scaleMetric = () => 'Score', needsPerfect = () => false }) {
+export function createSession({ name, onUpdate, scaleMetric = () => 'Score', needsPerfect = () => false, onState = () => {} }) {
     const state = {
         client: 'lazer',
         gameState: '',
@@ -253,14 +254,32 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
         }
     }
 
-    /** Asks the app what to compare against; reloads when the target, the replay list or the timeline mode changed. */
+    /**
+     * Asks the app what to show and what to compare against; reloads when the target, the replay list, the timeline
+     * mode or the shown item changed. Outside play it only picks up what to show.
+     */
     async function check() {
-        if (!isPlaying() || !isSupportedClient(state.client) || !state.beatmapChecksum || !state.osuPath || checking) return;
+        if (checking) return;
+        if (!isPlaying() || !isSupportedClient(state.client) || !state.beatmapChecksum || !state.osuPath) {
+            checking = true;
+            try {
+                const data = await fetchJson('/state');
+                onState(data);
+                update();
+            } catch {
+                // the app is not running (yet)
+            } finally {
+                checking = false;
+            }
+            return;
+        }
 
         checking = true;
         try {
             const data = await fetchJson('/state');
             state.correctionMode = data.correctionMode || state.correctionMode;
+            onState(data);
+            update();
             if (data.beatmapMd5 !== state.beatmapChecksum) {
                 resetTarget();
                 update();
@@ -349,7 +368,7 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
     }
 
     connect();
-    setInterval(check, 2000);
+    setInterval(check, 1000);
 
     return {
         state,

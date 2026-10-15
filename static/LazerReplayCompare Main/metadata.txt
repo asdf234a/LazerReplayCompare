@@ -1,4 +1,4 @@
 Name: LazerReplayCompare Main
 Author: LazerReplayCompare
 Version: 2.0.0
-Description: The main item (score difference by default) against your best replay, from LazerReplayCompare. What it shows is set in config.json.
+Description: The main item (score difference by default) against your best replay, from LazerReplayCompare. What it shows is picked in the app.

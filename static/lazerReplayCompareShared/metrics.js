@@ -1,7 +1,7 @@
 // Items the overlays can show, and how their values are worked out.
 //
-// Built in: score, score_acc, acc, stable_acc, lazer_acc. More items, made of judgement counts, can be added in
-// metrics.json next to this file; every overlay picks up changes to it while running.
+// Built in: score, score_acc, acc, stable_acc, lazer_acc. Which item each overlay shows, and any custom items (made
+// of judgement counts, from the app's metrics.json), come from LazerReplayCompare's /state.
 
 export const OFF = 'off';
 
@@ -83,14 +83,18 @@ function normalize(name) {
     return String(name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-/** Replaces the custom items with metrics.json's ({ "metrics": { key: { name, weights, average, format, scale } } }). */
-export function setCustomItems(json) {
+/**
+ * Replaces the custom items with the app's (the non-built-in entries of /state's `items`:
+ * { key, name, format, weights, average, scale, round }). Ignored when missing.
+ */
+export function setItems(list) {
+    if (!Array.isArray(list)) return;
     const next = {};
-    for (const [key, item] of Object.entries(json?.metrics || {})) {
-        if (!item || typeof item !== 'object' || !item.weights) continue;
+    for (const item of list) {
+        if (!item || item.builtIn || typeof item.key !== 'string' || !item.weights) continue;
         const scale = Number(item.scale) || 1;
-        next[key] = {
-            name: String(item.name || key),
+        next[item.key] = {
+            name: String(item.name || item.key),
             format: item.format === 'percent' ? 'percent' : 'integer',
             // scaled timelines stretch the score; these keep the replay's own judgement counts
             scaleKey: 'Score',
@@ -180,57 +184,3 @@ export function formatItem(key, value, signed = false) {
     const text = Math.abs(rounded).toLocaleString('en-US');
     return { sign, value: text, suffix: '', text: `${sign}${text}` };
 }
-
-// --- config files ---
-
-/** Parses JSON that may carry // and /* *\/ comments (outside strings). */
-export function parseConfig(text) {
-    let out = '';
-    for (let i = 0; i < text.length; i++) {
-        const char = text[i];
-        if (char === '"') {
-            const start = i;
-            for (i++; i < text.length && text[i] !== '"'; i++) if (text[i] === '\\') i++;
-            out += text.slice(start, i + 1);
-        } else if (char === '/' && text[i + 1] === '/') {
-            while (i < text.length && text[i] !== '\n') i++;
-            out += '\n';
-        } else if (char === '/' && text[i + 1] === '*') {
-            i += 2;
-            while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
-            i++;
-        } else {
-            out += char;
-        }
-    }
-
-    // trailing commas are a common slip when editing by hand
-    return JSON.parse(out.replace(/,(\s*[}\]])/g, '$1'));
-}
-
-/**
- * Loads a config file now and again every `interval` ms, calling `onChange` with the parsed object whenever its text
- * changes (so editing it takes effect without reloading the overlay). A missing or broken file keeps the last one.
- */
-export function watchConfig(url, onChange, interval = 2000) {
-    let last = null;
-
-    const load = async () => {
-        try {
-            const res = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' });
-            if (!res.ok) return;
-            const text = await res.text();
-            if (text === last) return;
-            const parsed = parseConfig(text);
-            last = text;
-            onChange(parsed);
-        } catch (err) {
-            console.warn(`[LazerReplayCompare] ${url}:`, err.message || err);
-        }
-    };
-
-    load();
-    setInterval(load, interval);
-}
-
-watchConfig(new URL('./metrics.json', import.meta.url).href, setCustomItems, 5000);

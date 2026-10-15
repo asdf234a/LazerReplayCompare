@@ -38,4 +38,21 @@ public sealed class AppSettingsService
         Current.ShowBackground = show;
         Save();
     }
+
+    public void SetOverlayDisplay(string mainItem, string mainShow, string subItem, string subShow)
+    {
+        Current.MainItem = mainItem;
+        Current.MainShow = mainShow;
+        Current.SubItem = subItem;
+        Current.SubShow = subShow;
+        Save();
+    }
+
+    /// <summary>What the overlays show, normalised (unknown items fall back to score / acc).</summary>
+    public OverlayDisplay OverlayDisplay => new(
+        OverlayItems.Normalize(Current.MainItem, "score", allowOff: true), OverlayShow.Normalize(Current.MainShow, OverlayShow.Diff),
+        OverlayItems.Normalize(Current.SubItem, "acc", allowOff: true), OverlayShow.Normalize(Current.SubShow, OverlayShow.Value));
 }
+
+/// <summary>What the Main and Sub overlays show (the live panel shows both items).</summary>
+public sealed record OverlayDisplay(string MainItem, string MainShow, string SubItem, string SubShow);

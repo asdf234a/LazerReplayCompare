@@ -1,6 +1,6 @@
-// Live play and compared replay side by side: two items (config.json "main" and "sub") and every judgement count.
+// Live play and compared replay side by side: the Main and Sub items picked in the app, and every judgement count.
 
-import { OFF, formatItem, hitValue, itemValue, needsPerfect, resolveItem, scaleKeyOf, timelineFactor, watchConfig } from '../lazerReplayCompareShared/metrics.js';
+import { OFF, formatItem, hitValue, itemValue, needsPerfect, resolveItem, scaleKeyOf, setItems, timelineFactor } from '../lazerReplayCompareShared/metrics.js';
 import { getReplayModsKey } from '../lazerReplayCompareShared/overlayState.js';
 import { createSession } from '../lazerReplayCompareShared/session.js';
 
@@ -26,6 +26,11 @@ const session = createSession({
     onUpdate: render,
     scaleMetric: () => scaleKeyOf(mainItem()),
     needsPerfect: () => needsPerfect(mainItem()) || needsPerfect(subItem()),
+    onState: (data) => {
+        setItems(data?.items);
+        config.main = data?.display?.main?.item ?? config.main;
+        config.sub = data?.display?.sub?.item ?? config.sub;
+    },
 });
 
 function isVisible() {
@@ -133,13 +138,4 @@ function render() {
                     : '-';
 }
 
-watchConfig(new URL('config.json', location.href).href, (json) => {
-    config.main = json?.main ?? defaults.main;
-    config.sub = json?.sub ?? defaults.sub;
-    session.refresh();
-    render();
-});
-
-// custom items from metrics.json may arrive after the config that names them
-setInterval(render, 1000);
 render();

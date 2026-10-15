@@ -64,37 +64,26 @@ Copy all four folders from `static` (the three overlays and `lazerReplayCompareS
 
 - `LazerReplayCompare Main` shows one large item: by default the score difference to the replay you are compared against.
 - `LazerReplayCompare Sub` shows one smaller item on its own, so it can be placed anywhere: by default your live accuracy.
-- `LazerReplayCompareLive by Codex` shows a detailed live comparison: two items, combo, judgements, the target replay, and whether it was pinned or chosen automatically.
+- `LazerReplayCompareLive by Codex` shows a detailed live comparison: the Main and Sub items, combo, judgements, the target replay, and whether it was pinned or chosen automatically.
 
 ## What the overlays show
 
-Each overlay has a `config.json` in its folder. Edit it with any text editor; saved changes apply while the overlay runs (no rebuild, no restart).
+Pick it on the Compare page, next to "now playing": an item and how to show it, for **Main** and for **Sub**. The overlays follow within a second; the live panel shows both items.
 
-`LazerReplayCompare Main` and `LazerReplayCompare Sub`:
-
-```json
-{
-    "item": "score",
-    "show": "diff"
-}
-```
-
-- `item` is what to show:
+- **Item**:
 
   | Item | Meaning |
   |---|---|
-  | `score` | Score, as the game counts it (osu!stable: ScoreV1, osu!lazer: lazer's score). |
-  | `score_acc` | Score as a share of the best score possible so far: every judgement up to this note MAX. For example 270,000 when 300,000 was possible is 90%. |
-  | `acc` | Accuracy, as the game shows it. |
-  | `stable_acc` | osu!stable's accuracy (MAX and 300 both count fully), from the judgements. Handy while playing osu!lazer. |
-  | `lazer_acc` | osu!lazer's accuracy (MAX worth 305), from the judgements. Handy while playing osu!stable. |
-  | `off` | Hide the overlay. |
+  | Score | Score, as the game counts it (osu!stable: ScoreV1, osu!lazer: lazer's score). |
+  | Score acc | Score as a share of the best score possible so far: every judgement up to this note MAX. For example 270,000 when 300,000 was possible is 90%. |
+  | Acc | Accuracy, as the game shows it. |
+  | Stable acc | osu!stable's accuracy (MAX and 300 both count fully), from the judgements. Handy while playing osu!lazer. |
+  | Lazer acc | osu!lazer's accuracy (MAX worth 305), from the judgements. Handy while playing osu!stable. |
+  | Off | Hide the overlay. |
 
-- `show` is how: `diff` (live minus the compared replay at the same note, positive means you are ahead), `value` (the live value) or `target` (the compared replay's value at the same note).
+- **Show**: **Diff** (you minus the compared replay at the same note; positive means you are ahead), **Live** (your value) or **Replay** (the replay's value at the same note).
 
-`LazerReplayCompareLive by Codex` takes `"main"` and `"sub"` items (`sub` can be `off`).
-
-More items made of judgement counts can be added in `lazerReplayCompareShared/metrics.json`: a name, a value per judgement, and whether to average it per judgement (an accuracy-like value). It comes with `bms` (MAX = 2, 300 = 1), `pp_acc` and `pp_score` (MAX = 100, 300 = 93.75, 200 = 62.5, 100 = 31.25, 50 = 15.625); use their keys as `item`.
+More items made of judgement counts can be added in `metrics.json` (Settings → tosu overlays → **Edit metrics.json**, stored in `%LocalAppData%\LazerReplayCompare`): a name, a value per judgement, and whether to average it per judgement (an accuracy-like value). It comes with BMS (MAX = 2, 300 = 1), PPacc and PPscore (MAX = 100, 300 = 93.75, 200 = 62.5, 100 = 31.25, 50 = 15.625). Saved changes show up in the pickers and the overlays right away, without a rebuild.
 
 ## Timeline modes
 
@@ -102,14 +91,14 @@ Settings → Replay timeline chooses how the replay's note-by-note score is buil
 
 - **Corrected (default).** Rebuilds the timeline so it reproduces the replay's recorded score and judgements. The comparison card says whether the match is exact or approximate, and by how much.
 - **Raw.** Exactly what osu!lazer's replay playback shows, even when that differs from the recorded score.
-- **Scaled.** The raw timeline, stretched so its final value equals the replay's (the value of the item the overlay shows).
+- **Scaled.** The raw timeline, stretched so its final value equals the replay's (the value of the overlay's item).
 
 The first timeline for a replay can take a moment to build. Until it is ready, the overlay uses the raw replay data.
 
 ## Notes
 
 - The app is for osu!lazer **mania** replays. Mirror is handled by flipping the columns.
-- Settings are stored in `%LocalAppData%\LazerReplayCompare\settings.json`.
+- Settings are stored in `%LocalAppData%\LazerReplayCompare\settings.json`, custom overlay items in `metrics.json` next to it.
 
 ## Building from source
 
