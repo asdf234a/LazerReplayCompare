@@ -1,6 +1,14 @@
 # LazerReplayCompare
 
-LazerReplayCompare races your osu!lazer mania play against your own saved replays. While you play, a tosu overlay shows, note by note, whether you are ahead of or behind the replay you are comparing against.
+LazerReplayCompare races your osu!mania play, in osu!lazer or osu!stable, against your own saved replays. While you play, a tosu overlay shows, note by note, whether you are ahead of or behind the replay you are comparing against.
+
+## What's new in 1.1.0
+
+- **osu!stable support.** Playing in osu!stable, the app reads osu!stable's own local scores (`scores.db`) and replays (`Data/r`), and the overlay compares you against them the way osu!stable scores: ScoreV1, osu!stable's accuracy and combo, one judgement per hold note.
+- **osu!stable judgement engine.** osu!stable replays are judged by a new osu!stable engine (built on the YAVSRG and mania-judge rules and checked against osu!stable with recorded replays and live logs), then corrected so the timeline ends on the replay's recorded score, judgements and max combo.
+- **Scores without replays.** osu!stable scores whose replay file is missing are listed with a NO REPLAY badge; they are never a comparison target.
+- **osu!stable replays in osu!lazer.** Against osu!lazer, replays set in osu!stable (imported, Classic) are scaled onto their recorded result instead of showing lazer's raw playback, and judgement-count metrics account for lazer counting hold notes twice.
+- **Old Hard Rock / Easy replays.** osu!lazer replays set before 2025.710 with Hard Rock or Easy are judged with that era's hit windows.
 
 ## What's new in 1.0.0
 
@@ -24,12 +32,12 @@ You need the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dot
 ## How to use
 
 1. Run `LazerReplayCompare.exe`.
-2. Start osu!lazer and tosu.
+2. Start osu!lazer (or osu!stable) and tosu.
 3. Copy the overlay folders from `static` into tosu's `static` folder, then open an overlay from tosu.
-4. Select a beatmap in osu!lazer. The app lists your saved replays for it.
+4. Select a beatmap in the game. The app lists your saved replays for it.
 5. Play. The overlay compares you against the target replay as you go.
 
-If the app can't find your osu!lazer folder, click **Choose folder** on the banner, or go to Settings → osu!lazer folder.
+If the app can't find your osu!lazer folder (or, while you play osu!stable, your osu!stable folder), click **Choose folder** on the banner, or set it in Settings.
 
 Keep the app running while you use the overlay. Its overlay API listens on port `24052`; tosu is expected on `24050`.
 
