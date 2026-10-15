@@ -39,6 +39,7 @@ public sealed class ReplayDetailsViewModel : ObservableObject
 
     private ReplayEntry? target;
     private bool isPinned;
+    private bool isOnCurrentMap = true;
     private bool isLoading;
     private string errorText = string.Empty;
     private ReplayAnalysis? analysis;
@@ -112,6 +113,24 @@ public sealed class ReplayDetailsViewModel : ObservableObject
     }
 
     public string PinText => IsPinned ? "Unpin" : "Pin as target";
+
+    /// <summary>Whether the page belongs to the map being played: the comparison target can only be set on its own map.</summary>
+    public bool IsOnCurrentMap
+    {
+        get => isOnCurrentMap;
+        set
+        {
+            if (Set(ref isOnCurrentMap, value))
+            {
+                OnPropertyChanged(nameof(CanPin));
+                OnPropertyChanged(nameof(PinTooltip));
+            }
+        }
+    }
+
+    public bool CanPin => HasReplay && IsOnCurrentMap;
+
+    public string? PinTooltip => HasReplay && !IsOnCurrentMap ? "Select this map in the game to pin its replays" : null;
 
     public bool HasVsTarget => Target != null && !string.Equals(Target.FilePath, Entry.FilePath, StringComparison.OrdinalIgnoreCase);
 

@@ -432,6 +432,8 @@ public sealed partial class MainWindow : Window
             // (and closes with it, see OnResultsScreen).
             if ((snapshot.BeatmapChecksum != oldChecksum || snapshot.IsStable != oldStable) && detailsFromResults)
                 CloseDetails();
+            if (viewModel.Details is { } openDetails)
+                openDetails.IsOnCurrentMap = detailsOnCurrentMap;
 
             var hasBeatmap = !string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum);
             viewModel.HasBeatmap = hasBeatmap;
@@ -1253,7 +1255,8 @@ public sealed partial class MainWindow : Window
     /// <summary>Pins the replay as the comparison target, or unpins it when it already is.</summary>
     private void TogglePin(ReplayEntry entry)
     {
-        var row = viewModel.ReplayRows.FirstOrDefault(r => ReferenceEquals(r.Entry, entry));
+        // (by file: a rescan lists the same replays as new entries)
+        var row = viewModel.ReplayRows.FirstOrDefault(r => string.Equals(r.Entry.FilePath, entry.FilePath, StringComparison.OrdinalIgnoreCase));
         if (row is { HasReplay: true })
             row.IsPinned = !row.IsPinned;   // the row's handler updates the target (and the open details page)
     }

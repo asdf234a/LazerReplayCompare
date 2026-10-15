@@ -21,7 +21,7 @@ public sealed partial class ReplayDetailsView : UserControl
         scroll = this.FindControl<ScrollViewer>("Scroll")!;
 
         // A narrow page (small window or large zoom): side-by-side parts stack.
-        this.FindControl<StackPanel>("Content")!.SizeChanged += (_, e) => setNarrow(e.NewSize.Width < ResponsiveLayout.NarrowWidth);
+        this.FindControl<StackPanel>("Page")!.SizeChanged += (_, e) => setNarrow(e.NewSize.Width < ResponsiveLayout.NarrowWidth);
     }
 
     private void setNarrow(bool value)
@@ -33,9 +33,11 @@ public sealed partial class ReplayDetailsView : UserControl
         // back button, then the jump buttons under it
         ResponsiveLayout.Apply(this.FindControl<Grid>("NavRow")!, value, "*", (0, 0), (1, 0));
         ResponsiveLayout.Apply(this.FindControl<Grid>("SummaryRow")!, value);
+        ResponsiveLayout.Apply(this.FindControl<Grid>("StatusRow")!, value);
         ResponsiveLayout.Apply(this.FindControl<Grid>("TimingRow")!, value);
         ResponsiveLayout.Apply(this.FindControl<Grid>("SongHeader")!, value);
         ResponsiveLayout.Apply(this.FindControl<Grid>("LongNotesRow")!, value);
+        ResponsiveLayout.Apply(this.FindControl<Grid>("ReleaseHeader")!, value);
     }
 
     private ReplayDetailsViewModel? details => DataContext as ReplayDetailsViewModel;
