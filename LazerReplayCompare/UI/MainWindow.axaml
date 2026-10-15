@@ -52,6 +52,8 @@
     </Panel>
 
     <!-- ... and the sharp image behind the top bar and "now playing", fading out into the blurred copy. -->
+    <!-- Its height follows the page zoom, and the sharp image is only as wide as the page's content: in a wider
+         window the sides get the blurred copy, fading out towards the window's edges (see layoutBanner). -->
     <Panel x:Name="Banner" Height="460" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
       <Panel.OpacityMask>
         <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
@@ -61,7 +63,10 @@
           <GradientStop Offset="1" Color="Transparent" />
         </LinearGradientBrush>
       </Panel.OpacityMask>
-      <local:FocalImage Source="{Binding BackgroundImage}" />
+      <local:FocalImage x:Name="BannerSides" Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="HighQuality" IsVisible="False" />
+      <Panel x:Name="BannerColumn" HorizontalAlignment="Center">
+        <local:FocalImage Source="{Binding BackgroundImage}" />
+      </Panel>
       <Border>
         <Border.Background>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
@@ -155,7 +160,7 @@
             <GradientStop Offset="1" Color="Black" />
           </LinearGradientBrush>
         </ScrollViewer.OpacityMask>
-        <StackPanel MaxWidth="1160" Margin="28,22,28,28" Spacing="18">
+        <StackPanel x:Name="CompareContent" MaxWidth="1160" Margin="28,22,28,28" Spacing="18">
 
           <!-- Problems -->
           <Border Classes="banner error" IsVisible="{Binding ShowTosuBanner}">
@@ -204,30 +209,35 @@
             </Grid>
           </Border>
 
-          <!-- Now playing + overlay metrics -->
-          <Grid Classes="hero" Classes.overBanner="{Binding ShowBackdrop}" ColumnDefinitions="*,Auto" ColumnSpacing="24">
+          <!-- Now playing (the whole width, so a long title isn't cut short by the pickers) + overlay metrics under it -->
+          <Grid Classes="hero" Classes.overBanner="{Binding ShowBackdrop}" RowDefinitions="*,Auto" RowSpacing="12">
             <StackPanel Spacing="4" VerticalAlignment="Bottom">
               <TextBlock Classes="overline" Text="NOW PLAYING" />
               <TextBlock Text="{Binding BeatmapTitle}" FontSize="28" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
               <TextBlock Classes="secondary" Text="{Binding BeatmapSubtitle}" TextTrimming="CharacterEllipsis" />
               <TextBlock Classes="muted" FontSize="12" Text="{Binding StatusText}" IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
-            <!-- What the Main and Sub overlays show (the live panel shows both items). -->
-            <Border Grid.Column="1" Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12" VerticalAlignment="Bottom">
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Classes="secondary" Text="Main" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
-                <ComboBox MinWidth="118" ItemsSource="{Binding MainItemOptions}" SelectedItem="{Binding SelectedMainItem, Mode=TwoWay}"
-                          ToolTip.Tip="What the Main overlay shows" />
-                <ComboBox MinWidth="92" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedMainShow, Mode=TwoWay}"
-                          ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
-                <Border Width="1" Margin="6,6" Background="{DynamicResource SurfaceBorderBrush}" />
-                <TextBlock Classes="secondary" Text="Sub" VerticalAlignment="Center" FontSize="13" />
-                <ComboBox MinWidth="118" ItemsSource="{Binding SubItemOptions}" SelectedItem="{Binding SelectedSubItem, Mode=TwoWay}"
-                          ToolTip.Tip="What the Sub overlay shows" />
-                <ComboBox MinWidth="92" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedSubShow, Mode=TwoWay}"
-                          ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
-              </StackPanel>
-            </Border>
+            <!-- What the Main and Sub overlays show (the live panel shows both items); Sub wraps under Main when narrow. -->
+            <WrapPanel Grid.Row="1" ItemSpacing="8" LineSpacing="8" ItemsAlignment="End" HorizontalAlignment="Right">
+              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="secondary" Text="Main" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
+                  <ComboBox MinWidth="118" ItemsSource="{Binding MainItemOptions}" SelectedItem="{Binding SelectedMainItem, Mode=TwoWay}"
+                            ToolTip.Tip="What the Main overlay shows" />
+                  <ComboBox MinWidth="92" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedMainShow, Mode=TwoWay}"
+                            ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
+                </StackPanel>
+              </Border>
+              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="secondary" Text="Sub" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
+                  <ComboBox MinWidth="118" ItemsSource="{Binding SubItemOptions}" SelectedItem="{Binding SelectedSubItem, Mode=TwoWay}"
+                            ToolTip.Tip="What the Sub overlay shows" />
+                  <ComboBox MinWidth="92" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedSubShow, Mode=TwoWay}"
+                            ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
+                </StackPanel>
+              </Border>
+            </WrapPanel>
           </Grid>
 
           <!-- Empty / waiting states -->
@@ -259,7 +269,7 @@
             <Border x:Name="TargetCard" Classes="targetCard" Classes.glass="{Binding ShowBackdrop}" Padding="24,16">
               <Grid RowDefinitions="Auto,Auto">
                 <!-- One slim row: target · score · judgement ring · timeline status -->
-                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="32" IsVisible="{Binding HasTarget}">
+                <Grid x:Name="TargetRow" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="32" RowSpacing="16" IsVisible="{Binding HasTarget}">
                   <StackPanel Spacing="5" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                       <TextBlock Text="VS" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource TargetLabelBrush}" VerticalAlignment="Center"
@@ -335,7 +345,7 @@
               </StackPanel>
               <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" ClipToBounds="True">
                 <Grid RowDefinitions="Auto,Auto">
-                  <Grid ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*,36" Margin="0,4,0,4">
+                  <Grid x:Name="ReplayHeader" ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*,36" Margin="0,4,0,4">
                     <TextBlock Grid.Column="1" Classes="muted" FontSize="12" Text="Player" VerticalAlignment="Center" Margin="8,0" />
                     <Button Grid.Column="2" Classes="sortHeader" HorizontalContentAlignment="Left" Margin="8,0" Content="{Binding DateHeader}" Tag="Date" Click="SortReplays" />
                     <TextBlock Grid.Column="3" Classes="muted" FontSize="12" Text="Mods" VerticalAlignment="Center" Margin="8,0" />
@@ -354,7 +364,7 @@
                         <Border Classes="replayRow" Classes.target="{Binding IsTarget}" Cursor="Hand">
                           <Grid>
                             <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TargetAccentBrush}" IsVisible="{Binding IsTarget}" />
-                            <Grid ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*,36" MinHeight="48">
+                            <Grid Classes="replayCells" ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*,36" MinHeight="48">
                               <ToggleButton Classes="pin" IsChecked="{Binding IsPinned, Mode=TwoWay}" IsEnabled="{Binding HasReplay}" ToolTip.Tip="{Binding PinTooltip}"
                                             ToolTip.ShowOnDisabled="True" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,0,0,0">
                                 <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"

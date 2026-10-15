@@ -13,11 +13,29 @@ public sealed partial class ReplayDetailsView : UserControl
     public event Action<ReplayEntry>? PinRequested;
 
     private readonly ScrollViewer scroll;
+    private bool? narrow;
 
     public ReplayDetailsView()
     {
         AvaloniaXamlLoader.Load(this);
         scroll = this.FindControl<ScrollViewer>("Scroll")!;
+
+        // A narrow page (small window or large zoom): side-by-side parts stack.
+        this.FindControl<StackPanel>("Content")!.SizeChanged += (_, e) => setNarrow(e.NewSize.Width < ResponsiveLayout.NarrowWidth);
+    }
+
+    private void setNarrow(bool value)
+    {
+        if (narrow == value)
+            return;
+
+        narrow = value;
+        // back button, then the jump buttons under it
+        ResponsiveLayout.Apply(this.FindControl<Grid>("NavRow")!, value, "*", (0, 0), (1, 0));
+        ResponsiveLayout.Apply(this.FindControl<Grid>("SummaryRow")!, value);
+        ResponsiveLayout.Apply(this.FindControl<Grid>("TimingRow")!, value);
+        ResponsiveLayout.Apply(this.FindControl<Grid>("SongHeader")!, value);
+        ResponsiveLayout.Apply(this.FindControl<Grid>("LongNotesRow")!, value);
     }
 
     private ReplayDetailsViewModel? details => DataContext as ReplayDetailsViewModel;

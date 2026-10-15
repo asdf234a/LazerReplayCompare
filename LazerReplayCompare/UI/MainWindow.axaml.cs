@@ -35,10 +35,28 @@ public sealed partial class MainWindow : Window
     private ListBox replayList = null!;
     private ReplayDetailsView detailsView = null!;
     private LayoutTransformControl pageZoom = null!;
+    private Panel banner = null!;
+    private Panel bannerColumn = null!;
+    private Control bannerSides = null!;
+    private Grid targetRow = null!;
+    private Grid replayHeader = null!;
+    private bool narrowPage;
+
+    // the banner's height and the page content's width (StackPanel MaxWidth + margins), before the zoom
+    private const double banner_height = 460;
+    private const double page_content_width = 1160 + 2 * 28;
+    // how far the sharp banner fades into the blurred sides, before the zoom
+    private const double banner_side_fade = 120;
 
     // the score a results screen shows: its replay's details open once it is found in the list
     private ResultsScreenScore? pendingResults;
     private ResultsScreenScore? openedResults;
+
+    // The map (and game) the open details page belongs to, and whether a results screen opened it: a page opened by
+    // hand stays open when the map changes, one opened by a results screen closes when the results screen does.
+    private string detailsBeatmap = string.Empty;
+    private bool detailsStable;
+    private bool detailsFromResults;
     private int resultsRefreshes;
     private const int max_results_refreshes = 6;
 
@@ -81,15 +99,19 @@ public sealed partial class MainWindow : Window
         setUpTitleBar(this.FindControl<Border>("TitleBar")!);
 
         // The sharp banner scrolls with the page, so it stays behind "now playing" (the blurred copy stays put).
-        var banner = this.FindControl<Panel>("Banner")!;
+        banner = this.FindControl<Panel>("Banner")!;
+        bannerColumn = this.FindControl<Panel>("BannerColumn")!;
+        bannerSides = this.FindControl<Control>("BannerSides")!;
         var bannerOffset = new TranslateTransform();
         banner.RenderTransform = bannerOffset;
+        SizeChanged += (_, _) => layoutBanner();
         var compareScroll = this.FindControl<ScrollViewer>("CompareScroll")!;
         var detailsScroll = detailsView.FindControl<ScrollViewer>("Scroll")!;
         void followScroll(ScrollViewer scroll)
         {
+            // (the scroll offset is in page units; the banner sits outside the zoomed page)
             var offset = scroll.Offset.Y;
-            bannerOffset.Y = -offset;
+            bannerOffset.Y = -offset * viewModel.Zoom;
             // ... and gradually gives way to the blurred copy as the page scrolls.
             banner.Opacity = Math.Clamp(1 - offset / 320, 0, 1);
         }
@@ -111,6 +133,17 @@ public sealed partial class MainWindow : Window
 
         // In a narrow window the legend stacks into one column so the target's name keeps its room.
         this.FindControl<Border>("TargetCard")!.SizeChanged += (_, e) => judgementLegend.Columns = e.NewSize.Width >= 1000 ? 2 : 1;
+
+        // A narrow page (small window or large zoom): the target card goes two by two and the replay list drops
+        // its least needed columns.
+        targetRow = this.FindControl<Grid>("TargetRow")!;
+        replayHeader = this.FindControl<Grid>("ReplayHeader")!;
+        replayList.ContainerPrepared += (_, e) =>
+        {
+            if (e.Container is Control container)
+                Dispatcher.UIThread.Post(() => applyReplayColumns(container), DispatcherPriority.Loaded);
+        };
+        this.FindControl<StackPanel>("CompareContent")!.SizeChanged += (_, e) => setNarrowPage(e.NewSize.Width < ResponsiveLayout.NarrowWidth);
 
         ApplySavedSettings();
         viewModel.SettingsChanged += OnSettingsChanged;
@@ -395,9 +428,10 @@ public sealed partial class MainWindow : Window
             currentSnapshot = snapshot;
             viewModel.IsStableClient = snapshot.IsStable;
 
-            // a details page belongs to the map (and game) it was opened on
-            if (snapshot.BeatmapChecksum != oldChecksum || snapshot.IsStable != oldStable)
-                viewModel.Details = null;
+            // A details page opened by hand stays open on another map; one a results screen opened belongs to it
+            // (and closes with it, see OnResultsScreen).
+            if ((snapshot.BeatmapChecksum != oldChecksum || snapshot.IsStable != oldStable) && detailsFromResults)
+                CloseDetails();
 
             var hasBeatmap = !string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum);
             viewModel.HasBeatmap = hasBeatmap;
@@ -733,7 +767,7 @@ public sealed partial class MainWindow : Window
         viewModel.AutoSpeed = speed;
         viewModel.IsTargetPinned = pinned;
         viewModel.Target = target;
-        if (viewModel.Details is { } details)
+        if (viewModel.Details is { } details && detailsOnCurrentMap)
         {
             details.Target = target;
             details.IsPinned = pinned && target != null && string.Equals(target.FilePath, details.Entry.FilePath, StringComparison.OrdinalIgnoreCase);
@@ -872,7 +906,7 @@ public sealed partial class MainWindow : Window
     {
         // Compare again while on it: back to the replay list
         if (!viewModel.IsSettingsPage)
-            viewModel.Details = null;
+            CloseDetails();
         viewModel.IsSettingsPage = false;
     }
 
@@ -912,20 +946,24 @@ public sealed partial class MainWindow : Window
             return;
 
         if (source is StyledElement { DataContext: ReplayRow row })
-            OpenDetails(row);
+            OpenDetails(row.Entry);
     }
 
     private void ReplayListKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter && replayList.SelectedItem is ReplayRow row)
-            OpenDetails(row);
+            OpenDetails(row.Entry);
     }
 
-    private void OpenDetails(ReplayRow row) => OpenDetails(row.Entry);
+    /// <summary>Whether the open details page belongs to the map (and game) being played.</summary>
+    private bool detailsOnCurrentMap => detailsBeatmap == currentSnapshot.BeatmapChecksum && detailsStable == currentSnapshot.IsStable;
 
-    private void OpenDetails(ReplayEntry entry)
+    private void OpenDetails(ReplayEntry entry, bool fromResults = false)
     {
         replayList.SelectedItem = null;
+        detailsBeatmap = currentSnapshot.BeatmapChecksum;
+        detailsStable = currentSnapshot.IsStable;
+        detailsFromResults = fromResults;
         bool pinned;
         lock (replayLock)
             pinned = replaySelection.IsSelected(entry);
@@ -980,7 +1018,11 @@ public sealed partial class MainWindow : Window
         });
     }
 
-    private void CloseDetails() => viewModel.Details = null;
+    private void CloseDetails()
+    {
+        viewModel.Details = null;
+        detailsFromResults = false;
+    }
 
     /// <summary>
     /// A results screen (after a play, or a score opened from the leaderboard): opens its replay's details once the
@@ -992,7 +1034,13 @@ public sealed partial class MainWindow : Window
         {
             pendingResults = null;
             if (!snapshot.IsResultsScreen)
+            {
                 openedResults = null;
+                // leaving the results screen goes back to the replays, if the results screen opened the page
+                if (detailsFromResults)
+                    CloseDetails();
+            }
+
             return;
         }
 
@@ -1020,8 +1068,8 @@ public sealed partial class MainWindow : Window
 
         pendingResults = null;
         openedResults = results;
-        if (viewModel.Details?.Entry.FilePath != entry.FilePath)
-            OpenDetails(entry);
+        if (viewModel.Details?.Entry.FilePath != entry.FilePath || !detailsOnCurrentMap)
+            OpenDetails(entry, fromResults: true);
         return true;
     }
 
@@ -1112,8 +1160,94 @@ public sealed partial class MainWindow : Window
         zoom = Math.Clamp(double.IsFinite(zoom) ? zoom : 1, zoom_steps[0], zoom_steps[^1]);
         viewModel.Zoom = zoom;
         pageZoom.LayoutTransform = Math.Abs(zoom - 1) < 0.001 ? null : new ScaleTransform(zoom, zoom);
+        layoutBanner();
         if (save)
             settingsService.SetZoom(zoom);
+    }
+
+    /// <summary>
+    /// Sizes the banner to the page zoom. The sharp image is only as wide as the page's content (and a fade); in a
+    /// wider window the sides show the blurred copy, fading out towards the window's edges.
+    /// </summary>
+    private void layoutBanner()
+    {
+        if (banner == null)
+            return;
+
+        var zoom = viewModel.Zoom;
+        var width = Bounds.Width;
+        banner.Height = banner_height * zoom;
+
+        var fade = banner_side_fade * zoom;
+        var column = Math.Min(width, page_content_width * zoom + fade);
+        bannerColumn.Width = column;
+
+        var side = (width - column) / 2;
+        bannerSides.IsVisible = side > 1;
+        if (side <= 1 || column <= 0)
+        {
+            bannerColumn.OpacityMask = null;
+            return;
+        }
+
+        var edge = Math.Min(fade / column, 0.25);
+        bannerColumn.OpacityMask = new LinearGradientBrush
+        {
+            StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+            EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative),
+            GradientStops =
+            {
+                new GradientStop(Colors.Transparent, 0),
+                new GradientStop(Colors.Black, edge),
+                new GradientStop(Colors.Black, 1 - edge),
+                new GradientStop(Colors.Transparent, 1),
+            },
+        };
+
+        // the blurred sides: full behind the sharp image's fade, gone at the window's edges
+        var inner = (side + fade / 2) / width;
+        bannerSides.OpacityMask = new LinearGradientBrush
+        {
+            StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+            EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative),
+            GradientStops =
+            {
+                new GradientStop(Colors.Transparent, 0),
+                new GradientStop(Colors.Black, inner),
+                new GradientStop(Colors.Black, 1 - inner),
+                new GradientStop(Colors.Transparent, 1),
+            },
+        };
+    }
+
+    private void setNarrowPage(bool narrow)
+    {
+        if (narrow == narrowPage)
+            return;
+
+        narrowPage = narrow;
+        // target card: name | score over judgements | timeline status
+        ResponsiveLayout.Apply(targetRow, narrow, "*,Auto", (0, 0), (0, 1), (1, 0), (1, 1));
+        applyReplayColumns(replayHeader);
+        foreach (var container in replayList.GetRealizedContainers())
+            applyReplayColumns(container);
+    }
+
+    // The replay list's columns (header and rows): pin, player, date, mods, score, vs target, accuracy, miss, combo,
+    // rank, chevron. A narrow page drops date, vs target and combo.
+    private const string replay_columns = "52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*,36";
+    private const string narrow_replay_columns = "52,1.5*,0,1.4*,1*,0,0.9*,0.6*,0,0.6*,36";
+    private static readonly int[] narrow_hidden_columns = [2, 5, 8];
+
+    private void applyReplayColumns(Control control)
+    {
+        var grid = control as Grid ?? control.GetVisualDescendants().OfType<Grid>().FirstOrDefault(g => g.Classes.Contains("replayCells"));
+        if (grid == null)
+            return;
+
+        grid.ColumnDefinitions = new ColumnDefinitions(narrowPage ? narrow_replay_columns : replay_columns);
+        foreach (var cell in grid.Children)
+            cell.IsVisible = !narrowPage || !narrow_hidden_columns.Contains(Grid.GetColumn(cell));
     }
 
     /// <summary>Pins the replay as the comparison target, or unpins it when it already is.</summary>

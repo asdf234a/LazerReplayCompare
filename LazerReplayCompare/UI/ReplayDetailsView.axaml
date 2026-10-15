@@ -66,10 +66,10 @@
   </UserControl.Styles>
 
   <ScrollViewer x:Name="Scroll" HorizontalScrollBarVisibility="Disabled">
-    <StackPanel MaxWidth="1160" Margin="28,22,28,32" Spacing="18">
+    <StackPanel x:Name="Content" MaxWidth="1160" Margin="28,22,28,32" Spacing="18">
 
       <!-- Back and sections -->
-      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+      <Grid x:Name="NavRow" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" RowSpacing="10">
         <Button Click="Back" MinHeight="36" Padding="12,0" ToolTip.Tip="Back to the replays (mouse back button, Backspace, Esc or Alt+Left)">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <Path Width="12" Height="12" Stretch="Uniform" StrokeThickness="2.4" StrokeLineCap="Round" StrokeJoin="Round"
@@ -77,18 +77,18 @@
             <TextBlock Text="Replays" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasAnalysis}">
+        <WrapPanel Grid.Column="2" ItemSpacing="6" LineSpacing="6" IsVisible="{Binding HasAnalysis}">
           <TextBlock Classes="muted" FontSize="13" Text="Jump to" VerticalAlignment="Center" Margin="0,0,4,0" />
           <Button Classes="jump" Content="Timing" Click="ShowTiming" />
           <Button Classes="jump" Content="Over the song" Click="ShowSong" />
           <Button Classes="jump" Content="Long notes" Click="ShowLongNotes" IsVisible="{Binding HasHolds}" />
-        </StackPanel>
+        </WrapPanel>
       </Grid>
 
       <!-- Summary -->
       <Border Classes="surface" Classes.glass="{Binding $parent[Window].DataContext.ShowBackdrop}" Padding="24">
         <StackPanel Spacing="18">
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="24">
+          <Grid x:Name="SummaryRow" ColumnDefinitions="*,Auto" ColumnSpacing="24" RowSpacing="16">
             <StackPanel Spacing="6" VerticalAlignment="Center">
               <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
               <TextBlock Classes="secondary" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
@@ -101,7 +101,7 @@
                 <TextBlock Classes="muted" FontSize="12" Text="{Binding PlayerDateText}" VerticalAlignment="Center" Margin="4,0,0,0" />
               </WrapPanel>
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="28" VerticalAlignment="Center">
+            <WrapPanel Grid.Column="1" ItemSpacing="28" LineSpacing="10" VerticalAlignment="Center">
               <StackPanel Spacing="2">
                 <TextBlock Classes="statLabel" Text="{Binding ScoreLabel}" HorizontalAlignment="Right" />
                 <TextBlock Classes="statValue" Text="{Binding ScoreText}" HorizontalAlignment="Right" />
@@ -121,7 +121,7 @@
                 <TextBlock Classes="statLabel" Text="Max combo" HorizontalAlignment="Right" />
                 <TextBlock Classes="statValue" Text="{Binding MaxComboText}" HorizontalAlignment="Right" />
               </StackPanel>
-            </StackPanel>
+            </WrapPanel>
           </Grid>
 
           <StackPanel Orientation="Horizontal" Spacing="14">
@@ -168,7 +168,7 @@
 
       <!-- Hit error distribution -->
       <Border x:Name="TimingSection" Classes="surface" Classes.glass="{Binding $parent[Window].DataContext.ShowBackdrop}" Padding="24" IsVisible="{Binding HasAnalysis}">
-        <Grid ColumnDefinitions="*,280" ColumnSpacing="28">
+        <Grid x:Name="TimingRow" ColumnDefinitions="*,280" ColumnSpacing="28" RowSpacing="24">
           <StackPanel Spacing="12">
             <StackPanel Spacing="4">
               <TextBlock Classes="sectionTitle" Text="Hit error distribution" />
@@ -234,7 +234,7 @@
       <!-- Over the song -->
       <Border x:Name="SongSection" Classes="surface" Classes.glass="{Binding $parent[Window].DataContext.ShowBackdrop}" Padding="24" IsVisible="{Binding HasAnalysis}">
         <StackPanel Spacing="14">
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+          <Grid x:Name="SongHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12" RowSpacing="10">
             <StackPanel Spacing="4">
               <TextBlock Classes="sectionTitle" Text="Over the song" />
               <TextBlock Classes="caption" Text="Every press · above 0 = late, below = early · top edge = not pressed" />
@@ -273,7 +273,7 @@
             <TextBlock Classes="sectionTitle" Text="Long notes" />
             <TextBlock Classes="caption" Text="{Binding LongNotesSubtitle}" />
           </StackPanel>
-          <Grid ColumnDefinitions="*,*" ColumnSpacing="28">
+          <Grid x:Name="LongNotesRow" ColumnDefinitions="*,*" ColumnSpacing="28" RowSpacing="20">
             <StackPanel Spacing="12">
               <StackPanel Orientation="Horizontal" Spacing="28">
                 <StackPanel Spacing="2"><TextBlock Classes="statLabel" Text="Head" /><TextBlock FontSize="20" FontWeight="Bold" Text="{Binding HeadMeanText}" /></StackPanel>
