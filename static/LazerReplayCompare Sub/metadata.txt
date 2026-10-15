@@ -1,0 +1,4 @@
+Name: LazerReplayCompare Sub
+Author: LazerReplayCompare
+Version: 2.0.0
+Description: A second item (live accuracy by default), placed on its own. What it shows is set in config.json.

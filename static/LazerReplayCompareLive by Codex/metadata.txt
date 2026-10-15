@@ -1,3 +1,4 @@
 Name: LazerReplayCompareLive
 Author: Codex
-Description: Real-time score/accuracy/hit comparison between live play and best stored Lazer replay with the same mods. Requires LazerReplayCompare running on port 24052.
+Version: 2.0.0
+Description: Live play and the compared replay side by side: two items (set in config.json) and every judgement count. Requires LazerReplayCompare running on port 24052.

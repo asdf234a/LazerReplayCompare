@@ -8,8 +8,6 @@ public sealed class AppSettings
     public string OsuStablePath { get; set; } = string.Empty;
     public string Theme { get; set; } = "System";
     public string CorrectionMode { get; set; } = "Corrected";
-    public string MainMetric { get; set; } = "Score";
-    public string SubMetric { get; set; } = "Acc";
     public bool ShowBackground { get; set; } = true;
 
     private static string SettingsPath => Path.Combine(

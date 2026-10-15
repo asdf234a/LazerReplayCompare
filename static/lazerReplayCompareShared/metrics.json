@@ -1,0 +1,30 @@
+{
+    // Extra items for the overlays, made of judgement counts. Use their key as "item" in an overlay's config.json.
+    // Saved changes apply while the overlays run.
+    //
+    //   name     shown name
+    //   weights  value of one Perfect (MAX), Great (300), Good (200), Ok (100), Meh (50), Miss
+    //   average  divide by the number of judgements (an accuracy-like value)
+    //   format   "integer" or "percent" (shown with two decimals and %)
+    //   scale    multiplier applied last (optional)
+    //   round    round to a whole number (optional)
+    "metrics": {
+        "bms": {
+            "name": "BMS",
+            "weights": { "Perfect": 2, "Great": 1 },
+            "format": "integer"
+        },
+        "pp_acc": {
+            "name": "PPacc",
+            "weights": { "Perfect": 100, "Great": 93.75, "Good": 62.5, "Ok": 31.25, "Meh": 15.625 },
+            "average": true,
+            "format": "percent"
+        },
+        "pp_score": {
+            "name": "PPscore",
+            "weights": { "Perfect": 100, "Great": 93.75, "Good": 62.5, "Ok": 31.25, "Meh": 15.625 },
+            "format": "integer",
+            "round": true
+        }
+    }
+}

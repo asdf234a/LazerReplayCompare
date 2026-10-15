@@ -1,5 +1,5 @@
 @font-face {
-    src: url("../Pretendard-SemiBold.ttf");
+    src: url("../../lazerReplayCompareShared/Pretendard-SemiBold.ttf");
     font-family: "Pretendard";
     font-weight: 600;
 }
@@ -15,7 +15,7 @@ body {
     font-family: "Pretendard", "Segoe UI", Arial, sans-serif;
 }
 
-.scoreDiff {
+.counter {
     position: absolute;
     top: 2rem;
     left: 50%;
@@ -27,6 +27,7 @@ body {
     font-weight: 600;
     line-height: 1;
     text-align: center;
+    white-space: nowrap;
     text-shadow:
         0 0 0.25rem rgba(0, 0, 0, 0.95),
         0 0 0.75rem rgba(0, 0, 0, 0.75);
@@ -34,55 +35,14 @@ body {
     transition: opacity 140ms ease;
 }
 
-.scoreDiff.visible {
+.counter.visible {
     opacity: 1;
 }
 
-#diffValue {
-    display: inline-block;
-}
-
-.subValue {
-    display: block;
-    margin-top: 0.22rem;
-    font-size: 0.54em;
-    line-height: 1;
-    opacity: 0.92;
-}
-
-.metricPrefix {
-    color: #ffffff;
-}
-
-.diffSign {
-    color: #ffffff;
-}
-
-.diffNumber {
-    color: #ffffff;
-}
-
-.digitStatic,
-.digitRoll {
-    display: inline-block;
-    width: 0.62em;
-    text-align: center;
-}
-
-.digitSeparator {
-    display: inline-block;
-    width: 0.3em;
-    text-align: center;
-}
-
-.scoreDiff.positive .diffSign {
+.counter.positive .sign {
     color: #77ff9a;
 }
 
-.scoreDiff.negative .diffSign {
+.counter.negative .sign {
     color: #ff6f7f;
-}
-
-.scoreDiff.neutral {
-    color: #ffffff;
 }

@@ -47,11 +47,11 @@ public sealed partial class MainWindow : Window
     private bool closing;
     private bool started;
     private CancellationTokenSource? correctionCancellation;
-    private (CorrectionMode Mode, string MainMetric) lastTimelineSettings;
+    private CorrectionMode lastCorrectionMode;
 
     public MainWindow()
     {
-        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, GetOverlayMetrics, timelineBuilder);
+        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, timelineBuilder);
 
         AvaloniaXamlLoader.Load(this);
         DataContext = viewModel;
@@ -169,11 +169,9 @@ public sealed partial class MainWindow : Window
         viewModel.Theme = NormalizeTheme(current.Theme);
         viewModel.ShowBackground = current.ShowBackground;
         viewModel.CorrectionMode = ParseCorrectionMode(current.CorrectionMode);
-        viewModel.SetMetrics(MetricRegistry.Normalize(current.MainMetric, MetricRegistry.Default.Key),
-            MetricRegistry.Normalize(current.SubMetric, "Acc", allowOff: true));
 
         ThemeService.Apply(this, viewModel.Theme);
-        lastTimelineSettings = (viewModel.CorrectionMode, viewModel.SelectedMainMetric?.Key ?? MetricRegistry.Default.Key);
+        lastCorrectionMode = viewModel.CorrectionMode;
     }
 
     private void OnSettingsChanged()
@@ -181,30 +179,21 @@ public sealed partial class MainWindow : Window
         settingsService.SetTheme(viewModel.Theme);
         settingsService.SetShowBackground(viewModel.ShowBackground);
         settingsService.SetCorrectionMode(viewModel.CorrectionMode);
-        if (viewModel.SelectedMainMetric is { } main)
-            settingsService.SetMainMetric(main.Key);
-        if (viewModel.SelectedSubMetric is { } sub)
-            settingsService.SetSubMetric(sub.Key);
 
         ThemeService.Apply(this, viewModel.Theme);
         if (compactWindow != null)
             ThemeService.Apply(compactWindow, viewModel.Theme);
         RebuildJudgementBar();
 
-        // The correction shown for the target depends on the timeline mode (and on the main metric when scaled).
-        var timelineSettings = (viewModel.CorrectionMode, viewModel.SelectedMainMetric?.Key ?? MetricRegistry.Default.Key);
-        var affectsTimeline = timelineSettings.Item1 != lastTimelineSettings.Mode ||
-                              (timelineSettings.Item1 == CorrectionMode.Scaled && timelineSettings.Item2 != lastTimelineSettings.MainMetric);
-        lastTimelineSettings = timelineSettings;
-        if (affectsTimeline)
+        // The correction shown for the target depends on the timeline mode.
+        if (viewModel.CorrectionMode != lastCorrectionMode)
+        {
+            lastCorrectionMode = viewModel.CorrectionMode;
             UpdateTarget();
+        }
     }
 
     private CorrectionMode GetCurrentCorrectionMode() => ParseCorrectionMode(settingsService.Current.CorrectionMode);
-
-    private (string MainMetric, string SubMetric) GetOverlayMetrics()
-        => (MetricRegistry.Normalize(settingsService.Current.MainMetric, MetricRegistry.Default.Key),
-            MetricRegistry.Normalize(settingsService.Current.SubMetric, "Acc", allowOff: true));
 
     private (string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay) GetCurrentReplays()
     {
@@ -708,8 +697,9 @@ public sealed partial class MainWindow : Window
 
         var cancellation = correctionCancellation = new CancellationTokenSource();
         var mode = viewModel.CorrectionMode;
-        var metric = viewModel.SelectedMainMetric ?? viewModel.MainMetricOptions[0];
-        var metricName = MetricRegistry.Find(metric.Key)?.DisplayName ?? metric.Key;
+        // shown (and scaled) by score: each overlay picks its own item in its config.json
+        var metric = MetricRegistry.Default;
+        var metricName = "score";
         viewModel.ShowCorrectionLoading();
 
         _ = Task.Run(() =>

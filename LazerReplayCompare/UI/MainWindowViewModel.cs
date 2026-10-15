@@ -25,11 +25,6 @@ public abstract class ObservableObject : INotifyPropertyChanged
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
-public sealed record MetricOption(string Key, string Name)
-{
-    public override string ToString() => Name;
-}
-
 /// <param name="Key">Judgement name; the window maps it to a theme brush (Judgement{Key}Brush).</param>
 public sealed record JudgementSegment(string Key, int Count)
 {
@@ -53,7 +48,7 @@ public sealed class MainWindowViewModel : ObservableObject
 {
     public ObservableCollection<ReplayRow> ReplayRows { get; } = new();
 
-    /// <summary>Raised when the user changes an overlay metric, the timeline mode or the theme.</summary>
+    /// <summary>Raised when the user changes the timeline mode, the theme or the background setting.</summary>
     public event Action? SettingsChanged;
 
     // --- Pages ---
@@ -556,46 +551,6 @@ public sealed class MainWindowViewModel : ObservableObject
         CorrectionTitle = "Timeline failed";
         CorrectionDetail = message;
         CorrectionShort = "Hover for details";
-    }
-
-    // --- Overlay metrics ---
-
-    private MetricOption? selectedMainMetric;
-    private MetricOption? selectedSubMetric;
-
-    public IReadOnlyList<MetricOption> MainMetricOptions { get; } =
-        MetricRegistry.All.Select(metric => new MetricOption(metric.Key, $"Main: {metric.DisplayName}")).ToList();
-
-    public IReadOnlyList<MetricOption> SubMetricOptions { get; } =
-        MetricRegistry.All.Select(metric => new MetricOption(metric.Key, $"Sub: {metric.DisplayName}"))
-                      .Append(new MetricOption(MetricRegistry.Off, $"Sub: {MetricRegistry.Off}")).ToList();
-
-    public MetricOption? SelectedMainMetric
-    {
-        get => selectedMainMetric;
-        set
-        {
-            if (value != null && Set(ref selectedMainMetric, value))
-                SettingsChanged?.Invoke();
-        }
-    }
-
-    public MetricOption? SelectedSubMetric
-    {
-        get => selectedSubMetric;
-        set
-        {
-            if (value != null && Set(ref selectedSubMetric, value))
-                SettingsChanged?.Invoke();
-        }
-    }
-
-    public void SetMetrics(string main, string sub)
-    {
-        selectedMainMetric = MainMetricOptions.FirstOrDefault(option => option.Key == main) ?? MainMetricOptions[0];
-        selectedSubMetric = SubMetricOptions.FirstOrDefault(option => option.Key == sub) ?? SubMetricOptions[^1];
-        OnPropertyChanged(nameof(SelectedMainMetric));
-        OnPropertyChanged(nameof(SelectedSubMetric));
     }
 
     // --- Timeline mode and theme (radio groups) ---

@@ -60,23 +60,41 @@ Hover any chart, the ring or a bar to see its numbers. A score without a replay 
 
 ## Overlays
 
-- `LazerReplayCompareLive by Codex` shows a detailed live comparison: score, accuracy, combo, judgements, the target replay, and whether it was pinned or chosen automatically.
-- `LazerSameModScoreDiff by Codex` shows only the difference, in a compact format.
+Copy all four folders from `static` (the three overlays and `lazerReplayCompareShared`) into tosu's `static` folder.
 
-## Overlay metrics
+- `LazerReplayCompare Main` shows one large item: by default the score difference to the replay you are compared against.
+- `LazerReplayCompare Sub` shows one smaller item on its own, so it can be placed anywhere: by default your live accuracy.
+- `LazerReplayCompareLive by Codex` shows a detailed live comparison: two items, combo, judgements, the target replay, and whether it was pinned or chosen automatically.
 
-The **Main** and **Sub** settings choose what the overlay compares. **Main** is the large value; **Sub** is the smaller one below it and can be **Off**.
+## What the overlays show
 
-| Metric | Meaning |
-|---|---|
-| `Score` | Score difference. Positive means you are ahead of the replay. |
-| `Acc` | Accuracy difference, as osu!lazer/tosu show it. |
-| `BMS` | BMS-style judgement score: 320 = 2 points, 300 = 1, everything else 0. |
-| `PPacc` | pp-style accuracy: 320 = 100, 300 = 93.75, 200 = 62.5, 100 = 31.25, 50 = 15.625, Miss = 0, averaged as a percentage. |
-| `PPscore` | The same values as `PPacc`, summed and rounded (ten 320s = 1000). |
-| `V1acc` | Classic accuracy, where 320 and 300 both count as 100%. |
+Each overlay has a `config.json` in its folder. Edit it with any text editor; saved changes apply while the overlay runs (no rebuild, no restart).
 
-For example, `Main = Score, Sub = Acc` is the classic display, and `Main = BMS, Sub = Off` shows only the BMS comparison.
+`LazerReplayCompare Main` and `LazerReplayCompare Sub`:
+
+```json
+{
+    "item": "score",
+    "show": "diff"
+}
+```
+
+- `item` is what to show:
+
+  | Item | Meaning |
+  |---|---|
+  | `score` | Score, as the game counts it (osu!stable: ScoreV1, osu!lazer: lazer's score). |
+  | `score_acc` | Score as a share of the best score possible so far: every judgement up to this note MAX. For example 270,000 when 300,000 was possible is 90%. |
+  | `acc` | Accuracy, as the game shows it. |
+  | `stable_acc` | osu!stable's accuracy (MAX and 300 both count fully), from the judgements. Handy while playing osu!lazer. |
+  | `lazer_acc` | osu!lazer's accuracy (MAX worth 305), from the judgements. Handy while playing osu!stable. |
+  | `off` | Hide the overlay. |
+
+- `show` is how: `diff` (live minus the compared replay at the same note, positive means you are ahead), `value` (the live value) or `target` (the compared replay's value at the same note).
+
+`LazerReplayCompareLive by Codex` takes `"main"` and `"sub"` items (`sub` can be `off`).
+
+More items made of judgement counts can be added in `lazerReplayCompareShared/metrics.json`: a name, a value per judgement, and whether to average it per judgement (an accuracy-like value). It comes with `bms` (MAX = 2, 300 = 1), `pp_acc` and `pp_score` (MAX = 100, 300 = 93.75, 200 = 62.5, 100 = 31.25, 50 = 15.625); use their keys as `item`.
 
 ## Timeline modes
 
@@ -84,7 +102,7 @@ Settings → Replay timeline chooses how the replay's note-by-note score is buil
 
 - **Corrected (default).** Rebuilds the timeline so it reproduces the replay's recorded score and judgements. The comparison card says whether the match is exact or approximate, and by how much.
 - **Raw.** Exactly what osu!lazer's replay playback shows, even when that differs from the recorded score.
-- **Scaled.** The raw timeline, stretched so its final value equals the replay's.
+- **Scaled.** The raw timeline, stretched so its final value equals the replay's (the value of the item the overlay shows).
 
 The first timeline for a replay can take a moment to build. Until it is ready, the overlay uses the raw replay data.
 

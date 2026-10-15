@@ -100,7 +100,7 @@ public static class MetricRegistry
     /// <summary>Every metric, in the order the app lists them. The first one is the default.</summary>
     public static readonly IReadOnlyList<MetricDefinition> All =
     [
-        new("Score", "Score", MetricSource.Score, MetricFormat.Integer, Aliases: ["ScoreDiff"]),
+        new("Score", "Score", MetricSource.Score, MetricFormat.Integer, Aliases: ["ScoreDiff", "score_acc"]),
         new("Acc", "Acc", MetricSource.Accuracy, MetricFormat.Percent, DisplayScale: 100, Maximum: 1, Aliases: ["Accuracy", "AccuracyDiff"]),
         new("Bms", "BMS", MetricSource.Hits, MetricFormat.Integer,
             HitWeights: new Dictionary<string, double> { ["Perfect"] = 2, ["Great"] = 1 }, Aliases: ["BmsScore"]),
@@ -108,7 +108,11 @@ public static class MetricRegistry
         new("PpScore", "PPscore", MetricSource.Hits, MetricFormat.Integer, HitWeights: pp_weights, Round: true),
         new("V1Acc", "V1acc", MetricSource.Hits, MetricFormat.Percent,
             HitWeights: new Dictionary<string, double> { ["Perfect"] = 100, ["Great"] = 100, ["Good"] = 200 / 3.0, ["Ok"] = 100 / 3.0, ["Meh"] = 50 / 3.0 },
-            Average: true),
+            Average: true, Aliases: ["stable_acc"]),
+        // osu!lazer's osu!mania accuracy (MAX 305, 300, 200, 100, 50), from any judgement counts
+        new("LazerAcc", "Lazer acc", MetricSource.Hits, MetricFormat.Percent,
+            HitWeights: new Dictionary<string, double> { ["Perfect"] = 100, ["Great"] = 30000 / 305.0, ["Good"] = 20000 / 305.0, ["Ok"] = 10000 / 305.0, ["Meh"] = 5000 / 305.0 },
+            Average: true, Aliases: ["lazer_acc"]),
     ];
 
     public static MetricDefinition Default => All[0];

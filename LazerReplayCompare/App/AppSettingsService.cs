@@ -38,16 +38,4 @@ public sealed class AppSettingsService
         Current.ShowBackground = show;
         Save();
     }
-
-    public void SetMainMetric(string metric)
-    {
-        Current.MainMetric = string.IsNullOrWhiteSpace(metric) ? "Score" : metric;
-        Save();
-    }
-
-    public void SetSubMetric(string metric)
-    {
-        Current.SubMetric = string.IsNullOrWhiteSpace(metric) ? "Off" : metric;
-        Save();
-    }
 }

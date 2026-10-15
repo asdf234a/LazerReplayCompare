@@ -8,21 +8,22 @@ public sealed class ReplayApiServer : IDisposable
 {
     private readonly Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays;
     private readonly Func<CorrectionMode> getDefaultCorrectionMode;
-    private readonly Func<(string MainMetric, string SubMetric)> getOverlayMetrics;
     private readonly ReplayTimelineBuilder timelineBuilder;
+
+    // /perfect results by beatmap, client and mods (most recent last)
+    private readonly List<(string Key, long[] Scores)> perfectScores = new();
+    private const int kept_perfect_scores = 8;
     private readonly CancellationTokenSource cancellation = new();
     private TcpListener? listener;
 
     public ReplayApiServer(
         Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays,
         Func<CorrectionMode> getDefaultCorrectionMode,
-        Func<(string MainMetric, string SubMetric)> getOverlayMetrics,
         ReplayTimelineBuilder timelineBuilder)
     {
         this.timelineBuilder = timelineBuilder;
         this.getReplays = getReplays;
         this.getDefaultCorrectionMode = getDefaultCorrectionMode;
-        this.getOverlayMetrics = getOverlayMetrics;
     }
 
     public int Port { get; private set; }
@@ -119,11 +120,22 @@ public sealed class ReplayApiServer : IDisposable
                 var correction = GetQueryValue(query, "correctionMode") ?? GetQueryValue(query, "correction") ?? GetQueryValue(query, "mode");
                 var rate = double.TryParse(rateStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var r) && r > 0 ? r : 0;
                 var correctionMode = ParseCorrectionMode(correction, getDefaultCorrectionMode());
-                var scaleMetric = GetQueryValue(query, "scaleMetric") ?? GetQueryValue(query, "metric") ?? getOverlayMetrics().MainMetric;
+                var scaleMetric = GetQueryValue(query, "scaleMetric") ?? GetQueryValue(query, "metric") ?? MetricRegistry.Default.Key;
                 // the game the live play runs in: osu!stable replays are scored the osu!stable way against osu!stable
                 var liveClient = LiveClients.Parse(GetQueryValue(query, "client"));
 
                 WriteJson(stream, timelineBuilder.GetOrBuild(replayPath ?? string.Empty, beatmapPath, rate, correctionMode, scaleMetric, liveClient));
+                return;
+            }
+
+            if (uri.AbsolutePath == "/perfect")
+            {
+                var query = ParseQuery(uri.Query);
+                var beatmapPath = GetQueryValue(query, "osu") ?? GetQueryValue(query, "beatmap") ?? string.Empty;
+                var liveClient = LiveClients.Parse(GetQueryValue(query, "client"));
+                var mods = (GetQueryValue(query, "mods") ?? string.Empty).Split(new[] { ',', '+', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                var rate = double.TryParse(GetQueryValue(query, "rate"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var r) && r > 0 ? r : 0;
+                WriteJson(stream, new { client = liveClient.ToString().ToLowerInvariant(), scores = GetPerfectScores(beatmapPath, liveClient, mods, rate) });
                 return;
             }
 
@@ -164,34 +176,49 @@ public sealed class ReplayApiServer : IDisposable
         return CorrectionMode.Corrected;
     }
 
+    /// <summary>
+    /// Score after each judgement if all were MAX (<see cref="PerfectScores"/>), for the overlays' score_acc. Kept for the
+    /// few beatmap / mod combinations asked for recently.
+    /// </summary>
+    private long[] GetPerfectScores(string beatmapPath, LiveClient client, IReadOnlyList<string> mods, double rate)
+    {
+        var key = $"{beatmapPath}|{client}|{string.Join("+", mods.Select(m => m.ToUpperInvariant()).Order())}|{rate.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        lock (perfectScores)
+        {
+            var index = perfectScores.FindIndex(entry => entry.Key == key);
+            if (index >= 0)
+                return perfectScores[index].Scores;
+        }
+
+        var scores = PerfectScores.Build(beatmapPath, client, mods, rate);
+        lock (perfectScores)
+        {
+            perfectScores.RemoveAll(entry => entry.Key == key);
+            perfectScores.Add((key, scores));
+            if (perfectScores.Count > kept_perfect_scores)
+                perfectScores.RemoveAt(0);
+        }
+
+        return scores;
+    }
+
     private object BuildState()
     {
         var (md5, replayList, selectedReplay) = getReplays();
         var replay = selectedReplay ?? replayList.FirstOrDefault(entry => entry.HasReplay);
         var correctionMode = getDefaultCorrectionMode().ToString().ToLowerInvariant();
-        var metrics = getOverlayMetrics();
         var replayListVersion = replayList.Count == 0
             ? "0"
             : $"{replayList.Count}:{replayList.Max(replay => replay.Timestamp)}";
         var selectedReplayKey = replay == null
             ? string.Empty
             : $"{replay.FilePath}|{replay.Score}|{replay.Timestamp}|{replay.ModsKey}";
-        // Scaled timelines depend on the main metric, so a metric change must invalidate overlay caches.
-        var timelineMode = getDefaultCorrectionMode() == CorrectionMode.Scaled
-            ? $"{correctionMode}:{TimelineScaler.NormalizeMetric(metrics.MainMetric)}"
-            : correctionMode;
-        var timelineKey = $"{md5}|{selectedReplayKey}|{timelineMode}|{replayListVersion}";
+        // Which item each overlay shows is set in its own config.json; a scaled timeline is asked for with that item.
+        var timelineKey = $"{md5}|{selectedReplayKey}|{correctionMode}|{replayListVersion}";
 
         return new
         {
             correctionMode,
-            displayMetrics = new
-            {
-                main = metrics.MainMetric,
-                sub = metrics.SubMetric,
-            },
-            // Overlays evaluate every metric from these definitions (MetricRegistry).
-            metrics = MetricRegistry.ToJson(),
             beatmapMd5 = md5,
             selectedReplay = replay,
             replayCount = replayList.Count,

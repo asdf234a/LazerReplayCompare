@@ -1,0 +1,8 @@
+{
+    // The two items this panel compares. Saved changes apply while it runs.
+    //
+    // score, score_acc, acc, stable_acc, lazer_acc, a key from lazerReplayCompareShared/metrics.json, or off (sub only)
+    // (see LazerReplayCompare Main/config.json for what each one is)
+    "main": "score",
+    "sub": "acc"
+}

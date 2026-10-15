@@ -1,0 +1,48 @@
+@font-face {
+    src: url("../../lazerReplayCompareShared/Pretendard-SemiBold.ttf");
+    font-family: "Pretendard";
+    font-weight: 600;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    user-select: none;
+    font-family: "Pretendard", "Segoe UI", Arial, sans-serif;
+}
+
+.counter {
+    position: absolute;
+    top: 2rem;
+    left: 50%;
+    min-width: 4rem;
+    transform: translateX(-50%);
+    opacity: 0;
+    color: #ffffff;
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    text-shadow:
+        0 0 0.25rem rgba(0, 0, 0, 0.95),
+        0 0 0.75rem rgba(0, 0, 0, 0.75);
+    font-variant-numeric: tabular-nums;
+    transition: opacity 140ms ease;
+}
+
+.counter.visible {
+    opacity: 1;
+}
+
+.counter.positive .sign {
+    color: #77ff9a;
+}
+
+.counter.negative .sign {
+    color: #ff6f7f;
+}
