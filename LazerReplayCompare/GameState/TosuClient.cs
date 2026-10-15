@@ -29,7 +29,7 @@ public sealed class TosuClient : IDisposable
                 StatusChanged?.Invoke("Connected to tosu");
 
                 var filter = """
-                    applyFilters:["client",{"field":"beatmap","keys":["checksum","artist","title","version","difficulty","name"]},{"field":"folders","keys":["songs","beatmap"]},{"field":"files","keys":["beatmap","background"]},{"field":"directPath","keys":["beatmapBackground"]},{"field":"state","keys":["name"]},{"field":"play","keys":["mods"]}]
+                    applyFilters:["client",{"field":"beatmap","keys":["checksum","artist","title","version","difficulty","name"]},{"field":"folders","keys":["game","songs","beatmap"]},{"field":"files","keys":["beatmap","background"]},{"field":"directPath","keys":["beatmapBackground"]},{"field":"state","keys":["name"]},{"field":"play","keys":["mods"]}]
                     """;
                 var filterBytes = Encoding.UTF8.GetBytes(filter);
                 await socket.SendAsync(filterBytes, WebSocketMessageType.Text, true, token);
@@ -88,8 +88,12 @@ public sealed record TosuSnapshot(
     string BeatmapFile,
     string BackgroundFile = "",
     string DirectBackgroundPath = "",
-    PlaySpeed? Speed = null)
+    PlaySpeed? Speed = null,
+    string GameFolder = "")
 {
+    /// <summary>tosu reports an osu!stable client (replays then come from osu!stable's own database).</summary>
+    public bool IsStable => LiveClients.Parse(Client) == LiveClient.Stable;
+
     /// <summary>The current play's rate and Classic mod (1×, no Classic when tosu reports no mods).</summary>
     public PlaySpeed PlaySpeed => Speed ?? new PlaySpeed(1, false);
 
@@ -127,7 +131,8 @@ public sealed record TosuSnapshot(
             BeatmapFile: GetString(root, "files", "beatmap"),
             BackgroundFile: GetString(root, "files", "background"),
             DirectBackgroundPath: GetString(root, "directPath", "beatmapBackground"),
-            Speed: GetPlaySpeed(root));
+            Speed: GetPlaySpeed(root),
+            GameFolder: GetString(root, "folders", "game"));
     }
 
     /// <summary>play.mods → rate/Classic, the way the overlays read it (getCurrentModsKey), and whether the client is osu!stable.</summary>

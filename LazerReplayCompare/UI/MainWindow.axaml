@@ -172,6 +172,18 @@
             </Grid>
           </Border>
 
+          <Border Classes="banner warning" IsVisible="{Binding ShowStableBanner}">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+              <Path Width="18" Height="18" Stretch="Uniform" StrokeThickness="2" StrokeJoin="Round" VerticalAlignment="Center"
+                    Data="M3,7 L3,17 C3,18.1 3.9,19 5,19 L19,19 C20.1,19 21,18.1 21,17 L21,9 C21,7.9 20.1,7 19,7 L11,7 L9,5 L5,5 C3.9,5 3,5.9 3,7 Z" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock Classes="title" Text="osu!stable folder not found" />
+                <TextBlock Classes="detail" Text="Choose the osu! folder that contains scores.db." TextWrapping="Wrap" />
+              </StackPanel>
+              <Button Grid.Column="2" Classes="warning" Content="Choose folder" Click="BrowseOsuStableFolder" />
+            </Grid>
+          </Border>
+
           <Border Classes="banner error" IsVisible="{Binding ShowApiBanner}">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
               <Path Width="18" Height="18" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" VerticalAlignment="Center"
@@ -207,7 +219,7 @@
             <TextBlock Classes="muted" Text="Comparison resumes once everything is connected" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="28" MinHeight="180" IsVisible="{Binding ShowNoBeatmap}">
-            <TextBlock Classes="muted" Text="Select a beatmap in osu!lazer to see its replays" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <TextBlock Classes="muted" Text="{Binding GameName, StringFormat='Select a beatmap in {0} to see its replays'}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="28" MinHeight="180" IsVisible="{Binding IsLoadingReplays}">
             <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -221,7 +233,7 @@
                     Data="M12,3 A9,9 0 1 1 11.99,3 Z M10,9 L15,12 L10,15 Z" />
               <TextBlock Text="No saved replays for this map yet" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
               <TextBlock Classes="secondary" MaxWidth="400" TextWrapping="Wrap" TextAlignment="Center" FontSize="13"
-                         Text="Finish a play of it in osu!lazer and the score shows up here. The overlay stays hidden until there is something to compare against." />
+                         Text="{Binding GameName, StringFormat='Finish a play of it in {0} and the score shows up here. The overlay stays hidden until there is something to compare against.'}" />
               <Button Content="Rescan replays" HorizontalAlignment="Center" Click="RefreshReplays" Margin="0,6,0,0" />
             </StackPanel>
           </Border>
@@ -420,6 +432,23 @@
                          PlaceholderText="Select your osu!lazer folder" LostFocus="OsuLazerPathCommitted" KeyDown="OsuLazerPathKeyDown" />
                 <Button Grid.Column="1" Content="Browse…" Click="BrowseOsuLazerFolder" />
                 <Button Grid.Column="2" x:Name="RefreshButton" Classes="ghost" Content="Rescan replays" Click="RefreshReplays" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">
+            <StackPanel Spacing="14">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock Classes="sectionTitle" Text="osu!stable folder" />
+                <TextBlock FontSize="13" Foreground="{DynamicResource GoodTextBrush}" Text="Found" IsVisible="{Binding StableFound}" VerticalAlignment="Center" />
+                <TextBlock FontSize="13" Foreground="{DynamicResource WarningTextBrush}" Text="Not found" IsVisible="{Binding !StableFound}" VerticalAlignment="Center" />
+              </StackPanel>
+              <TextBlock Classes="secondary" FontSize="13" TextWrapping="Wrap"
+                         Text="Used while you play in osu!stable: its replays are read from scores.db and Data/r, and scored the way osu!stable does." />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <TextBox x:Name="OsuStableBox" Text="{Binding OsuStablePath, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="13"
+                         PlaceholderText="Select your osu! (stable) folder" LostFocus="OsuStablePathCommitted" KeyDown="OsuStablePathKeyDown" />
+                <Button Grid.Column="1" Content="Browse…" Click="BrowseOsuStableFolder" />
               </Grid>
             </StackPanel>
           </Border>

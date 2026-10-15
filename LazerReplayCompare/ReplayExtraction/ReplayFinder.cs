@@ -201,6 +201,26 @@ public sealed class ReplayFinder
         }
     }
 
+    /// <summary>
+    /// <see cref="ReplayMod"/>s for osu!lazer mod instances (e.g. converted from an osu!stable mod bitmask), the same way
+    /// realm scores' mods are listed: settings only where they differ from the defaults.
+    /// </summary>
+    internal static List<ReplayMod> FromLazerMods(IEnumerable<osu.Game.Rulesets.Mods.Mod> mods)
+    {
+        return mods
+            .Select(mod =>
+            {
+                var settings = GetSettings(new osu.Game.Online.API.APIMod(mod));
+                var display = settings.Count == 0 ? mod.Acronym : $"{mod.Acronym}({FormatSettings(settings)})";
+                var matchKey = settings.Count == 0 ? mod.Acronym : $"{mod.Acronym}({BuildSettingsKey(settings)})";
+                return new ReplayMod(mod.Acronym, settings, display, matchKey,
+                    Name: mod.Name, Type: mod.Type.ToString(), ExtendedInfo: mod.ExtendedIconInformation);
+            })
+            .OrderBy(mod => mod.Acronym, StringComparer.Ordinal)
+            .ThenBy(mod => mod.MatchKey, StringComparer.Ordinal)
+            .ToList();
+    }
+
     /// <summary>The score's mods as osu!lazer mod instances (with their settings), for icon details.</summary>
     private static Dictionary<string, osu.Game.Rulesets.Mods.Mod> GetLazerMods(ScoreInfo score)
     {

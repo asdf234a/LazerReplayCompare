@@ -15,6 +15,12 @@ public sealed class AppSettingsService
         Save();
     }
 
+    public void SetOsuStablePath(string path)
+    {
+        Current.OsuStablePath = path;
+        Save();
+    }
+
     public void SetTheme(string theme)
     {
         Current.Theme = string.IsNullOrWhiteSpace(theme) ? "System" : theme;

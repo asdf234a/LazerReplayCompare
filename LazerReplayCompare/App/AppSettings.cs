@@ -5,6 +5,7 @@ namespace LazerReplayCompare;
 public sealed class AppSettings
 {
     public string OsuLazerPath { get; set; } = string.Empty;
+    public string OsuStablePath { get; set; } = string.Empty;
     public string Theme { get; set; } = "System";
     public string CorrectionMode { get; set; } = "Corrected";
     public string MainMetric { get; set; } = "Score";

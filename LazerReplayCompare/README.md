@@ -7,9 +7,9 @@ It reads osu!lazer's `client.realm` and `files` storage, finds replay files for 
 ## Features
 
 - Shows a Windows UI when launched, with two pages:
-  - **Compare**: the beatmap selected in osu!lazer (over its background image, which can be turned off in Settings), the overlay's main/sub metric pickers, the replay being compared against (in auto mode the best score at the current play's rate and Classic mod — the same rule as the overlays — or the one you pinned) with how exactly its timeline matches the recorded score and its judgement breakdown, and a sortable list of the map's replays (score difference to the target, pin buttons).
-  - **Settings**: replay timeline mode (Corrected / Raw / Scaled), osu!lazer folder, overlay folder, theme (System / Dark / Light) and whether to show the beatmap background.
-- Shows problems (tosu not running, osu!lazer folder not found, overlay API port in use) as banners at the top, and the connection state in the top bar.
+  - **Compare**: the beatmap selected in osu!lazer or osu!stable (over its background image, which can be turned off in Settings), the overlay's main/sub metric pickers, the replay being compared against (in auto mode the best score at the current play's rate and Classic mod — the same rule as the overlays — or the one you pinned) with how exactly its timeline matches the recorded score and its judgement breakdown, and a sortable list of the map's replays (score difference to the target, pin buttons).
+  - **Settings**: replay timeline mode (Corrected / Raw / Scaled), osu!lazer folder, osu!stable folder, overlay folder, theme (System / Dark / Light) and whether to show the beatmap background.
+- Shows problems (tosu not running, osu!lazer or — while playing osu!stable — osu!stable folder not found, overlay API port in use) as banners at the top, and the connection state in the top bar.
 - Compact mode: a small always-on-top window with the target, the metric pickers and the match status, for while you play.
 - Uses one osu!lazer root folder and automatically resolves:
   - `client.realm`
@@ -128,6 +128,8 @@ Each replay includes:
 ```
 
 `isLegacy` is true for replays set in osu!stable. Playing in osu!stable, the overlays only compare against these.
+
+While tosu reports osu!stable, the list is read from osu!stable's own folder (tosu's `folders.game`, or Settings → osu!stable folder) instead of osu!lazer's database: the beatmap's osu!mania scores in `scores.db`, each with its replay from `Data/r` (full `.osr` files). Replays are matched to scores by replay hash (or timestamp), looking at files named `{beatmap md5}-*.osr` first and at every replay header otherwise (headers are cached by size and write time); replays in `Data/r` for the beatmap that `scores.db` does not list yet are included too. Score, accuracy and rank are osu!stable's (ScoreV1, MAX and 300 count fully).
 
 Use `modsKey` or the structured `mods` array when a plugin needs mod or playback-rate filtering.
 

@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
     private const string TosuHost = "127.0.0.1:24050";
 
     private readonly ReplayFinder replayFinder = new();
+    private readonly StableReplayFinder stableReplayFinder = new();
     private readonly TosuClient tosuClient = new();
     private readonly ReplayTimelineBuilder timelineBuilder = new();
     private readonly ReplayApiServer apiServer;
@@ -116,7 +117,8 @@ public sealed partial class MainWindow : Window
         }
 
         await Task.Delay(2500);
-        if (!OsuLazerPathResolver.IsOsuLazerRoot(viewModel.OsuLazerPath))
+        // Playing osu!stable needs osu!stable's folder instead (found through tosu, or chosen on its banner).
+        if (!OsuLazerPathResolver.IsOsuLazerRoot(viewModel.OsuLazerPath) && !viewModel.IsStableClient)
             await BrowseOsuLazerFolderCore(true);
     }
 
@@ -138,6 +140,8 @@ public sealed partial class MainWindow : Window
             ? current.OsuLazerPath
             : OsuLazerPathResolver.Resolve(null) ?? current.OsuLazerPath;
         viewModel.LazerFound = OsuLazerPathResolver.IsOsuLazerRoot(viewModel.OsuLazerPath);
+        viewModel.OsuStablePath = OsuStablePathResolver.Resolve(null, current.OsuStablePath) ?? current.OsuStablePath;
+        viewModel.StableFound = OsuStablePathResolver.IsOsuStableRoot(viewModel.OsuStablePath);
 
         viewModel.Theme = NormalizeTheme(current.Theme);
         viewModel.ShowBackground = current.ShowBackground;
@@ -242,6 +246,58 @@ public sealed partial class MainWindow : Window
         settingsService.SetOsuLazerPath(path);
     }
 
+    // --- osu!stable folder ---
+
+    private async void BrowseOsuStableFolder(object? sender, RoutedEventArgs e)
+    {
+        var topLevel = GetTopLevel(this);
+        if (topLevel == null)
+            return;
+
+        var startLocation = !string.IsNullOrWhiteSpace(viewModel.OsuStablePath) && Directory.Exists(viewModel.OsuStablePath)
+            ? await topLevel.StorageProvider.TryGetFolderFromPathAsync(viewModel.OsuStablePath)
+            : null;
+
+        var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select osu! (stable) folder",
+            AllowMultiple = false,
+            SuggestedStartLocation = startLocation,
+        });
+
+        var path = folders.FirstOrDefault()?.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        SetOsuStablePath(path);
+        RefreshReplays();
+    }
+
+    private void OsuStablePathCommitted(object? sender, RoutedEventArgs e) => CommitOsuStablePath();
+
+    private void OsuStablePathKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+            CommitOsuStablePath();
+    }
+
+    private void CommitOsuStablePath()
+    {
+        var path = (viewModel.OsuStablePath ?? string.Empty).Trim();
+        if (string.Equals(path, settingsService.Current.OsuStablePath, StringComparison.Ordinal))
+            return;
+
+        SetOsuStablePath(path);
+        RefreshReplays();
+    }
+
+    private void SetOsuStablePath(string path)
+    {
+        viewModel.OsuStablePath = path;
+        viewModel.StableFound = OsuStablePathResolver.IsOsuStableRoot(path);
+        settingsService.SetOsuStablePath(path);
+    }
+
     // --- tosu ---
 
     private void OnSnapshotReceived(TosuSnapshot snapshot)
@@ -251,22 +307,27 @@ public sealed partial class MainWindow : Window
             viewModel.TosuConnected = true;
             var oldChecksum = currentSnapshot.BeatmapChecksum;
             var oldSpeed = currentSnapshot.PlaySpeed;
+            var oldStable = currentSnapshot.IsStable;
             currentSnapshot = snapshot;
+            viewModel.IsStableClient = snapshot.IsStable;
 
             var hasBeatmap = !string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum);
             viewModel.HasBeatmap = hasBeatmap;
             viewModel.BeatmapTitle = hasBeatmap ? FirstNonEmpty(snapshot.BeatmapTitle, snapshot.BeatmapChecksum) : "No beatmap selected";
             viewModel.BeatmapSubtitle = hasBeatmap
                 ? string.Join(" · ", new[] { snapshot.BeatmapArtist, snapshot.BeatmapVersion }.Where(part => !string.IsNullOrWhiteSpace(part)))
-                : "Select a beatmap in osu!lazer";
+                : $"Select a beatmap in {viewModel.GameName}";
 
             if (snapshot.BeatmapChecksum != backgroundBeatmap)
                 OnBackgroundBeatmapChanged(snapshot);
 
-            if (!viewModel.LazerFound && OsuLazerPathResolver.Resolve(snapshot) is { } detectedPath)
+            if (!viewModel.LazerFound && !snapshot.IsStable && OsuLazerPathResolver.Resolve(snapshot) is { } detectedPath)
                 SetOsuLazerPath(detectedPath);
+            if (!viewModel.StableFound && snapshot.IsStable && OsuStablePathResolver.Resolve(snapshot) is { } stablePath)
+                SetOsuStablePath(stablePath);
 
-            if (hasBeatmap && snapshot.BeatmapChecksum != oldChecksum)
+            // the replay list comes from the game being played: osu!lazer's database or osu!stable's scores.db
+            if (hasBeatmap && (snapshot.BeatmapChecksum != oldChecksum || snapshot.IsStable != oldStable))
                 RefreshReplays();
             else if (snapshot.PlaySpeed != oldSpeed)
                 UpdateTarget();   // the auto target depends on the current rate
@@ -368,11 +429,17 @@ public sealed partial class MainWindow : Window
     {
         if (string.IsNullOrWhiteSpace(currentSnapshot.BeatmapChecksum))
         {
-            viewModel.StatusText = "Select a beatmap in osu!lazer first";
+            viewModel.StatusText = $"Select a beatmap in {viewModel.GameName} first";
             return;
         }
 
         var md5 = currentSnapshot.BeatmapChecksum;
+        if (currentSnapshot.IsStable)
+        {
+            RefreshStableReplays(md5);
+            return;
+        }
+
         var osuLazerRoot = (viewModel.OsuLazerPath ?? string.Empty).Trim();
         var realmPath = System.IO.Path.Combine(osuLazerRoot, "client.realm");
         var filesRoot = System.IO.Path.Combine(osuLazerRoot, "files");
@@ -412,6 +479,52 @@ public sealed partial class MainWindow : Window
                 {
                     viewModel.IsLoadingReplays = false;
                     viewModel.StatusText = $"Couldn't read replays: {ex.Message}";
+                    OnDatabaseBackground(md5, string.Empty);
+                });
+            }
+        });
+    }
+
+    /// <summary>Playing in osu!stable: the beatmap's scores from osu!stable's scores.db, with their replays from Data/r.</summary>
+    private void RefreshStableReplays(string md5)
+    {
+        var stableRoot = (viewModel.OsuStablePath ?? string.Empty).Trim();
+        if (!OsuStablePathResolver.IsOsuStableRoot(stableRoot))
+        {
+            viewModel.StableFound = false;
+            return;
+        }
+
+        viewModel.StableFound = true;
+        viewModel.IsLoadingReplays = true;
+        viewModel.StatusText = string.Empty;
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var replays = stableReplayFinder.FindReplays(md5, stableRoot);
+                lock (replayLock)
+                {
+                    currentReplays = replays;
+                    currentReplaysMd5 = md5;
+                    replaySelection.ClearIfMissing(replays);
+                }
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    viewModel.IsLoadingReplays = false;
+                    FillReplayList(replays);
+                    OnDatabaseBackground(md5, string.Empty);
+                });
+            }
+            catch (Exception ex)
+            {
+                InternalLogger.Log(ex);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    viewModel.IsLoadingReplays = false;
+                    viewModel.StatusText = $"Couldn't read osu!stable replays: {ex.Message}";
                     OnDatabaseBackground(md5, string.Empty);
                 });
             }

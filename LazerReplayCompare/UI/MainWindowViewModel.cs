@@ -76,6 +76,8 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private bool tosuConnected;
     private bool lazerFound;
+    private bool stableFound;
+    private bool isStableClient;
     private bool apiRunning = true;
     private string apiError = string.Empty;
 
@@ -91,6 +93,32 @@ public sealed class MainWindowViewModel : ObservableObject
         set { if (Set(ref lazerFound, value)) connectionsChanged(); }
     }
 
+    public bool StableFound
+    {
+        get => stableFound;
+        set { if (Set(ref stableFound, value)) connectionsChanged(); }
+    }
+
+    /// <summary>tosu reports osu!stable: replays come from osu!stable's scores.db instead of osu!lazer's database.</summary>
+    public bool IsStableClient
+    {
+        get => isStableClient;
+        set
+        {
+            if (!Set(ref isStableClient, value))
+                return;
+
+            connectionsChanged();
+            OnPropertyChanged(nameof(GameName));
+        }
+    }
+
+    /// <summary>The game tosu follows ("osu!lazer" or "osu!stable"), for texts that name it.</summary>
+    public string GameName => IsStableClient ? "osu!stable" : "osu!lazer";
+
+    /// <summary>The replay database of the game being played was found.</summary>
+    public bool GameFolderFound => IsStableClient ? StableFound : LazerFound;
+
     public bool ApiRunning
     {
         get => apiRunning;
@@ -103,27 +131,32 @@ public sealed class MainWindowViewModel : ObservableObject
         set => Set(ref apiError, value);
     }
 
-    public bool AllConnected => TosuConnected && LazerFound && ApiRunning;
+    public bool AllConnected => TosuConnected && GameFolderFound && ApiRunning;
     public bool ShowTosuBanner => !TosuConnected;
-    public bool ShowLazerBanner => !LazerFound;
+    public bool ShowLazerBanner => !IsStableClient && !LazerFound;
+    public bool ShowStableBanner => IsStableClient && !StableFound;
     public bool ShowApiBanner => !ApiRunning;
 
     public string ConnectionText => AllConnected
         ? "All connected"
         : !TosuConnected ? "tosu not connected"
-        : !LazerFound ? "osu!lazer folder missing"
+        : !GameFolderFound ? $"{GameName} folder missing"
         : "Overlay API stopped";
 
     public string ConnectionDetails =>
         $"tosu: {(TosuConnected ? "connected (:24050)" : "not connected")}\n" +
-        $"osu!lazer: {(LazerFound ? "found" : "folder not found")}\n" +
+        (IsStableClient
+            ? $"osu!stable: {(StableFound ? "found" : "folder not found")}\n"
+            : $"osu!lazer: {(LazerFound ? "found" : "folder not found")}\n") +
         $"Overlay API: {(ApiRunning ? "running (:24052)" : "stopped")}";
 
     private void connectionsChanged()
     {
+        OnPropertyChanged(nameof(GameFolderFound));
         OnPropertyChanged(nameof(AllConnected));
         OnPropertyChanged(nameof(ShowTosuBanner));
         OnPropertyChanged(nameof(ShowLazerBanner));
+        OnPropertyChanged(nameof(ShowStableBanner));
         OnPropertyChanged(nameof(ShowApiBanner));
         OnPropertyChanged(nameof(ConnectionText));
         OnPropertyChanged(nameof(ConnectionDetails));
@@ -665,6 +698,14 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         get => osuLazerPath;
         set => Set(ref osuLazerPath, value);
+    }
+
+    private string osuStablePath = string.Empty;
+
+    public string OsuStablePath
+    {
+        get => osuStablePath;
+        set => Set(ref osuStablePath, value);
     }
 
     public string OverlayFolder { get; } = Path.Combine(AppContext.BaseDirectory, "static");
