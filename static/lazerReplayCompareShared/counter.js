@@ -1,15 +1,15 @@
 // An animated number for the Main and Sub overlays: counts to its new value and colours the sign of a difference.
 
-import { formatItem, isPercent } from './metrics.js';
+import { formatItem, hasDecimals } from './metrics.js';
 
 export function createCounter(element) {
     let shown = false;
-    let current = 0;        // in hundredths for percentages
+    let current = 0;        // in hundredths for items with decimals
     let key = '';
     let animation = 0;
 
-    const scaled = (itemKey, value) => (isPercent(itemKey) ? Math.round(value * 100) : Math.round(value));
-    const unscaled = (itemKey, value) => (isPercent(itemKey) ? value / 100 : value);
+    const scaled = (itemKey, value) => (hasDecimals(itemKey) ? Math.round(value * 100) : Math.round(value));
+    const unscaled = (itemKey, value) => (hasDecimals(itemKey) ? value / 100 : value);
 
     function render(itemKey, value, signed) {
         const formatted = formatItem(itemKey, unscaled(itemKey, value), signed);

@@ -6,7 +6,7 @@ namespace LazerReplayCompare;
 /// Something an overlay can show. Built-in items are worked out by the overlays themselves; custom items (from
 /// metrics.json) are weighted sums of judgement counts, sent to the overlays with their definition.
 /// </summary>
-/// <param name="Format">"integer" or "percent".</param>
+/// <param name="Format">"integer", "percent" or "decimal" (two decimals, no unit).</param>
 /// <param name="Weights">Value of one judgement (Perfect, Great, Good, Ok, Meh, Miss), custom items only.</param>
 /// <param name="Average">Divide by the number of judgements (an accuracy-like value).</param>
 /// <param name="Scale">Multiplier applied last.</param>
@@ -48,6 +48,8 @@ public static class OverlayItems
         new("acc", "Acc", "percent", true),
         new("stable_acc", "Stable acc", "percent", true),
         new("lazer_acc", "Lazer acc", "percent", true),
+        // MAX ÷ 300, with no 300 yet as one (so it reads the MAX count until the first 300)
+        new("ma_ratio", "MAX : 300", "decimal", true),
     ];
 
     // older metric names (app settings before 1.2)
@@ -59,6 +61,8 @@ public static class OverlayItems
         ["Bms"] = "bms",
         ["PpAcc"] = "pp_acc",
         ["PpScore"] = "pp_score",
+        ["MaRatio"] = "ma_ratio",
+        ["MA"] = "ma_ratio",
         ["None"] = Off,
     };
 

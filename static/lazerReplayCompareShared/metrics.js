@@ -1,6 +1,6 @@
 // Items the overlays can show, and how their values are worked out.
 //
-// Built in: score, score_acc, acc, stable_acc, lazer_acc. Which item each overlay shows, and any custom items (made
+// Built in: score, score_acc, acc, stable_acc, lazer_acc, ma_ratio. Which item each overlay shows, and any custom items (made
 // of judgement counts, from the app's metrics.json), come from LazerReplayCompare's /state.
 
 export const OFF = 'off';
@@ -63,6 +63,17 @@ const BUILT_IN = {
     acc: { name: 'Acc', format: 'percent', scaleKey: 'Acc', value: (s) => (Number(s.accuracy) || 0) * 100 },
     stable_acc: { name: 'Stable acc', format: 'percent', scaleKey: 'V1Acc', hits: true, value: (s) => countAccuracy(s.hits, STABLE_VALUES, 300) },
     lazer_acc: { name: 'Lazer acc', format: 'percent', scaleKey: 'LazerAcc', hits: true, value: (s) => countAccuracy(s.hits, LAZER_VALUES, 305) },
+    // MAX ÷ 300; with no 300 yet it divides by one, so it reads the MAX count until the first 300
+    ma_ratio: {
+        name: 'MAX : 300',
+        format: 'decimal',
+        scaleKey: 'Score',
+        value: (s) => {
+            const max = hitValue(s.hits, 'Perfect');
+            const great = hitValue(s.hits, 'Great');
+            return max + great > 0 ? max / Math.max(great, 1) : null;
+        },
+    },
 };
 
 // older names still accepted in configs
@@ -165,18 +176,25 @@ export function isPercent(key) {
     return definition(key)?.format === 'percent';
 }
 
+/** Whether the item is shown with two decimals (percentages and ratios). */
+export function hasDecimals(key) {
+    const format = definition(key)?.format;
+    return format === 'percent' || format === 'decimal';
+}
+
 /**
  * Formats a display-unit value: { sign, value, suffix, text }. `signed` adds "+" to positive values. Integers are
- * rounded (and signed by the rounded value); percentages keep two decimals.
+ * rounded (and signed by the rounded value); percentages and ratios keep two decimals.
  */
 export function formatItem(key, value, signed = false) {
     const number = Number(value) || 0;
 
-    if (isPercent(key)) {
+    if (hasDecimals(key)) {
         const text = Math.abs(number).toFixed(2);
         const shown = Number(text) === 0 ? 0 : number;
         const sign = shown > 0 ? (signed ? '+' : '') : shown < 0 ? '-' : '';
-        return { sign, value: text, suffix: '%', text: `${sign}${text}%` };
+        const suffix = isPercent(key) ? '%' : '';
+        return { sign, value: text, suffix, text: `${sign}${text}${suffix}` };
     }
 
     const rounded = Math.round(number);

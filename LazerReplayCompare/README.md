@@ -92,7 +92,7 @@ GET http://127.0.0.1:24052/metrics
 
 ### Overlay items
 
-The overlays work out their items themselves (`static/lazerReplayCompareShared/metrics.js`): `score`, `score_acc`, `acc`, `stable_acc`, `lazer_acc`, plus custom items. `/state` tells them what to show — `display.main` / `display.sub` as `{ item, show }` (`show`: `diff`, `value` or `target`), picked in the app — and lists every item in `items`, custom ones (from `metrics.json`, `OverlayItems` in Core) with their weights.
+The overlays work out their items themselves (`static/lazerReplayCompareShared/metrics.js`): `score`, `score_acc`, `acc`, `stable_acc`, `lazer_acc`, `ma_ratio` (MAX ÷ 300, dividing by one while there is no 300), plus custom items. `/state` tells them what to show — `display.main` / `display.sub` as `{ item, show }` (`show`: `diff`, `value` or `target`), picked in the app — and lists every item in `items`, custom ones (from `metrics.json`, `OverlayItems` in Core) with their weights.
 
 `/perfect` returns `scores`: the score after 0, 1, 2… judgements if every judgement were MAX, as the client scores the beatmap with those mods (osu!lazer: standardised score, hold note heads and tails judged apart; osu!stable: ScoreV1, one judgement per hold note). `score_acc` is the live (or replay) score divided by it at the same judgement count.
 

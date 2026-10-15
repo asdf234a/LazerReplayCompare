@@ -79,6 +79,7 @@ Pick it on the Compare page, next to "now playing": an item and how to show it, 
   | Acc | Accuracy, as the game shows it. |
   | Stable acc | osu!stable's accuracy (MAX and 300 both count fully), from the judgements. Handy while playing osu!lazer. |
   | Lazer acc | osu!lazer's accuracy (MAX worth 305), from the judgements. Handy while playing osu!stable. |
+  | MAX : 300 | MAX ÷ 300. With no 300 yet it divides by one, so it shows the MAX count until the first 300. |
   | Off | Hide the overlay. |
 
 - **Show**: **Diff** (you minus the compared replay at the same note; positive means you are ahead), **Live** (your value) or **Replay** (the replay's value at the same note).
