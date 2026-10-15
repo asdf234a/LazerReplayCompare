@@ -2,6 +2,15 @@
 
 LazerReplayCompare races your osu!mania play, in osu!lazer or osu!stable, against your own saved replays. While you play, a tosu overlay shows, note by note, whether you are ahead of or behind the replay you are comparing against.
 
+## What's new in 1.2.0
+
+- **Replay details.** Click a replay to open its details: rank, score, accuracy, MAX : 300 and max combo, the judgement ring, a hit error distribution, early/late, unstable rate and an offset hint, every press over the song, and long-note release charts. Each replay is judged by the engine of the game that recorded it; hover a chart to see its numbers.
+- **Opens on the results screen.** Right after a play, or for a score opened from the leaderboard, the app opens that replay's details by itself (Settings → Replay details). A details page you opened yourself stays open, with its map's background, when you change maps.
+- **Main and Sub overlays.** The single overlay is split into `LazerReplayCompare Main` and `LazerReplayCompare Sub`, and what each shows is picked in the app (an item, and Diff / Live / Replay) instead of a config file. New items: Score acc, Stable acc, Lazer acc and MAX : 300; more can be added in `metrics.json` without a rebuild. **Updating:** copy the new overlay folders into tosu's `static` folder and add them in tosu again; the old `LazerSameModScoreDiff by Codex` folder and its `config.json` are no longer used.
+- **Zoom.** Ctrl + / Ctrl − / Ctrl 0, Ctrl + mouse wheel or Settings → Appearance, from 80% to 200%. Small windows and large zooms stack the pages' side-by-side parts.
+- **Accuracy as the game shows it.** osu!lazer cuts accuracy off at two decimals instead of rounding (98.769% is 98.76%); the app and the overlays now do the same while you play osu!lazer.
+- **Look.** The whole beatmap background shows, blurring gradually towards the bottom, with blurred sides in wide windows; the connection state and Compact mode sit in the top bar; checked settings use the accent colour in the dark theme.
+
 ## What's new in 1.1.0
 
 - **osu!stable support.** Playing in osu!stable, the app reads osu!stable's own local scores (`scores.db`) and replays (`Data/r`), and the overlay compares you against them the way osu!stable scores: ScoreV1, osu!stable's accuracy and combo, one judgement per hold note.
@@ -51,14 +60,14 @@ Keep the app running while you use the overlay. Its overlay API listens on port 
 
 Click a replay in the list to open its details. Each replay is judged by the engine of the game that recorded it: osu!stable replays by the osu!stable engine (one judgement per hold note, from its head and release together), osu!lazer replays by osu!lazer's (head and release judged apart, with release windows 1.5× wider).
 
-- **Summary.** Score (ScoreV1 for osu!stable), accuracy, MAX : 300 ratio ("Perfect" when there is no 300), max combo, the judgement ring, whether the judgements match the replay, and the difference to the target. **Show file** opens the replay file; **Pin as target** pins it.
+- **Summary.** Rank, score (ScoreV1 for osu!stable), accuracy, MAX : 300 ratio ("Perfect" when there is no 300), max combo, the judgement ring, whether the judgements match the replay, and the difference to the target. **Show file** opens the replay file; **Pin as target** pins it.
 - **Hit error distribution.** Every press and release in 3 ms bins, coloured by judgement, across the whole hit window with 0 in the middle. A long note judged differently from a note at the same error sits on top in its own colour. Next to it: early vs late, mean, median, unstable rate, on-time presses and an offset hint.
 - **Over the song.** Every press (notes and long note heads) as a dot over time (above the line late, below early), with the judgement windows as lines and notes never pressed on the top edge. On maps up to 10 keys, one column can be highlighted.
 - **Long notes.** The release mean, how often you let go early, the release errors coloured by judgement and every release over the song. osu!lazer judges a head like a note, so for osu!lazer replays the judgement share compares presses (notes + long note heads) with releases; for osu!stable replays it compares notes with long notes, and the head mean is shown too.
 
 Hover any chart, the ring or a bar to see its numbers. A score without a replay file shows its summary only. Go back to the list with **Replays**, the mouse's back button, Backspace, Esc or Alt+Left; **Jump to** scrolls to a section.
 
-On a results screen (right after a play, or a score opened from the leaderboard), the app opens that replay's details by itself as soon as the replay is in the list (Settings → Replay details to turn it off).
+On a results screen (right after a play, or a score opened from the leaderboard), the app opens that replay's details by itself as soon as the replay is in the list (Settings → Replay details to turn it off), and goes back to the list when the results screen closes. A details page you opened yourself stays open, with its map's background, when you select another map.
 
 The pages can be zoomed with Ctrl + / Ctrl − / Ctrl 0, Ctrl + mouse wheel, or Settings → Appearance (80% to 200%).
 
@@ -87,6 +96,8 @@ Pick it on the Compare page, next to "now playing": an item and how to show it, 
   | Off | Hide the overlay. |
 
 - **Show**: **Diff** (you minus the compared replay at the same note; positive means you are ahead), **Live** (your value) or **Replay** (the replay's value at the same note).
+
+Percentages are shown the way the game shows them: while you play osu!lazer they are cut off at two decimals (98.769% shows 98.76%, as in osu!lazer), in osu!stable they are rounded. Differences are always rounded.
 
 More items made of judgement counts can be added in `metrics.json` (Settings → tosu overlays → **Edit metrics.json**, stored in `%LocalAppData%\LazerReplayCompare`): a name, a value per judgement, and whether to average it per judgement (an accuracy-like value). It comes with BMS (MAX = 2, 300 = 1), PPacc and PPscore (MAX = 100, 300 = 93.75, 200 = 62.5, 100 = 31.25, 50 = 15.625). Saved changes show up in the pickers and the overlays right away, without a rebuild.
 
