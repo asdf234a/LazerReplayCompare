@@ -143,6 +143,8 @@
       </Panel>
     </Border>
 
+    <!-- The pages zoom (Ctrl +/−/0, Ctrl + wheel, Settings → Appearance); the top bar keeps its size. -->
+    <LayoutTransformControl x:Name="PageZoom">
     <Grid>
       <!-- ===================== Compare ===================== -->
       <ScrollViewer x:Name="CompareScroll" IsVisible="{Binding ShowCompareList}" HorizontalScrollBarVisibility="Disabled">
@@ -346,7 +348,7 @@
                   </Grid>
 
                   <ListBox Grid.Row="1" x:Name="ReplayList" Classes="replayList" ItemsSource="{Binding ReplayRows}"
-                           Tapped="ReplayTapped" KeyDown="ReplayListKeyDown" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                           Tapped="ReplayTapped" DoubleTapped="ReplayTapped" KeyDown="ReplayListKeyDown" ScrollViewer.VerticalScrollBarVisibility="Disabled">
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="local:ReplayRow">
                         <Border Classes="replayRow" Classes.target="{Binding IsTarget}" Cursor="Hand">
@@ -494,21 +496,40 @@
           </Border>
 
           <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">
-            <Grid ColumnDefinitions="*,Auto">
-              <StackPanel Spacing="6" VerticalAlignment="Center">
-                <TextBlock Classes="sectionTitle" Text="Appearance" />
-                <CheckBox Content="Show the beatmap's background" IsChecked="{Binding ShowBackground, Mode=TwoWay}" />
+            <StackPanel Spacing="6">
+              <TextBlock Classes="sectionTitle" Text="Replay details" />
+              <CheckBox Content="Open the replay's details on the results screen" IsChecked="{Binding OpenDetailsOnResults, Mode=TwoWay}" />
+              <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
+                         Text="Right after a play, or for a score opened from the leaderboard, the replay on the results screen opens here by itself." />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">
+            <StackPanel Spacing="14">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Classes="sectionTitle" Text="Appearance" />
+                  <CheckBox Content="Show the beatmap's background" IsChecked="{Binding ShowBackground, Mode=TwoWay}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                  <RadioButton GroupName="theme" Content="System" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
+                  <RadioButton GroupName="theme" Content="Dark" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
+                  <RadioButton GroupName="theme" Content="Light" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
+                </StackPanel>
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Zoom" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <Button Content="−" Click="ZoomOut" MinWidth="40" Padding="0" HorizontalContentAlignment="Center" ToolTip.Tip="Zoom out (Ctrl −)" />
+                <Button Content="{Binding ZoomText}" Click="ResetZoom" MinWidth="72" HorizontalContentAlignment="Center" ToolTip.Tip="Back to 100% (Ctrl 0)" />
+                <Button Content="+" Click="ZoomIn" MinWidth="40" Padding="0" HorizontalContentAlignment="Center" ToolTip.Tip="Zoom in (Ctrl +)" />
+                <TextBlock Classes="muted" FontSize="13" Text="Ctrl + / Ctrl − / Ctrl 0, or Ctrl + mouse wheel" VerticalAlignment="Center" Margin="8,0,0,0" />
               </StackPanel>
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-                <RadioButton GroupName="theme" Content="System" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
-                <RadioButton GroupName="theme" Content="Dark" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
-                <RadioButton GroupName="theme" Content="Light" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
-              </StackPanel>
-            </Grid>
+            </StackPanel>
           </Border>
         </StackPanel>
       </ScrollViewer>
     </Grid>
+    </LayoutTransformControl>
   </DockPanel>
 
     <!-- What is under the pointer in a chart, shown at once next to it. -->

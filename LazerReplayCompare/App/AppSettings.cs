@@ -24,6 +24,12 @@ public sealed class AppSettings
     public string? SubMetric { get; set; }
     public bool ShowBackground { get; set; } = true;
 
+    /// <summary>Open the details of the replay a results screen shows.</summary>
+    public bool OpenDetailsOnResults { get; set; } = true;
+
+    /// <summary>Zoom of the pages (1 = 100%).</summary>
+    public double Zoom { get; set; } = 1;
+
     private static string SettingsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "LazerReplayCompare",

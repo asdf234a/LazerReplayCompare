@@ -749,6 +749,34 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
+    private bool openDetailsOnResults = true;
+
+    /// <summary>Open the details of the replay a results screen shows (after a play, or a score from the leaderboard).</summary>
+    public bool OpenDetailsOnResults
+    {
+        get => openDetailsOnResults;
+        set
+        {
+            if (Set(ref openDetailsOnResults, value))
+                SettingsChanged?.Invoke();
+        }
+    }
+
+    private double zoom = 1;
+
+    /// <summary>Zoom of the pages (Ctrl +/−/0, Ctrl + wheel, or the buttons in Settings).</summary>
+    public double Zoom
+    {
+        get => zoom;
+        set
+        {
+            if (Set(ref zoom, value))
+                OnPropertyChanged(nameof(ZoomText));
+        }
+    }
+
+    public string ZoomText => $"{Math.Round(Zoom * 100):0}%";
+
     /// <summary>
     /// Whether the compare page uses the background layout (banner, translucent cards). It depends only on the setting,
     /// not on whether the image has loaded yet, so the layout never shifts when it arrives.

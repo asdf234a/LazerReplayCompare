@@ -53,6 +53,11 @@
       <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonTextBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBrush}" />
     </Style>
+    <Style Selector="Button.jump">
+      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
     <Style Selector="Border.infoBox">
       <Setter Property="Background" Value="{DynamicResource InfoBackgroundBrush}" />
       <Setter Property="CornerRadius" Value="10" />
@@ -65,17 +70,18 @@
 
       <!-- Back and sections -->
       <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-        <Button Click="Back" MinHeight="36" Padding="12,0">
+        <Button Click="Back" MinHeight="36" Padding="12,0" ToolTip.Tip="Back to the replays (mouse back button, Backspace, Esc or Alt+Left)">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <Path Width="12" Height="12" Stretch="Uniform" StrokeThickness="2.4" StrokeLineCap="Round" StrokeJoin="Round"
                   Stroke="{DynamicResource TextBrush}" Data="M15,6 L9,12 L15,18" VerticalAlignment="Center" />
             <TextBlock Text="Replays" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" IsVisible="{Binding HasAnalysis}">
-          <Button Classes="tab" Content="Timing" Click="ShowTiming" />
-          <Button Classes="tab" Content="Over the song" Click="ShowSong" />
-          <Button Classes="tab" Content="Long notes" Click="ShowLongNotes" IsVisible="{Binding HasHolds}" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasAnalysis}">
+          <TextBlock Classes="muted" FontSize="13" Text="Jump to" VerticalAlignment="Center" Margin="0,0,4,0" />
+          <Button Classes="jump" Content="Timing" Click="ShowTiming" />
+          <Button Classes="jump" Content="Over the song" Click="ShowSong" />
+          <Button Classes="jump" Content="Long notes" Click="ShowLongNotes" IsVisible="{Binding HasHolds}" />
         </StackPanel>
       </Grid>
 

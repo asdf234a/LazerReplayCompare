@@ -74,7 +74,7 @@ LazerReplayCompare\publish\LazerReplayCompare.exe
 6. Check that replay rows appear in the UI.
 7. Start the tosu overlay plugin that uses this API.
 
-Clicking a replay row opens its details page; **Show file** there opens the replay file location in Explorer.
+Clicking a replay row opens its details page; **Show file** there opens the replay file location in Explorer. The mouse's back button, Backspace, Esc or Alt+Left go back. On a results screen the shown score's replay opens by itself (tosu's `resultsScreen`, matched by score, max combo and player, or by date; Settings → Replay details). Ctrl + / − / 0 and Ctrl + wheel zoom the pages.
 
 ## API
 

@@ -39,6 +39,18 @@ public sealed class AppSettingsService
         Save();
     }
 
+    public void SetOpenDetailsOnResults(bool open)
+    {
+        Current.OpenDetailsOnResults = open;
+        Save();
+    }
+
+    public void SetZoom(double zoom)
+    {
+        Current.Zoom = zoom;
+        Save();
+    }
+
     public void SetOverlayDisplay(string mainItem, string mainShow, string subItem, string subShow)
     {
         Current.MainItem = mainItem;

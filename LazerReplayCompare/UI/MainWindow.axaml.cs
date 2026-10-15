@@ -34,6 +34,15 @@ public sealed partial class MainWindow : Window
     private Avalonia.Controls.Primitives.UniformGrid judgementLegend = null!;
     private ListBox replayList = null!;
     private ReplayDetailsView detailsView = null!;
+    private LayoutTransformControl pageZoom = null!;
+
+    // the score a results screen shows: its replay's details open once it is found in the list
+    private ResultsScreenScore? pendingResults;
+    private ResultsScreenScore? openedResults;
+    private int resultsRefreshes;
+    private const int max_results_refreshes = 6;
+
+    private static readonly double[] zoom_steps = [0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
 
     // analyses of the replays whose details were opened, by replay and beatmap file (most recent last)
     private readonly List<(string Key, ReplayAnalysis Analysis)> analyses = new();
@@ -63,6 +72,12 @@ public sealed partial class MainWindow : Window
         detailsView.BackRequested += CloseDetails;
         detailsView.ShowFileRequested += entry => ShowReplayFile(entry);
         detailsView.PinRequested += TogglePin;
+        pageZoom = this.FindControl<LayoutTransformControl>("PageZoom")!;
+
+        // back from a details page, and zoom, from anywhere in the window (before controls handle the input)
+        AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel);
+        AddHandler(PointerWheelChangedEvent, OnWindowPointerWheel, RoutingStrategies.Tunnel);
         setUpTitleBar(this.FindControl<Border>("TitleBar")!);
 
         // The sharp banner scrolls with the page, so it stays behind "now playing" (the blurred copy stays put).
@@ -170,6 +185,8 @@ public sealed partial class MainWindow : Window
 
         viewModel.Theme = NormalizeTheme(current.Theme);
         viewModel.ShowBackground = current.ShowBackground;
+        viewModel.OpenDetailsOnResults = current.OpenDetailsOnResults;
+        applyZoom(current.Zoom);
         viewModel.CorrectionMode = ParseCorrectionMode(current.CorrectionMode);
 
         ThemeService.Apply(this, viewModel.Theme);
@@ -185,6 +202,7 @@ public sealed partial class MainWindow : Window
     {
         settingsService.SetTheme(viewModel.Theme);
         settingsService.SetShowBackground(viewModel.ShowBackground);
+        settingsService.SetOpenDetailsOnResults(viewModel.OpenDetailsOnResults);
         settingsService.SetCorrectionMode(viewModel.CorrectionMode);
         var display = viewModel.OverlayDisplay;
         settingsService.SetOverlayDisplay(display.MainItem, display.MainShow, display.SubItem, display.SubShow);
@@ -401,6 +419,8 @@ public sealed partial class MainWindow : Window
                 RefreshReplays();
             else if (snapshot.PlaySpeed != oldSpeed)
                 UpdateTarget();   // the auto target depends on the current rate
+
+            OnResultsScreen(snapshot);
         });
     }
 
@@ -617,6 +637,7 @@ public sealed partial class MainWindow : Window
         fillingReplayList = false;
         viewModel.NotifyReplaysChanged();
         UpdateTarget();
+        OpenPendingResults();
     }
 
     private void ReplayRow_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -883,6 +904,7 @@ public sealed partial class MainWindow : Window
 
     // --- Replay details ---
 
+    // (also on DoubleTapped: a quick second click on a row, e.g. right after going back, is a double tap)
     private void ReplayTapped(object? sender, TappedEventArgs e)
     {
         // the pin button keeps its own job
@@ -899,11 +921,15 @@ public sealed partial class MainWindow : Window
             OpenDetails(row);
     }
 
-    private void OpenDetails(ReplayRow row)
+    private void OpenDetails(ReplayRow row) => OpenDetails(row.Entry);
+
+    private void OpenDetails(ReplayEntry entry)
     {
-        var entry = row.Entry;
         replayList.SelectedItem = null;
-        var details = new ReplayDetailsViewModel(entry, viewModel.BeatmapTitle, viewModel.BeatmapSubtitle, viewModel.Target, row.IsPinned, scoreV1: currentSnapshot.IsStable);
+        bool pinned;
+        lock (replayLock)
+            pinned = replaySelection.IsSelected(entry);
+        var details = new ReplayDetailsViewModel(entry, viewModel.BeatmapTitle, viewModel.BeatmapSubtitle, viewModel.Target, pinned, scoreV1: currentSnapshot.IsStable);
         viewModel.Details = details;
         detailsView.ScrollToTop();
 
@@ -955,6 +981,140 @@ public sealed partial class MainWindow : Window
     }
 
     private void CloseDetails() => viewModel.Details = null;
+
+    /// <summary>
+    /// A results screen (after a play, or a score opened from the leaderboard): opens its replay's details once the
+    /// replay is in the list. A play that just ended may not be saved yet, so the list is rescanned a few times.
+    /// </summary>
+    private void OnResultsScreen(TosuSnapshot snapshot)
+    {
+        if (!snapshot.IsResultsScreen || snapshot.Results is not { } results)
+        {
+            pendingResults = null;
+            if (!snapshot.IsResultsScreen)
+                openedResults = null;
+            return;
+        }
+
+        if (!viewModel.OpenDetailsOnResults || results == openedResults || results == pendingResults)
+            return;
+
+        pendingResults = results;
+        resultsRefreshes = 0;
+        if (!OpenPendingResults())
+            refreshForResults();
+    }
+
+    /// <summary>Opens the pending results screen's replay when it is listed; false when it is not (yet).</summary>
+    private bool OpenPendingResults()
+    {
+        if (pendingResults is not { } results)
+            return false;
+
+        ReplayEntry? entry;
+        lock (replayLock)
+            entry = results.FindIn(currentReplays);
+
+        if (entry == null)
+            return false;
+
+        pendingResults = null;
+        openedResults = results;
+        if (viewModel.Details?.Entry.FilePath != entry.FilePath)
+            OpenDetails(entry);
+        return true;
+    }
+
+    private void refreshForResults()
+    {
+        if (pendingResults == null || resultsRefreshes++ >= max_results_refreshes)
+            return;
+
+        RefreshReplays();
+        DispatcherTimer.RunOnce(() =>
+        {
+            if (pendingResults != null && !OpenPendingResults())
+                refreshForResults();
+        }, TimeSpan.FromSeconds(1.5));
+    }
+
+    // --- Back and zoom ---
+
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            if (e.Key is Key.OemPlus or Key.Add)
+                stepZoom(1);
+            else if (e.Key is Key.OemMinus or Key.Subtract)
+                stepZoom(-1);
+            else if (e.Key is Key.D0 or Key.NumPad0)
+                applyZoom(1, save: true);
+            else
+                return;
+
+            e.Handled = true;
+            return;
+        }
+
+        if (!viewModel.ShowDetailsPage)
+            return;
+
+        // typing in a box or choosing in an open list keeps its keys
+        var focused = FocusManager?.GetFocusedElement();
+        bool editing = focused is TextBox || focused is ComboBox { IsDropDownOpen: true };
+        bool back = e.Key == Key.BrowserBack
+                    || (e.Key == Key.Left && e.KeyModifiers == KeyModifiers.Alt)
+                    || (!editing && e.Key is Key.Back or Key.Escape);
+        if (!back)
+            return;
+
+        CloseDetails();
+        e.Handled = true;
+    }
+
+    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        // the mouse's back button
+        if (viewModel.ShowDetailsPage && e.GetCurrentPoint(this).Properties.IsXButton1Pressed)
+        {
+            CloseDetails();
+            e.Handled = true;
+        }
+    }
+
+    private void OnWindowPointerWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.Delta.Y == 0)
+            return;
+
+        stepZoom(e.Delta.Y > 0 ? 1 : -1);
+        e.Handled = true;
+    }
+
+    private void ZoomIn(object? sender, RoutedEventArgs e) => stepZoom(1);
+
+    private void ZoomOut(object? sender, RoutedEventArgs e) => stepZoom(-1);
+
+    private void ResetZoom(object? sender, RoutedEventArgs e) => applyZoom(1, save: true);
+
+    private void stepZoom(int direction)
+    {
+        var current = viewModel.Zoom;
+        var next = direction > 0
+            ? zoom_steps.FirstOrDefault(step => step > current + 0.001, zoom_steps[^1])
+            : zoom_steps.LastOrDefault(step => step < current - 0.001, zoom_steps[0]);
+        applyZoom(next, save: true);
+    }
+
+    private void applyZoom(double zoom, bool save = false)
+    {
+        zoom = Math.Clamp(double.IsFinite(zoom) ? zoom : 1, zoom_steps[0], zoom_steps[^1]);
+        viewModel.Zoom = zoom;
+        pageZoom.LayoutTransform = Math.Abs(zoom - 1) < 0.001 ? null : new ScaleTransform(zoom, zoom);
+        if (save)
+            settingsService.SetZoom(zoom);
+    }
 
     /// <summary>Pins the replay as the comparison target, or unpins it when it already is.</summary>
     private void TogglePin(ReplayEntry entry)

@@ -29,7 +29,7 @@ public sealed class TosuClient : IDisposable
                 StatusChanged?.Invoke("Connected to tosu");
 
                 var filter = """
-                    applyFilters:["client",{"field":"beatmap","keys":["checksum","artist","title","version","difficulty","name"]},{"field":"folders","keys":["game","songs","beatmap"]},{"field":"files","keys":["beatmap","background"]},{"field":"directPath","keys":["beatmapBackground"]},{"field":"state","keys":["name"]},{"field":"play","keys":["mods"]}]
+                    applyFilters:["client",{"field":"beatmap","keys":["checksum","artist","title","version","difficulty","name"]},{"field":"folders","keys":["game","songs","beatmap"]},{"field":"files","keys":["beatmap","background"]},{"field":"directPath","keys":["beatmapBackground"]},{"field":"state","keys":["name"]},{"field":"play","keys":["mods"]},"resultsScreen"]
                     """;
                 var filterBytes = Encoding.UTF8.GetBytes(filter);
                 await socket.SendAsync(filterBytes, WebSocketMessageType.Text, true, token);
@@ -89,8 +89,12 @@ public sealed record TosuSnapshot(
     string BackgroundFile = "",
     string DirectBackgroundPath = "",
     PlaySpeed? Speed = null,
-    string GameFolder = "")
+    string GameFolder = "",
+    ResultsScreenScore? Results = null)
 {
+    /// <summary>The game shows a results screen (after a play, or a score opened from the leaderboard).</summary>
+    public bool IsResultsScreen => State.Contains("result", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>tosu reports an osu!stable client (replays then come from osu!stable's own database).</summary>
     public bool IsStable => LiveClients.Parse(Client) == LiveClient.Stable;
 
@@ -132,8 +136,38 @@ public sealed record TosuSnapshot(
             BackgroundFile: GetString(root, "files", "background"),
             DirectBackgroundPath: GetString(root, "directPath", "beatmapBackground"),
             Speed: GetPlaySpeed(root),
-            GameFolder: GetString(root, "folders", "game"));
+            GameFolder: GetString(root, "folders", "game"),
+            Results: GetResults(root));
     }
+
+    /// <summary>The score the results screen shows (tosu's resultsScreen), or null when there is none.</summary>
+    private static ResultsScreenScore? GetResults(JsonElement root)
+    {
+        if (!root.TryGetProperty("resultsScreen", out var results) || results.ValueKind != JsonValueKind.Object)
+            return null;
+
+        long score = GetLong(results, "score");
+        if (score <= 0)
+            return null;
+
+        var created = GetString(results, "createdAt");
+        return new ResultsScreenScore(
+            score,
+            (int)GetLong(results, "maxCombo"),
+            FirstNonEmpty(GetString(results, "name"), GetString(results, "playerName"), GetString(results, "username")),
+            DateTimeOffset.TryParse(created, out var date) ? date : null);
+    }
+
+    private static long GetLong(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var value))
+            return 0;
+        if (value.ValueKind == JsonValueKind.Number)
+            return value.TryGetInt64(out var whole) ? whole : (long)Math.Round(value.GetDouble());
+        return value.ValueKind == JsonValueKind.String && long.TryParse(value.GetString(), out var parsed) ? parsed : 0;
+    }
+
+    private static string FirstNonEmpty(params string[] values) => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? string.Empty;
 
     /// <summary>play.mods → rate/Classic, the way the overlays read it (getCurrentModsKey), and whether the client is osu!stable.</summary>
     private static PlaySpeed GetPlaySpeed(JsonElement root)
@@ -202,5 +236,32 @@ public sealed record TosuSnapshot(
             return version;
 
         return GetString(root, "beatmap", "name");
+    }
+}
+
+/// <summary>The score a results screen shows: enough to find its replay in the list.</summary>
+public sealed record ResultsScreenScore(long Score, int MaxCombo, string Player, DateTimeOffset? Date)
+{
+    /// <summary>
+    /// The listed replay this is: same score (and max combo / player when there are several), or failing that the replay
+    /// set within two minutes of it with the same max combo.
+    /// </summary>
+    public ReplayEntry? FindIn(IEnumerable<ReplayEntry> replays)
+    {
+        var candidates = replays.Where(replay => replay.HasReplay).ToList();
+        var sameScore = candidates.Where(replay => replay.Score == Score)
+                                  .OrderByDescending(replay => replay.MaxCombo == MaxCombo)
+                                  .ThenByDescending(replay => string.Equals(replay.Player, Player, StringComparison.OrdinalIgnoreCase))
+                                  .ToList();
+        if (sameScore.Count > 0)
+            return sameScore[0];
+
+        if (Date is not { } date)
+            return null;
+
+        return candidates
+            .Where(replay => replay.MaxCombo == MaxCombo && DateTimeOffset.TryParse(replay.Date, out var set) && Math.Abs((set - date).TotalMinutes) <= 2)
+            .OrderBy(replay => Math.Abs((DateTimeOffset.Parse(replay.Date) - date).TotalSeconds))
+            .FirstOrDefault();
     }
 }

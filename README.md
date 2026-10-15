@@ -56,7 +56,11 @@ Click a replay in the list to open its details. Each replay is judged by the eng
 - **Over the song.** Every press as a dot over time (above the line late, below early), with the judgement windows as lines and notes never pressed on the top edge. On maps up to 10 keys, one column can be highlighted.
 - **Long notes.** Head and release means, how often you let go early, the release errors coloured by judgement, the judgement share of notes vs long notes, and every release over the song.
 
-Hover any chart, the ring or a bar to see its numbers. A score without a replay file shows its summary only.
+Hover any chart, the ring or a bar to see its numbers. A score without a replay file shows its summary only. Go back to the list with **Replays**, the mouse's back button, Backspace, Esc or Alt+Left; **Jump to** scrolls to a section.
+
+On a results screen (right after a play, or a score opened from the leaderboard), the app opens that replay's details by itself as soon as the replay is in the list (Settings → Replay details to turn it off).
+
+The pages can be zoomed with Ctrl + / Ctrl − / Ctrl 0, Ctrl + mouse wheel, or Settings → Appearance (80% to 200%).
 
 ## Overlays
 
