@@ -35,7 +35,10 @@ public sealed record JudgementWindow(HitResult Result, double Early, double Late
 /// <param name="Length">End of the last object.</param>
 /// <param name="ReleaseLenience">How much wider than the note windows osu!lazer's release windows are (0 for osu!stable).</param>
 /// <param name="MissTimes">When each miss happened.</param>
+/// <param name="HoldCounts">Hold note judgements: one per hold note for osu!stable, head and release for osu!lazer.</param>
 /// <param name="HitDifference">How many judgements differ from the replay's recorded counts.</param>
+/// <param name="HeadCounts">osu!lazer: the hold notes' head judgements (judged like notes). Empty for osu!stable.</param>
+/// <param name="ReleaseCounts">osu!lazer: the hold notes' release judgements. Empty for osu!stable.</param>
 public sealed record ReplayAnalysis(
     bool StableJudging,
     int Columns,
@@ -52,7 +55,9 @@ public sealed record ReplayAnalysis(
     IReadOnlyDictionary<HitResult, int> HoldCounts,
     int Notes,
     int Holds,
-    int HitDifference)
+    int HitDifference,
+    IReadOnlyDictionary<HitResult, int> HeadCounts,
+    IReadOnlyDictionary<HitResult, int> ReleaseCounts)
 {
     public static readonly HitResult[] Judgements = [HitResult.Perfect, HitResult.Great, HitResult.Good, HitResult.Ok, HitResult.Meh, HitResult.Miss];
 
@@ -191,6 +196,12 @@ public static class ReplayAnalyzer
 
             var counts = kind == HitKind.Note ? collector.NoteCounts : collector.HoldCounts;
             counts[j.Type] = counts.GetValueOrDefault(j.Type) + 1;
+            if (kind != HitKind.Note)
+            {
+                var part = kind == HitKind.Head ? collector.HeadCounts : collector.ReleaseCounts;
+                part[j.Type] = part.GetValueOrDefault(j.Type) + 1;
+            }
+
             if (j.Type == HitResult.Miss)
                 collector.MissTimes.Add(j.Time / rate);
 
@@ -219,12 +230,14 @@ public static class ReplayAnalyzer
         public readonly List<double> MissTimes = new();
         public readonly Dictionary<HitResult, int> NoteCounts = new();
         public readonly Dictionary<HitResult, int> HoldCounts = new();
+        public readonly Dictionary<HitResult, int> HeadCounts = new();
+        public readonly Dictionary<HitResult, int> ReleaseCounts = new();
 
         public ReplayAnalysis Build(bool stable, int columns, double overallDifficulty, double rate, List<JudgementWindow> windows, double lenience, int notes, int holds, double length, int hitDifference)
         {
             return new ReplayAnalysis(stable, columns, overallDifficulty, rate, length, windows, lenience,
                 Samples.OrderBy(s => s.Time).ToList(), Unpressed.OrderBy(e => e.Time).ToList(), HeldPastEnd.OrderBy(e => e.Time).ToList(),
-                MissTimes.Order().ToList(), NoteCounts, HoldCounts, notes, holds, hitDifference);
+                MissTimes.Order().ToList(), NoteCounts, HoldCounts, notes, holds, hitDifference, HeadCounts, ReleaseCounts);
         }
     }
 }

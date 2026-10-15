@@ -53,8 +53,8 @@ Click a replay in the list to open its details. Each replay is judged by the eng
 
 - **Summary.** Score (ScoreV1 for osu!stable), accuracy, MAX : 300 ratio ("Perfect" when there is no 300), max combo, the judgement ring, whether the judgements match the replay, and the difference to the target. **Show file** opens the replay file; **Pin as target** pins it.
 - **Hit error distribution.** Every press and release in 3 ms bins, coloured by judgement, across the whole hit window with 0 in the middle. A long note judged differently from a note at the same error sits on top in its own colour. Next to it: early vs late, mean, median, unstable rate, on-time presses and an offset hint.
-- **Over the song.** Every press as a dot over time (above the line late, below early), with the judgement windows as lines and notes never pressed on the top edge. On maps up to 10 keys, one column can be highlighted.
-- **Long notes.** Head and release means, how often you let go early, the release errors coloured by judgement, the judgement share of notes vs long notes, and every release over the song.
+- **Over the song.** Every press (notes and long note heads) as a dot over time (above the line late, below early), with the judgement windows as lines and notes never pressed on the top edge. On maps up to 10 keys, one column can be highlighted.
+- **Long notes.** The release mean, how often you let go early, the release errors coloured by judgement and every release over the song. osu!lazer judges a head like a note, so for osu!lazer replays the judgement share compares presses (notes + long note heads) with releases; for osu!stable replays it compares notes with long notes, and the head mean is shown too.
 
 Hover any chart, the ring or a bar to see its numbers. A score without a replay file shows its summary only. Go back to the list with **Replays**, the mouse's back button, Backspace, Esc or Alt+Left; **Jump to** scrolls to a section.
 

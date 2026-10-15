@@ -381,7 +381,7 @@ public sealed class HitHistogramChart : ChartControl
     }
 }
 
-/// <param name="Kind">Shown in the hover card (Note, Hold head, Release).</param>
+/// <param name="Kind">Shown in the hover card (Note, Long note head, Release).</param>
 public sealed record ScatterPoint(double Time, double Error, int Column, HitResult Result, string Kind);
 
 /// <summary>A tick on the chart's top edge: an object with no time to plot (never pressed, held past its end).</summary>

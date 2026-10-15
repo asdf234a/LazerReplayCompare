@@ -243,7 +243,7 @@
           <Grid x:Name="SongHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12" RowSpacing="10">
             <StackPanel Spacing="4">
               <TextBlock Classes="sectionTitle" Text="Over the song" />
-              <TextBlock Classes="caption" Text="Every press · above 0 = late, below = early · top edge = not pressed" />
+              <TextBlock Classes="caption" Text="Every press, notes and long note heads · above 0 = late, below = early · top edge = not pressed" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Bottom">
               <TextBlock Classes="caption" Text="Highlight column" VerticalAlignment="Center" Margin="0,0,4,0" />
@@ -282,7 +282,7 @@
           <Grid x:Name="LongNotesRow" ColumnDefinitions="*,*" ColumnSpacing="28" RowSpacing="20">
             <StackPanel Spacing="12">
               <StackPanel Orientation="Horizontal" Spacing="28">
-                <StackPanel Spacing="2"><TextBlock Classes="statLabel" Text="Head" /><TextBlock FontSize="20" FontWeight="Bold" Text="{Binding HeadMeanText}" /></StackPanel>
+                <StackPanel Spacing="2" IsVisible="{Binding ShowHeadMean}"><TextBlock Classes="statLabel" Text="Head" /><TextBlock FontSize="20" FontWeight="Bold" Text="{Binding HeadMeanText}" /></StackPanel>
                 <StackPanel Spacing="2"><TextBlock Classes="statLabel" Text="Release" /><TextBlock FontSize="20" FontWeight="Bold" Text="{Binding ReleaseMeanText}" /></StackPanel>
                 <StackPanel Spacing="2"><TextBlock Classes="statLabel" Text="Let go early" /><TextBlock FontSize="20" FontWeight="Bold" Text="{Binding EarlyReleaseText}" /></StackPanel>
               </StackPanel>
@@ -290,7 +290,7 @@
               <local:HitHistogramChart Height="150" Bins="{Binding ReleaseBins}" Ticks="{Binding ReleaseTicks}" />
             </StackPanel>
             <StackPanel Grid.Column="1" Spacing="14">
-              <TextBlock Classes="secondary" FontSize="13" Text="Judgement share: notes vs long notes" />
+              <TextBlock Classes="secondary" FontSize="13" Text="{Binding ShareTitle}" />
               <ItemsControl ItemsSource="{Binding ShareRows}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>

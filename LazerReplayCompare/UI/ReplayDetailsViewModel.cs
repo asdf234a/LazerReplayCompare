@@ -244,12 +244,15 @@ public sealed class ReplayDetailsViewModel : ObservableObject
     // long notes
     public string LongNotesSubtitle { get; private set; } = string.Empty;
     public string HeadMeanText { get; private set; } = string.Empty;
+    /// <summary>osu!stable: heads are part of the long note's judgement. (osu!lazer judges them like notes, under Over the song.)</summary>
+    public bool ShowHeadMean { get; private set; }
     public string ReleaseMeanText { get; private set; } = string.Empty;
     public string EarlyReleaseText { get; private set; } = string.Empty;
     public IReadOnlyList<HistogramBin> ReleaseBins { get; private set; } = Array.Empty<HistogramBin>();
     public IReadOnlyList<double> ReleaseTicks { get; private set; } = Array.Empty<double>();
     public string ReleaseSubtitle { get; private set; } = string.Empty;
     public IReadOnlyList<ShareRow> ShareRows { get; private set; } = Array.Empty<ShareRow>();
+    public string ShareTitle { get; private set; } = string.Empty;
     public IReadOnlyList<ScatterPoint> ReleasePoints { get; private set; } = Array.Empty<ScatterPoint>();
     public IReadOnlyList<ScatterMark> HeldMarks { get; private set; } = Array.Empty<ScatterMark>();
     public double ReleaseRange { get; private set; } = 130;
@@ -276,8 +279,11 @@ public sealed class ReplayDetailsViewModel : ObservableObject
         HistogramTicks = ticks(result.MissWindow, 50);
         int notesPressed = result.Samples.Count(s => s.Kind == HitKind.Note);
         int holdsPressed = result.Samples.Count(s => s.Kind == HitKind.Head);
-        HistogramSubtitle = FormattableString.Invariant($"{notesPressed:N0} notes · {holdsPressed:N0} long notes (head + release) · 3 ms bins · {OdText}")
-                            + (result.Rate != 1 ? $" · {RateText}" : string.Empty);
+        int released = result.Samples.Count(s => s.Kind == HitKind.Release);
+        HistogramSubtitle = (result.StableJudging
+                                ? FormattableString.Invariant($"{notesPressed:N0} notes · {holdsPressed:N0} long notes (head + release)")
+                                : FormattableString.Invariant($"{notesPressed:N0} notes · {holdsPressed:N0} long note heads · {released:N0} releases"))
+                            + $" · 3 ms bins · {OdText}" + (result.Rate != 1 ? $" · {RateText}" : string.Empty);
         OffChartText = outside == 0 ? string.Empty : outside == 1 ? "1 point off the chart" : $"{outside} points off the chart";
         PressMean = stats.Mean;
         PressMeanLabel = $"press mean {signed(stats.Mean, "0.0")}";
@@ -329,9 +335,11 @@ public sealed class ReplayDetailsViewModel : ObservableObject
                 : stats.MissCount == 1 ? "1 miss" : $"{stats.MissCount} misses";
 
         // long notes
+        // (osu!lazer judges a head like a note, so heads go with the notes and this part is about releases)
         LongNotesSubtitle = result.StableJudging
             ? FormattableString.Invariant($"{result.Holds:N0} long notes · one judgement each, from head + release")
-            : FormattableString.Invariant($"{result.Holds:N0} long notes · head and release judged apart, release windows {result.ReleaseLenience:0.#}× wider");
+            : FormattableString.Invariant($"{result.Holds:N0} long notes · heads are judged like notes (see Over the song) · releases with {result.ReleaseLenience:0.#}× wider windows");
+        ShowHeadMean = result.StableJudging;
         HeadMeanText = stats.HeadMean is double head ? JudgementText.Ms(head, "0.0") : "—";
         ReleaseMeanText = stats.ReleaseMean is double release ? JudgementText.Ms(release, "0.0") : "—";
         EarlyReleaseText = stats.EarlyReleaseShare is double early ? pct(early, 0) : "—";
@@ -347,11 +355,25 @@ public sealed class ReplayDetailsViewModel : ObservableObject
         ReleaseDotsSubtitle = FormattableString.Invariant($"Releases over the song · {stats.Releases:N0} releases, coloured by {colouredBy} judgement");
         HeldText = HeldMarks.Count == 0 ? string.Empty : $"· top edge = held past the end ({HeldMarks.Count})";
 
-        ShareRows = new[]
+        if (result.StableJudging)
         {
-            shareRow("Notes", result.Notes, result.NoteCounts),
-            shareRow("Long notes", result.Holds, result.HoldCounts),
-        };
+            ShareTitle = "Judgement share: notes vs long notes";
+            ShareRows = new[]
+            {
+                shareRow("Notes", result.Notes, result.NoteCounts),
+                shareRow("Long notes", result.Holds, result.HoldCounts),
+            };
+        }
+        else
+        {
+            ShareTitle = "Judgement share: presses vs releases";
+            var pressCounts = ReplayAnalysis.Judgements.ToDictionary(r => r, r => result.NoteCounts.GetValueOrDefault(r) + result.HeadCounts.GetValueOrDefault(r));
+            ShareRows = new[]
+            {
+                shareRow("Notes + long note heads", result.Notes + result.Holds, pressCounts),
+                shareRow("Long note releases", result.Holds, result.ReleaseCounts),
+            };
+        }
 
         Analysis = result;
         OnPropertyChanged(string.Empty);   // everything above changed at once
@@ -360,7 +382,7 @@ public sealed class ReplayDetailsViewModel : ObservableObject
     private static ScatterPoint point(HitSample sample)
         => new(sample.Time, sample.Error, sample.Column, sample.Result, sample.Kind switch
         {
-            HitKind.Head => "Hold head",
+            HitKind.Head => "Long note head",
             HitKind.Release => "Release",
             _ => "Note",
         });
