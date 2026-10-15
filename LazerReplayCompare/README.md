@@ -8,6 +8,7 @@ It reads osu!lazer's `client.realm` and `files` storage, finds replay files for 
 
 - Shows a Windows UI when launched, with two pages:
   - **Compare**: the beatmap selected in osu!lazer or osu!stable (over its background image, which can be turned off in Settings), the overlay's main/sub metric pickers, the replay being compared against (in auto mode the best score at the current play's rate and Classic mod — the same rule as the overlays — or the one you pinned) with how exactly its timeline matches the recorded score and its judgement breakdown, and a sortable list of the map's replays (score difference to the target, pin buttons).
+  - **Replay details** (click a replay): its recorded result and judgement ring, and an analysis of every press and release judged by the engine of the game that recorded it — hit error distribution (long notes judged differently stacked on top), early/late and unstable rate, an offset hint, every press over the song (column highlight up to 10 keys) and long-note release charts. Charts show their numbers on hover.
   - **Settings**: replay timeline mode (Corrected / Raw / Scaled), osu!lazer folder, osu!stable folder, overlay folder, theme (System / Dark / Light) and whether to show the beatmap background.
 - Shows problems (tosu not running, osu!lazer or — while playing osu!stable — osu!stable folder not found, overlay API port in use) as banners at the top, and the connection state in the top bar.
 - Compact mode: a small always-on-top window with the target, the metric pickers and the match status, for while you play.
@@ -72,7 +73,7 @@ LazerReplayCompare\publish\LazerReplayCompare.exe
 6. Check that replay rows appear in the UI.
 7. Start the tosu overlay plugin that uses this API.
 
-Double-clicking a replay row opens the replay file location in Explorer.
+Clicking a replay row opens its details page; **Show file** there opens the replay file location in Explorer.
 
 ## API
 

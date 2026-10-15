@@ -47,6 +47,17 @@ Keep the app running while you use the overlay. Its overlay API listens on port 
 - **Playing in osu!stable.** The replay list comes from osu!stable itself: the local scores in its `scores.db`, with their replays from its `Data/r` folder. The target is your best one at the same rate, scored the way osu!stable does (ScoreV1, one judgement per hold note). The osu!stable folder is found through tosu; otherwise choose it in Settings → osu!stable folder.
 - **Pinned.** Pin a replay in the list to compare against it instead, whatever its mods or speed. Unpin it to go back to auto.
 
+## Replay details
+
+Click a replay in the list to open its details. Each replay is judged by the engine of the game that recorded it: osu!stable replays by the osu!stable engine (one judgement per hold note, from its head and release together), osu!lazer replays by osu!lazer's (head and release judged apart, with release windows 1.5× wider).
+
+- **Summary.** Score (ScoreV1 for osu!stable), accuracy, MAX : 300 ratio ("Perfect" when there is no 300), max combo, the judgement ring, whether the judgements match the replay, and the difference to the target. **Show file** opens the replay file; **Pin as target** pins it.
+- **Hit error distribution.** Every press and release in 3 ms bins, coloured by judgement, across the whole hit window with 0 in the middle. A long note judged differently from a note at the same error sits on top in its own colour. Next to it: early vs late, mean, median, unstable rate, on-time presses and an offset hint.
+- **Over the song.** Every press as a dot over time (above the line late, below early), with the judgement windows as lines and notes never pressed on the top edge. On maps up to 10 keys, one column can be highlighted.
+- **Long notes.** Head and release means, how often you let go early, the release errors coloured by judgement, the judgement share of notes vs long notes, and every release over the song.
+
+Hover any chart, the ring or a bar to see its numbers. A score without a replay file shows its summary only.
+
 ## Overlays
 
 - `LazerReplayCompareLive by Codex` shows a detailed live comparison: score, accuracy, combo, judgements, the target replay, and whether it was pinned or chosen automatically.

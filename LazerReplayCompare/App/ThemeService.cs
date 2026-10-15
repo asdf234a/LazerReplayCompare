@@ -73,6 +73,15 @@ public static class ThemeService
         ["JudgementOkBrush"] = ("#60A5FA", "#2F7BE0"),
         ["JudgementMehBrush"] = ("#8B93A3", "#9AA3B2"),
         ["JudgementMissBrush"] = ("#FF8A8A", "#E04848"),
+
+        // Replay details charts
+        ["EarlyBrush"] = ("#82B4FF", "#2F6FD6"),
+        ["LateBrush"] = ("#FF9480", "#C8502F"),
+        ["ChartBackgroundBrush"] = ("#08090C", "#F7F8FA"),
+        ["ChartZeroBrush"] = ("#5F6776", "#9AA3B2"),
+        ["ChartGridBrush"] = ("#2A303C", "#E1E4EA"),
+        ["HoverCardBrush"] = ("#1E2330", "#FFFFFF"),
+        ["HoverCardBorderBrush"] = ("#2E3441", "#D3D8E0"),
     };
 
     public static void Apply(Window target, string theme)

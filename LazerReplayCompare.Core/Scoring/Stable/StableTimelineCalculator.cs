@@ -12,7 +12,10 @@ namespace LazerReplayCompare;
 /// <param name="Frames">One frame per stable judgement (one per hold note), scored in ScoreV1 with stable's accuracy.</param>
 /// <param name="FinalScore">The replay's recorded ScoreV1.</param>
 /// <param name="FinalAccuracy">The replay's stable accuracy (from its recorded judgement counts).</param>
-internal sealed record StableTimelineResult(List<ReplayTimelineFrame> Frames, TimelineCorrection Correction, long FinalScore, double FinalAccuracy, int FinalMaxCombo);
+/// <param name="Judgements">The judgements the frames were built from (corrected ones when correcting).</param>
+/// <param name="Simulation">The engine run they came from (its hit windows), null for an empty beatmap.</param>
+internal sealed record StableTimelineResult(List<ReplayTimelineFrame> Frames, TimelineCorrection Correction, long FinalScore, double FinalAccuracy, int FinalMaxCombo,
+                                            IReadOnlyList<StableManiaReplaySimulator.Judgement>? Judgements = null, StableManiaReplaySimulator? Simulation = null);
 
 /// <summary>
 /// Timeline of an osu!stable replay as osu!stable itself scores it, for comparing against a live osu!stable play:
@@ -105,7 +108,7 @@ internal static class StableTimelineCalculator
 
         var frames = buildFrames(judgements, adjustCombo(simulation, judgements), objectCount, multiplier, divider, adjust, recordedMaxCombo);
         if (frames.Count == 0)
-            return new StableTimelineResult(frames, new TimelineCorrection(TimelineCorrectionStatus.Raw, 0, 0, label, StableScoring: true), recordedScore, recordedAccuracy, info.MaxCombo);
+            return new StableTimelineResult(frames, new TimelineCorrection(TimelineCorrectionStatus.Raw, 0, 0, label, StableScoring: true), recordedScore, recordedAccuracy, info.MaxCombo, judgements, simulation);
 
         var last = frames[^1];
         int hitDifference = counted.Sum(r => Math.Abs(last.Hits.GetValueOrDefault(r.ToString()) - info.Statistics.GetValueOrDefault(r)));
@@ -119,7 +122,7 @@ internal static class StableTimelineCalculator
             _ => TimelineCorrectionStatus.Corrected,
         };
 
-        return new StableTimelineResult(frames, new TimelineCorrection(status, scoreDifference, hitDifference, label, StableScoring: true), recordedScore, recordedAccuracy, info.MaxCombo);
+        return new StableTimelineResult(frames, new TimelineCorrection(status, scoreDifference, hitDifference, label, StableScoring: true), recordedScore, recordedAccuracy, info.MaxCombo, judgements, simulation);
     }
 
     /// <summary>

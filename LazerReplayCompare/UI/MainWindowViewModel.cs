@@ -34,6 +34,9 @@ public sealed record MetricOption(string Key, string Name)
 public sealed record JudgementSegment(string Key, int Count)
 {
     public string CountText => Count.ToString("N0", CultureInfo.InvariantCulture);
+
+    /// <summary>The name shown for it (MAX, 300, …).</summary>
+    public string Label => JudgementText.Name(Key);
 }
 
 public enum ReplaySortKey
@@ -67,10 +70,31 @@ public sealed class MainWindowViewModel : ObservableObject
 
             OnPropertyChanged(nameof(IsComparePage));
             OnPropertyChanged(nameof(ShowBackdrop));
+            OnPropertyChanged(nameof(ShowCompareList));
+            OnPropertyChanged(nameof(ShowDetailsPage));
         }
     }
 
     public bool IsComparePage => !IsSettingsPage;
+
+    private ReplayDetailsViewModel? details;
+
+    /// <summary>The replay whose details page is open on the Compare page (null: the replay list).</summary>
+    public ReplayDetailsViewModel? Details
+    {
+        get => details;
+        set
+        {
+            if (!Set(ref details, value))
+                return;
+
+            OnPropertyChanged(nameof(ShowCompareList));
+            OnPropertyChanged(nameof(ShowDetailsPage));
+        }
+    }
+
+    public bool ShowCompareList => IsComparePage && Details == null;
+    public bool ShowDetailsPage => IsComparePage && Details != null;
 
     // --- Connections ---
 
@@ -355,7 +379,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    public string JudgementSummaryText => string.Join("\n", Judgements.Select(segment => $"{segment.Key}  {segment.CountText}"));
+    public string JudgementSummaryText => string.Join("\n", Judgements.Select(segment => $"{segment.Label}  {segment.CountText}"));
 
     public string JudgementTotalText => Judgements.Sum(segment => segment.Count).ToString("N0", CultureInfo.InvariantCulture);
 

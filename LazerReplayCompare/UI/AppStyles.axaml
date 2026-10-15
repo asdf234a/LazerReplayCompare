@@ -10,6 +10,20 @@
     <Setter Property="FontSize" Value="14" />
   </Style>
 
+  <!-- Tooltips: quick to appear, drawn like the charts' hover cards. -->
+  <Style Selector=":is(Control)">
+    <Setter Property="ToolTip.ShowDelay" Value="120" />
+  </Style>
+  <Style Selector="ToolTip">
+    <Setter Property="Background" Value="{DynamicResource HoverCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource HoverCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="10,7" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+
   <!-- Text -->
   <Style Selector="TextBlock.secondary">
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />

@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -76,7 +77,10 @@ public sealed class FocalImage : Control
     }
 }
 
-/// <summary>Ring chart of judgement counts, drawn with the window's Judgement{Key}Brush resources.</summary>
+/// <summary>
+/// Ring chart of judgement counts, drawn with the window's Judgement{Key}Brush resources. Hovering a segment shows its
+/// judgement, count and share.
+/// </summary>
 public sealed class JudgementDonut : Control
 {
     public static readonly StyledProperty<IReadOnlyList<JudgementSegment>?> SegmentsProperty =
@@ -119,6 +123,9 @@ public sealed class JudgementDonut : Control
         var size = Math.Min(Bounds.Width, Bounds.Height);
         if (size <= 0)
             return;
+
+        // hit-testable over the whole ring, not only where a segment is drawn
+        context.DrawEllipse(Brushes.Transparent, null, new Point(Bounds.Width / 2, Bounds.Height / 2), size / 2, size / 2);
 
         var thickness = Math.Min(Thickness, size / 2);
         var radius = (size - thickness) / 2;
@@ -166,6 +173,62 @@ public sealed class JudgementDonut : Control
 
             start += sweep;
         }
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+        var point = e.GetPosition(this);
+        if (segmentAt(point) is { } segment)
+        {
+            var total = (Segments ?? Array.Empty<JudgementSegment>()).Sum(s => (double)s.Count);
+            HoverCardLayer.Show(this, point, new HoverInfo(segment.Label, new[]
+            {
+                new HoverRow("Count", segment.CountText, $"Judgement{segment.Key}Brush"),
+                new HoverRow("Share", (segment.Count / total * 100).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "%"),
+            }));
+        }
+        else
+        {
+            HoverCardLayer.Hide(this);
+        }
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        HoverCardLayer.Hide(this);
+    }
+
+    /// <summary>The segment under <paramref name="point"/> (on the ring, or a little inside or outside it).</summary>
+    private JudgementSegment? segmentAt(Point point)
+    {
+        var size = Math.Min(Bounds.Width, Bounds.Height);
+        var thickness = Math.Min(Thickness, size / 2);
+        var radius = (size - thickness) / 2;
+        var dx = point.X - Bounds.Width / 2;
+        var dy = point.Y - Bounds.Height / 2;
+        var distance = Math.Sqrt(dx * dx + dy * dy);
+        if (Math.Abs(distance - radius) > thickness / 2 + 4)
+            return null;
+
+        var segments = (Segments ?? Array.Empty<JudgementSegment>()).Where(segment => segment.Count > 0).ToList();
+        var total = segments.Sum(segment => (double)segment.Count);
+        if (total <= 0)
+            return null;
+
+        // clockwise from 12 o'clock, as drawn
+        var angle = Math.Atan2(dy, dx) + Math.PI / 2;
+        if (angle < 0) angle += Math.PI * 2;
+        var start = 0.0;
+        foreach (var segment in segments)
+        {
+            start += segment.Count / total * Math.PI * 2;
+            if (angle <= start)
+                return segment;
+        }
+
+        return segments[^1];
     }
 }
 

@@ -105,6 +105,10 @@ internal sealed class StableManiaReplaySimulator
 
     public IReadOnlyList<Judgement> Judgements => judgements;
 
+    public int Columns => keys;
+
+    public double OverallDifficulty { get; }
+
     /// <summary>Combo changes in time order (after <see cref="Run"/>).</summary>
     public IReadOnlyList<ComboEvent> Combo { get; private set; } = [];
 
@@ -121,6 +125,7 @@ internal sealed class StableManiaReplaySimulator
     public StableManiaReplaySimulator(IBeatmap playable, int columns, double overallDifficulty, int mode, double rate)
     {
         keys = columns;
+        OverallDifficulty = overallDifficulty;
         holds = new (Hold, int)[keys];
         for (int k = 0; k < keys; k++) holds[k] = (Hold.Nothing, -1);
         keyState = new bool[keys];
@@ -374,6 +379,9 @@ internal sealed class StableManiaReplaySimulator
     // ---- judgement ----
 
     private static readonly HitResult[] results = { HitResult.Perfect, HitResult.Great, HitResult.Good, HitResult.Ok, HitResult.Meh, HitResult.Miss };
+
+    /// <summary>Note hit windows in map time, best first: (result, earliest, latest error). 50 is early only.</summary>
+    public IEnumerable<(HitResult Result, double Early, double Late)> NoteWindows => results.Select((result, i) => (result, noteWindows[i].early, noteWindows[i].late));
 
     /// <summary>Result of a note hit with error <paramref name="delta"/> (map time).</summary>
     public HitResult NoteResult(double delta)

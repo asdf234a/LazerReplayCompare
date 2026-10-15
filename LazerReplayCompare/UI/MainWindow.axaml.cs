@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -10,6 +11,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace LazerReplayCompare;
 
@@ -31,6 +33,11 @@ public sealed partial class MainWindow : Window
     private JudgementDonut judgementDonut = null!;
     private Avalonia.Controls.Primitives.UniformGrid judgementLegend = null!;
     private ListBox replayList = null!;
+    private ReplayDetailsView detailsView = null!;
+
+    // analyses of the replays whose details were opened, by replay and beatmap file (most recent last)
+    private readonly List<(string Key, ReplayAnalysis Analysis)> analyses = new();
+    private const int kept_analyses = 12;
 
     private List<ReplayEntry> currentReplays = new();
     private string currentReplaysMd5 = string.Empty;
@@ -51,6 +58,10 @@ public sealed partial class MainWindow : Window
         judgementDonut = this.FindControl<JudgementDonut>("JudgementDonut")!;
         judgementLegend = this.FindControl<Avalonia.Controls.Primitives.UniformGrid>("JudgementLegend")!;
         replayList = this.FindControl<ListBox>("ReplayList")!;
+        detailsView = this.FindControl<ReplayDetailsView>("DetailsView")!;
+        detailsView.BackRequested += CloseDetails;
+        detailsView.ShowFileRequested += entry => ShowReplayFile(entry);
+        detailsView.PinRequested += TogglePin;
         setUpTitleBar(this.FindControl<Border>("TitleBar")!);
 
         // The sharp banner scrolls with the page, so it stays behind "now playing" (the blurred copy stays put).
@@ -58,16 +69,28 @@ public sealed partial class MainWindow : Window
         var bannerOffset = new TranslateTransform();
         banner.RenderTransform = bannerOffset;
         var compareScroll = this.FindControl<ScrollViewer>("CompareScroll")!;
-        compareScroll.ScrollChanged += (_, _) =>
+        var detailsScroll = detailsView.FindControl<ScrollViewer>("Scroll")!;
+        void followScroll(ScrollViewer scroll)
         {
-            var offset = compareScroll.Offset.Y;
+            var offset = scroll.Offset.Y;
             bannerOffset.Y = -offset;
             // ... and gradually gives way to the blurred copy as the page scrolls.
             banner.Opacity = Math.Clamp(1 - offset / 320, 0, 1);
+        }
+
+        compareScroll.ScrollChanged += (_, _) =>
+        {
+            followScroll(compareScroll);
 
             // Fade the content's top edge under the top bar once there is something scrolled past it.
             if (compareScroll.OpacityMask is LinearGradientBrush { GradientStops: [var top, _] })
-                top.Color = Color.FromArgb((byte)Math.Round(255 * (1 - Math.Clamp(offset / 28, 0, 1))), 0, 0, 0);
+                top.Color = Color.FromArgb((byte)Math.Round(255 * (1 - Math.Clamp(compareScroll.Offset.Y / 28, 0, 1))), 0, 0, 0);
+        };
+        detailsScroll.ScrollChanged += (_, _) => followScroll(detailsScroll);
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainWindowViewModel.ShowDetailsPage))
+                followScroll(viewModel.ShowDetailsPage ? detailsScroll : compareScroll);
         };
 
         // In a narrow window the legend stacks into one column so the target's name keeps its room.
@@ -310,6 +333,10 @@ public sealed partial class MainWindow : Window
             var oldStable = currentSnapshot.IsStable;
             currentSnapshot = snapshot;
             viewModel.IsStableClient = snapshot.IsStable;
+
+            // a details page belongs to the map (and game) it was opened on
+            if (snapshot.BeatmapChecksum != oldChecksum || snapshot.IsStable != oldStable)
+                viewModel.Details = null;
 
             var hasBeatmap = !string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum);
             viewModel.HasBeatmap = hasBeatmap;
@@ -642,6 +669,11 @@ public sealed partial class MainWindow : Window
         viewModel.AutoSpeed = speed;
         viewModel.IsTargetPinned = pinned;
         viewModel.Target = target;
+        if (viewModel.Details is { } details)
+        {
+            details.Target = target;
+            details.IsPinned = pinned && target != null && string.Equals(target.FilePath, details.Entry.FilePath, StringComparison.OrdinalIgnoreCase);
+        }
 
         correctionCancellation?.Cancel();
         if (target == null)
@@ -723,7 +755,7 @@ public sealed partial class MainWindow : Window
 
             var legend = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 6, Margin = new Thickness(0, 1, 16, 1) };
             legend.Children.Add(new Ellipse { Width = 7, Height = 7, Fill = brush, VerticalAlignment = VerticalAlignment.Center });
-            var name = new TextBlock { Text = segment.Key, FontSize = 11, Classes = { "secondary" } };
+            var name = new TextBlock { Text = segment.Label, FontSize = 11, Classes = { "secondary" } };
             Grid.SetColumn(name, 1);
             legend.Children.Add(name);
             var count = new TextBlock { Text = segment.CountText, FontSize = 11, Classes = { "mono" }, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8, 0, 0, 0) };
@@ -770,7 +802,13 @@ public sealed partial class MainWindow : Window
 
     // --- Pages, compact mode, files ---
 
-    private void ShowComparePage(object? sender, RoutedEventArgs e) => viewModel.IsSettingsPage = false;
+    private void ShowComparePage(object? sender, RoutedEventArgs e)
+    {
+        // Compare again while on it: back to the replay list
+        if (!viewModel.IsSettingsPage)
+            viewModel.Details = null;
+        viewModel.IsSettingsPage = false;
+    }
 
     private void ShowSettingsPage(object? sender, RoutedEventArgs e) => viewModel.IsSettingsPage = true;
 
@@ -798,10 +836,93 @@ public sealed partial class MainWindow : Window
         Activate();
     }
 
-    private void ReplayDoubleTapped(object? sender, TappedEventArgs e)
+    // --- Replay details ---
+
+    private void ReplayTapped(object? sender, TappedEventArgs e)
     {
-        if (replayList.SelectedItem is ReplayRow row && File.Exists(row.Entry.FilePath))
-            OpenInExplorer($"/select,\"{row.Entry.FilePath}\"");
+        // the pin button keeps its own job
+        if (e.Source is not Visual source || source.FindAncestorOfType<ToggleButton>(includeSelf: true) != null)
+            return;
+
+        if (source is StyledElement { DataContext: ReplayRow row })
+            OpenDetails(row);
+    }
+
+    private void ReplayListKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && replayList.SelectedItem is ReplayRow row)
+            OpenDetails(row);
+    }
+
+    private void OpenDetails(ReplayRow row)
+    {
+        var entry = row.Entry;
+        replayList.SelectedItem = null;
+        var details = new ReplayDetailsViewModel(entry, viewModel.BeatmapTitle, viewModel.BeatmapSubtitle, viewModel.Target, row.IsPinned, scoreV1: currentSnapshot.IsStable);
+        viewModel.Details = details;
+        detailsView.ScrollToTop();
+
+        if (!entry.HasReplay)
+            return;
+
+        var beatmapPath = BuildBeatmapPath(currentSnapshot);
+        var key = $"{entry.FilePath}|{beatmapPath}";
+        var cached = analyses.FindIndex(a => a.Key == key);
+        if (cached >= 0)
+        {
+            details.SetAnalysis(analyses[cached].Analysis);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(beatmapPath) || !File.Exists(beatmapPath))
+        {
+            details.ErrorText = "The beatmap file isn't available yet, so the replay can't be analysed.";
+            return;
+        }
+
+        details.IsLoading = true;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var analysis = ReplayAnalyzer.Analyze(entry.FilePath, beatmapPath);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    analyses.RemoveAll(a => a.Key == key);
+                    analyses.Add((key, analysis));
+                    if (analyses.Count > kept_analyses)
+                        analyses.RemoveAt(0);
+
+                    details.IsLoading = false;
+                    details.SetAnalysis(analysis);
+                });
+            }
+            catch (Exception ex)
+            {
+                InternalLogger.Log(ex);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    details.IsLoading = false;
+                    details.ErrorText = $"Couldn't analyse the replay: {ex.Message}";
+                });
+            }
+        });
+    }
+
+    private void CloseDetails() => viewModel.Details = null;
+
+    /// <summary>Pins the replay as the comparison target, or unpins it when it already is.</summary>
+    private void TogglePin(ReplayEntry entry)
+    {
+        var row = viewModel.ReplayRows.FirstOrDefault(r => ReferenceEquals(r.Entry, entry));
+        if (row is { HasReplay: true })
+            row.IsPinned = !row.IsPinned;   // the row's handler updates the target (and the open details page)
+    }
+
+    private static void ShowReplayFile(ReplayEntry entry)
+    {
+        if (File.Exists(entry.FilePath))
+            OpenInExplorer($"/select,\"{entry.FilePath}\"");
     }
 
     private void OpenOverlayFolder(object? sender, RoutedEventArgs e)

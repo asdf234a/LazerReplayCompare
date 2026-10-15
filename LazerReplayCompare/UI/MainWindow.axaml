@@ -31,6 +31,13 @@
     <Style Selector="Grid.hero.overBanner">
       <Setter Property="MinHeight" Value="200" />
     </Style>
+    <!-- A row opens its details: the chevron at its end lights up under the pointer. -->
+    <Style Selector="Path.rowChevron">
+      <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <Style Selector="ListBoxItem:pointerover Path.rowChevron">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
   </Window.Styles>
 
   <Grid>
@@ -138,7 +145,7 @@
 
     <Grid>
       <!-- ===================== Compare ===================== -->
-      <ScrollViewer x:Name="CompareScroll" IsVisible="{Binding IsComparePage}" HorizontalScrollBarVisibility="Disabled">
+      <ScrollViewer x:Name="CompareScroll" IsVisible="{Binding ShowCompareList}" HorizontalScrollBarVisibility="Disabled">
         <!-- Content fades out under the top bar instead of being cut off (only once scrolled; see code-behind). -->
         <ScrollViewer.OpacityMask>
           <LinearGradientBrush StartPoint="0,0" EndPoint="0,28">
@@ -274,10 +281,10 @@
                   </StackPanel>
 
                   <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
-                    <Panel Width="76" Height="76" Background="Transparent" ToolTip.Tip="{Binding JudgementSummaryText}">
+                    <Panel Width="76" Height="76" Background="Transparent">
                       <local:JudgementDonut x:Name="JudgementDonut" Segments="{Binding Judgements}" Thickness="11" Track="{DynamicResource ChipBrush}" />
                       <TextBlock Classes="mono" FontSize="13" FontWeight="SemiBold" Text="{Binding JudgementTotalText}"
-                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
                     </Panel>
                     <UniformGrid x:Name="JudgementLegend" Columns="2" VerticalAlignment="Center" />
                   </StackPanel>
@@ -319,7 +326,7 @@
               </StackPanel>
               <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" ClipToBounds="True">
                 <Grid RowDefinitions="Auto,Auto">
-                  <Grid ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*" Margin="0,4,0,4">
+                  <Grid ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*,36" Margin="0,4,0,4">
                     <TextBlock Grid.Column="1" Classes="muted" FontSize="12" Text="Player" VerticalAlignment="Center" Margin="8,0" />
                     <Button Grid.Column="2" Classes="sortHeader" HorizontalContentAlignment="Left" Margin="8,0" Content="{Binding DateHeader}" Tag="Date" Click="SortReplays" />
                     <TextBlock Grid.Column="3" Classes="muted" FontSize="12" Text="Mods" VerticalAlignment="Center" Margin="8,0" />
@@ -328,17 +335,17 @@
                     <Button Grid.Column="6" Classes="sortHeader" Margin="8,0" Content="{Binding AccuracyHeader}" Tag="Accuracy" Click="SortReplays" />
                     <Button Grid.Column="7" Classes="sortHeader" Margin="8,0" Content="{Binding MissHeader}" Tag="Miss" Click="SortReplays" />
                     <Button Grid.Column="8" Classes="sortHeader" Margin="8,0" Content="{Binding ComboHeader}" Tag="Combo" Click="SortReplays" />
-                    <TextBlock Grid.Column="9" Classes="muted" FontSize="12" Text="Rank" TextAlignment="Center" VerticalAlignment="Center" Margin="8,0,16,0" />
+                    <TextBlock Grid.Column="9" Classes="muted" FontSize="12" Text="Rank" TextAlignment="Center" VerticalAlignment="Center" Margin="8,0" />
                   </Grid>
 
                   <ListBox Grid.Row="1" x:Name="ReplayList" Classes="replayList" ItemsSource="{Binding ReplayRows}"
-                           DoubleTapped="ReplayDoubleTapped" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                           Tapped="ReplayTapped" KeyDown="ReplayListKeyDown" ScrollViewer.VerticalScrollBarVisibility="Disabled">
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="local:ReplayRow">
-                        <Border Classes="replayRow" Classes.target="{Binding IsTarget}">
+                        <Border Classes="replayRow" Classes.target="{Binding IsTarget}" Cursor="Hand">
                           <Grid>
                             <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TargetAccentBrush}" IsVisible="{Binding IsTarget}" />
-                            <Grid ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*" MinHeight="48">
+                            <Grid ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*,36" MinHeight="48">
                               <ToggleButton Classes="pin" IsChecked="{Binding IsPinned, Mode=TwoWay}" IsEnabled="{Binding HasReplay}" ToolTip.Tip="{Binding PinTooltip}"
                                             ToolTip.ShowOnDisabled="True" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,0,0,0">
                                 <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
@@ -365,7 +372,9 @@
                               <TextBlock Grid.Column="6" Classes="mono" Text="{Binding AccuracyText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                               <TextBlock Grid.Column="7" Classes="mono miss" Classes.fullCombo="{Binding IsFullCombo}" Text="{Binding MissText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                               <TextBlock Grid.Column="8" Classes="mono" Text="{Binding ComboText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
-                              <TextBlock Grid.Column="9" Text="{Binding Rank}" FontWeight="Bold" Foreground="{DynamicResource RankTextBrush}" TextAlignment="Center" VerticalAlignment="Center" Margin="8,0,16,0" />
+                              <TextBlock Grid.Column="9" Text="{Binding Rank}" FontWeight="Bold" Foreground="{DynamicResource RankTextBrush}" TextAlignment="Center" VerticalAlignment="Center" Margin="8,0" />
+                              <Path Grid.Column="10" Classes="rowChevron" Width="14" Height="14" Stretch="Uniform" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
+                                    Stroke="{DynamicResource TextSecondaryBrush}" Data="M9,6 L15,12 L9,18" HorizontalAlignment="Left" VerticalAlignment="Center" />
                             </Grid>
                           </Grid>
                         </Border>
@@ -374,11 +383,17 @@
                   </ListBox>
                 </Grid>
               </Border>
-              <TextBlock Classes="muted" FontSize="13" Margin="4,0" Text="Double-click a row to show the replay file" />
+              <TextBlock Classes="muted" FontSize="13" Margin="4,0" Text="Click a replay to see its details" />
             </StackPanel>
           </StackPanel>
         </StackPanel>
       </ScrollViewer>
+
+      <!-- ===================== Replay details ===================== -->
+      <!-- (its own DataContext is the page's model, so its visibility is bound on a wrapper) -->
+      <Panel IsVisible="{Binding ShowDetailsPage}">
+        <local:ReplayDetailsView x:Name="DetailsView" DataContext="{Binding Details}" />
+      </Panel>
 
       <!-- ===================== Settings ===================== -->
       <ScrollViewer IsVisible="{Binding IsSettingsPage}" HorizontalScrollBarVisibility="Disabled">
@@ -486,5 +501,8 @@
       </ScrollViewer>
     </Grid>
   </DockPanel>
+
+    <!-- What is under the pointer in a chart, shown at once next to it. -->
+    <local:HoverCardLayer />
   </Grid>
 </Window>

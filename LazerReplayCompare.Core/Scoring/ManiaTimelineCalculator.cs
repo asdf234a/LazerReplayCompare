@@ -10,7 +10,10 @@ using osu.Game.Scoring;
 
 namespace LazerReplayCompare;
 
-internal sealed record ManiaTimelineResult(List<ReplayTimelineFrame> Frames, List<ReplayTimelineFrame> RawFrames, string Label, double ScoreMultiplier);
+/// <param name="Judgements">The judgements the timeline was built from, with the correction's result changes applied.</param>
+/// <param name="Playable">The beatmap they were judged on (with the replay's mods and hit windows).</param>
+internal sealed record ManiaTimelineResult(List<ReplayTimelineFrame> Frames, List<ReplayTimelineFrame> RawFrames, string Label, double ScoreMultiplier,
+                                           IReadOnlyList<LazerManiaReplaySimulator.Judged> Judgements, IBeatmap Playable);
 
 /// <summary>
 /// Builds a score timeline for an osu!mania replay without frame headers by replaying it through
@@ -90,7 +93,7 @@ internal sealed class ManiaTimelineCalculator
             PreRoundingManiaHitWindows.Apply(playable, info.Mods);
 
         if (playable.HitObjects.Count == 0)
-            return new ManiaTimelineResult(new List<ReplayTimelineFrame>(), new List<ReplayTimelineFrame>(), "lazer-port(empty)", 1);
+            return new ManiaTimelineResult(new List<ReplayTimelineFrame>(), new List<ReplayTimelineFrame>(), "lazer-port(empty)", 1, Array.Empty<LazerManiaReplaySimulator.Judged>(), playable);
 
         var columns = ((ManiaBeatmap)playable).TotalColumns;
         var replayFrames = score.Replay.Frames.OfType<ManiaReplayFrame>().OrderBy(frame => frame.Time).ToList();
@@ -106,6 +109,8 @@ internal sealed class ManiaTimelineCalculator
         var rawFrames = applyResults(processor, results, applied, new Dictionary<int, HitResult>());
         var frames = rawFrames;
         var scoreMultiplier = getScoreMultiplier(processor);
+        IReadOnlyList<LazerManiaReplaySimulator.Judged> judged = results;
+        IReadOnlyDictionary<int, HitResult> overrides = new Dictionary<int, HitResult>();
 
         var label = "raw";
         if (correctionMode == CorrectionMode.Corrected)
@@ -146,6 +151,7 @@ internal sealed class ManiaTimelineCalculator
                 if (corrected.outcome.Exact && (corrected.outcome.Flips.Count > 0 || corrected.mehMiss > 0 || corrected.timing > 0))
                 {
                     frames = applyResults(processor, corrected.results, applied, corrected.outcome.Flips);
+                    (judged, overrides) = (corrected.results, corrected.outcome.Flips);
                     label = $"boundary-corrected(flips={corrected.outcome.Flips.Count + corrected.mehMiss},meh-miss={corrected.mehMiss},timing={corrected.timing},solutions={corrected.outcome.ExactSolutions}"
                             + (corrected.outcome.Exact && widened > 0 ? $",widened=±{widened}ms" : "") + ")";
                 }
@@ -161,6 +167,7 @@ internal sealed class ManiaTimelineCalculator
                     if (approx is { } best)
                     {
                         frames = applyResults(processor, best.results, applied, best.flips);
+                        (judged, overrides) = (best.results, best.flips);
                         var dS = processor.TotalScore.Value - info.TotalScore;
                         label = best.gap == 0 && dS == 0
                             ? $"boundary-corrected(flips={best.flips.Count + best.changes},meh-miss={best.changes},widened=±{best.width}ms)"
@@ -178,7 +185,8 @@ internal sealed class ManiaTimelineCalculator
         if (preRoundingWindows)
             label += ",pre-2025.710-windows";
 
-        return new ManiaTimelineResult(frames, rawFrames, label, scoreMultiplier);
+        var judgements = judged.Select((result, i) => overrides.TryGetValue(i, out var type) ? result with { Type = type } : result).ToList();
+        return new ManiaTimelineResult(frames, rawFrames, label, scoreMultiplier, judgements, playable);
     }
 
     /// <summary>
