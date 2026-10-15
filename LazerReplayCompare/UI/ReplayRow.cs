@@ -2,6 +2,18 @@ using System.Globalization;
 
 namespace LazerReplayCompare;
 
+/// <summary>Accuracies as the game the replays are listed from shows them, with two decimals.</summary>
+public static class ShownAccuracy
+{
+    /// <summary>
+    /// In percent: osu!lazer cuts it off at two decimals (FormatUtils.FormatAccuracy never shows a rounded-up value), so
+    /// 98.769% is 98.76%; osu!stable rounds, so the value is left for the format to round.
+    /// </summary>
+    public static double Percent(double accuracy, bool stable) => stable ? accuracy * 100 : Math.Floor(accuracy * 10000) / 100;
+
+    public static string Text(double accuracy, bool stable) => Percent(accuracy, stable).ToString("0.00", CultureInfo.InvariantCulture) + "%";
+}
+
 public sealed class ReplayRow : ObservableObject
 {
     private bool isPinned;
@@ -9,10 +21,14 @@ public sealed class ReplayRow : ObservableObject
     private string vsTargetText = "—";
     private long vsTargetDifference;
 
-    public ReplayRow(ReplayEntry entry)
+    /// <param name="stable">Listed from osu!stable (accuracies shown the osu!stable way).</param>
+    public ReplayRow(ReplayEntry entry, bool stable = false)
     {
         Entry = entry;
+        this.stable = stable;
     }
+
+    private readonly bool stable;
 
     public ReplayEntry Entry { get; }
     public string Player => Entry.Player;
@@ -21,7 +37,7 @@ public sealed class ReplayRow : ObservableObject
     public IReadOnlyList<ReplayMod> Mods => Entry.Mods;
     public bool HasMods => Entry.Mods.Count > 0;
     public string ScoreText => Entry.Score.ToString("N0", CultureInfo.InvariantCulture);
-    public string AccuracyText => (Entry.Accuracy * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%";
+    public string AccuracyText => ShownAccuracy.Text(Entry.Accuracy, stable);
     public int Miss => Entry.Statistics.GetValueOrDefault("Miss");
     public string MissText => Miss.ToString(CultureInfo.InvariantCulture);
     public bool IsFullCombo => Miss == 0;

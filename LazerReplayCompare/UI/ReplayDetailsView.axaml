@@ -103,6 +103,10 @@
             </StackPanel>
             <WrapPanel Grid.Column="1" ItemSpacing="28" LineSpacing="10" VerticalAlignment="Center">
               <StackPanel Spacing="2">
+                <TextBlock Classes="statLabel" Text="Rank" HorizontalAlignment="Right" />
+                <TextBlock Classes="statValue" Text="{Binding RankText}" Foreground="{DynamicResource RankTextBrush}" HorizontalAlignment="Right" />
+              </StackPanel>
+              <StackPanel Spacing="2">
                 <TextBlock Classes="statLabel" Text="{Binding ScoreLabel}" HorizontalAlignment="Right" />
                 <TextBlock Classes="statValue" Text="{Binding ScoreText}" HorizontalAlignment="Right" />
               </StackPanel>

@@ -14,6 +14,7 @@ import {
     timelineScaleMetric,
     updateOsuPath,
 } from './overlayState.js';
+import { setClient } from './metrics.js';
 
 const TOSU_HOST = window.TOSU_HOST || location.host || '127.0.0.1:24050';
 const LAZER_COMPARE_HOST = window.LAZER_COMPARE_HOST || '127.0.0.1:24052';
@@ -297,7 +298,10 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
     }
 
     function onTosu(data) {
-        if (data.client != null) state.client = data.client;
+        if (data.client != null) {
+            state.client = data.client;
+            setClient(state.client);
+        }
         if (data.state?.name != null) state.gameState = data.state.name;
         if (data.profile != null) {
             state.player = data.profile.username || data.profile.name || data.profile.user?.username || data.profile.user?.name || state.player;

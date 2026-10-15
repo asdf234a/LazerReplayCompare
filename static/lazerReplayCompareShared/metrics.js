@@ -90,6 +90,23 @@ const ALIASES = {
 
 let custom = {};
 
+// osu!lazer never shows a rounded-up percentage (its FormatAccuracy cuts it off at two decimals); osu!stable rounds.
+let cutPercentages = true;
+
+/** The game being played ('lazer' or 'stable'): percentages are shown the way it shows them. */
+export function setClient(client) {
+    cutPercentages = client !== 'stable';
+}
+
+/**
+ * The value as shown: an osu!lazer percentage (not a difference) cut off at two decimals, so 98.769 shows 98.76 like
+ * the game's own display; anything else unchanged (rounded by the format).
+ */
+export function shownValue(key, value, signed = false) {
+    const number = Number(value) || 0;
+    return cutPercentages && !signed && isPercent(key) ? Math.floor(number * 100 + 1e-6) / 100 : number;
+}
+
 function normalize(name) {
     return String(name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
@@ -184,10 +201,10 @@ export function hasDecimals(key) {
 
 /**
  * Formats a display-unit value: { sign, value, suffix, text }. `signed` adds "+" to positive values. Integers are
- * rounded (and signed by the rounded value); percentages and ratios keep two decimals.
+ * rounded (and signed by the rounded value); percentages and ratios keep two decimals (see shownValue).
  */
 export function formatItem(key, value, signed = false) {
-    const number = Number(value) || 0;
+    const number = shownValue(key, value, signed);
 
     if (hasDecimals(key)) {
         const text = Math.abs(number).toFixed(2);

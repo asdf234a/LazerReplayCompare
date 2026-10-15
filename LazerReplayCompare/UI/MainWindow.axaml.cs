@@ -454,7 +454,8 @@ public sealed partial class MainWindow : Window
                 ? string.Join(" · ", new[] { snapshot.BeatmapArtist, snapshot.BeatmapVersion }.Where(part => !string.IsNullOrWhiteSpace(part)))
                 : $"Select a beatmap in {viewModel.GameName}";
 
-            if (snapshot.BeatmapChecksum != backgroundBeatmap)
+            // (a details page opened by hand keeps its own map's background while it stays open on another map)
+            if (snapshot.BeatmapChecksum != backgroundBeatmap && !(viewModel.Details != null && !detailsOnCurrentMap))
                 OnBackgroundBeatmapChanged(snapshot);
 
             if (!viewModel.LazerFound && !snapshot.IsStable && OsuLazerPathResolver.Resolve(snapshot) is { } detectedPath)
@@ -478,6 +479,8 @@ public sealed partial class MainWindow : Window
     /// <summary>Beatmap the shown (or loading) background belongs to, and where it is coming from ("" = not chosen yet).</summary>
     private string backgroundBeatmap = string.Empty;
     private string backgroundSource = string.Empty;
+    // the osu!lazer database lookup's last answer, for a background chosen after it (a details page kept it waiting)
+    private (string Beatmap, string Path)? databaseBackground;
 
     /// <summary>
     /// Background sources, best first: the file tosu points at (when it exists — for lazer tosu reports the original
@@ -495,6 +498,8 @@ public sealed partial class MainWindow : Window
 
         if (File.Exists(snapshot.BackgroundPath))
             LoadBackground(snapshot.BeatmapChecksum, snapshot.BackgroundPath);
+        else if (databaseBackground is { } found && found.Beatmap == snapshot.BeatmapChecksum)
+            LoadBackground(snapshot.BeatmapChecksum, string.IsNullOrWhiteSpace(found.Path) ? TosuBackgroundUrl : found.Path);
         else if (!viewModel.LazerFound)
             LoadBackground(snapshot.BeatmapChecksum, TosuBackgroundUrl);
     }
@@ -502,6 +507,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Called with the database lookup's result for <paramref name="beatmap"/>.</summary>
     private void OnDatabaseBackground(string beatmap, string path)
     {
+        databaseBackground = (beatmap, path);
         if (beatmap != backgroundBeatmap || backgroundSource.Length > 0)
             return;
 
@@ -676,7 +682,7 @@ public sealed partial class MainWindow : Window
             row.PropertyChanged -= ReplayRow_PropertyChanged;
         viewModel.ReplayRows.Clear();
 
-        foreach (var replay in Sort(replays.Select(replay => new ReplayRow(replay) { IsPinned = replaySelection.IsSelected(replay) })))
+        foreach (var replay in Sort(replays.Select(replay => new ReplayRow(replay, currentSnapshot.IsStable) { IsPinned = replaySelection.IsSelected(replay) })))
         {
             replay.PropertyChanged += ReplayRow_PropertyChanged;
             viewModel.ReplayRows.Add(replay);
@@ -1036,6 +1042,10 @@ public sealed partial class MainWindow : Window
     {
         viewModel.Details = null;
         detailsFromResults = false;
+
+        // back to the map being played, if the page kept another map's background
+        if (currentSnapshot.BeatmapChecksum != backgroundBeatmap)
+            OnBackgroundBeatmapChanged(currentSnapshot);
     }
 
     /// <summary>

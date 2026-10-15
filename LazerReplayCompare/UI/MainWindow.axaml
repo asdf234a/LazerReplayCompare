@@ -360,16 +360,20 @@
                                 <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
                                       Data="M12,17 L12,22 M9,3 L15,3 L14,9 L18,13 L6,13 L10,9 Z" />
                               </ToggleButton>
-                              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="8,0">
-                                <TextBlock Text="{Binding Player}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                <Border Classes="targetBadge" IsVisible="{Binding IsTarget}" VerticalAlignment="Center">
-                                  <TextBlock Text="TARGET" />
-                                </Border>
-                                <Border Classes="noReplayBadge" IsVisible="{Binding !HasReplay}" VerticalAlignment="Center"
-                                        ToolTip.Tip="osu!stable lists this score in scores.db, but its replay file is missing from Data/r">
-                                  <TextBlock Text="NO REPLAY" />
-                                </Border>
-                              </StackPanel>
+                              <!-- The badges keep their room and a long name is cut short, so nothing runs into Mods; the
+                                   panel is only as wide as its content, so the badges still follow the name. -->
+                              <DockPanel Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" Margin="8,0,0,0" VerticalAlignment="Center">
+                                  <Border Classes="targetBadge" IsVisible="{Binding IsTarget}" VerticalAlignment="Center">
+                                    <TextBlock Text="TARGET" />
+                                  </Border>
+                                  <Border Classes="noReplayBadge" IsVisible="{Binding !HasReplay}" VerticalAlignment="Center"
+                                          ToolTip.Tip="osu!stable lists this score in scores.db, but its replay file is missing from Data/r">
+                                    <TextBlock Text="NO REPLAY" />
+                                  </Border>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Player}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Player}" />
+                              </DockPanel>
                               <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding DateText}" VerticalAlignment="Center" Margin="8,0" />
                               <Panel Grid.Column="3" Margin="8,0" VerticalAlignment="Center" ClipToBounds="True" Background="Transparent" ToolTip.Tip="{Binding ModsText}">
                                 <local:ModBadges Mods="{Binding Mods}" BadgeHeight="22" HorizontalAlignment="Left" IsVisible="{Binding HasMods}" />

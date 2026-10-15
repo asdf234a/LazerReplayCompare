@@ -39,6 +39,7 @@ public sealed class ReplayDetailsViewModel : ObservableObject
 
     private ReplayEntry? target;
     private bool isPinned;
+    private readonly bool listedFromStable;
     private bool isOnCurrentMap = true;
     private bool isLoading;
     private string errorText = string.Empty;
@@ -49,6 +50,7 @@ public sealed class ReplayDetailsViewModel : ObservableObject
     public ReplayDetailsViewModel(ReplayEntry entry, string beatmapTitle, string beatmapSubtitle, ReplayEntry? target, bool isPinned, bool scoreV1)
     {
         Entry = entry;
+        listedFromStable = scoreV1;
         ScoreLabel = scoreV1 ? "Score (ScoreV1)" : "Score";
         Title = beatmapTitle;
         Subtitle = beatmapSubtitle;
@@ -68,7 +70,8 @@ public sealed class ReplayDetailsViewModel : ObservableObject
     public string PlayerDateText => $"{Entry.Player} · {formatDate(Entry.Date)}";
     public string ScoreLabel { get; }
     public string ScoreText => Entry.Score.ToString("N0", invariant);
-    public string AccuracyText => (Entry.Accuracy * 100).ToString("0.00", invariant) + "%";
+    public string AccuracyText => ShownAccuracy.Text(Entry.Accuracy, listedFromStable);
+    public string RankText => Entry.Rank;
     public string MaxComboText => Entry.MaxCombo.ToString("N0", invariant);
 
     /// <summary>MAX ÷ 300 to two decimals; "Perfect" when there is no 300.</summary>
@@ -142,7 +145,8 @@ public sealed class ReplayDetailsViewModel : ObservableObject
                 return string.Empty;
 
             long score = Entry.Score - Target!.Score;
-            double accuracy = (Entry.Accuracy - Target.Accuracy) * 100;
+            // (between the accuracies as shown)
+            double accuracy = ShownAccuracy.Percent(Entry.Accuracy, listedFromStable) - ShownAccuracy.Percent(Target.Accuracy, listedFromStable);
             int misses = Entry.Statistics.GetValueOrDefault("Miss") - Target.Statistics.GetValueOrDefault("Miss");
             return $"{score.ToString("+#,0;−#,0;±0", invariant)} pts · {accuracy.ToString("+0.00;−0.00;±0.00", invariant)}% acc · {misses.ToString("+0;−0;±0", invariant)} misses";
         }

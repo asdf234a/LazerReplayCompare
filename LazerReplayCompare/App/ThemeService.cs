@@ -32,9 +32,9 @@ public static class ThemeService
         ["OptionBrush"] = ("#1A1E26", "#F7F8FA"),
         ["OptionBorderBrush"] = ("#2A303C", "#DEE2E8"),
         ["OptionSelectedBrush"] = ("#1F232D", "#FFFFFF"),
-        ["OptionSelectedBorderBrush"] = ("#C9D1DE", "#3A4250"),
+        ["OptionSelectedBorderBrush"] = ("#FF66AA", "#3A4250"),
 
-        // The comparison target is the only place the accent colour appears.
+        // The accent colour: the comparison target, and in the dark theme what is checked or chosen in the settings.
         ["TargetCardBrush"] = ("#1A1621", "#FFF6FA"),
         ["TargetBorderBrush"] = ("#4A2A3E", "#F3C2D9"),
         ["TargetLabelBrush"] = ("#FF9CC8", "#B3326E"),
@@ -84,6 +84,24 @@ public static class ThemeService
         ["HoverCardBorderBrush"] = ("#2E3441", "#D3D8E0"),
     };
 
+    // Fluent's checked checkboxes and radio buttons (normal, under the pointer, pressed): the accent pink in the dark theme,
+    // where Fluent's own accent is near white. The light theme keeps Fluent's.
+    private static readonly (string Key, string Color)[] dark_checked =
+    [
+        ("CheckBoxCheckBackgroundFillChecked", "#FF66AA"),
+        ("CheckBoxCheckBackgroundFillCheckedPointerOver", "#FF85BC"),
+        ("CheckBoxCheckBackgroundFillCheckedPressed", "#E0579A"),
+        ("CheckBoxCheckBackgroundStrokeChecked", "#FF66AA"),
+        ("CheckBoxCheckBackgroundStrokeCheckedPointerOver", "#FF85BC"),
+        ("CheckBoxCheckBackgroundStrokeCheckedPressed", "#E0579A"),
+        ("RadioButtonOuterEllipseCheckedFill", "#FF66AA"),
+        ("RadioButtonOuterEllipseCheckedFillPointerOver", "#FF85BC"),
+        ("RadioButtonOuterEllipseCheckedFillPressed", "#E0579A"),
+        ("RadioButtonOuterEllipseCheckedStroke", "#FF66AA"),
+        ("RadioButtonOuterEllipseCheckedStrokePointerOver", "#FF85BC"),
+        ("RadioButtonOuterEllipseCheckedStrokePressed", "#E0579A"),
+    ];
+
     public static void Apply(Window target, string theme)
     {
         var normalized = string.IsNullOrWhiteSpace(theme) ? "System" : theme;
@@ -99,6 +117,14 @@ public static class ThemeService
 
         foreach (var (key, colors) in palette)
             target.Resources[key] = new SolidColorBrush(Color.Parse(isLight ? colors.Light : colors.Dark));
+
+        foreach (var (key, color) in dark_checked)
+        {
+            if (isLight)
+                target.Resources.Remove(key);
+            else
+                target.Resources[key] = new SolidColorBrush(Color.Parse(color));
+        }
 
         // Beatmap background banner: fades towards the page colour and a page-coloured scrim behind the title, so the
         // text keeps its normal colour (and contrast) over any image in both themes.

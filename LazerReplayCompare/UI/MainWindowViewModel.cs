@@ -135,6 +135,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
             connectionsChanged();
             OnPropertyChanged(nameof(GameName));
+            OnPropertyChanged(nameof(TargetAccuracyText));   // shown the way that game shows it
         }
     }
 
@@ -330,7 +331,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public bool HasTarget => Target != null;
     public string TargetPlayer => Target?.Player ?? "-";
     public string TargetScoreText => Target?.Score.ToString("N0", CultureInfo.InvariantCulture) ?? "-";
-    public string TargetAccuracyText => Target == null ? "-" : (Target.Accuracy * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%";
+    public string TargetAccuracyText => Target == null ? "-" : ShownAccuracy.Text(Target.Accuracy, IsStableClient);
     public string TargetDateText => Target == null ? "-" : ReplayRow.FormatDateOnly(Target.Date);
     public string TargetSummary => Target == null ? "-" : $"{TargetAccuracyText} · {Target.ModsText} · {TargetDateText}";
     public string TargetDetailText => Target == null ? "-" : $"{Target.ModsText} · {TargetDateText}";
