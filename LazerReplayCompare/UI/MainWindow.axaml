@@ -27,10 +27,6 @@
       </Setter>
       <Setter Property="Padding" Value="8" />
     </Style>
-    <!-- Reserved whenever the background setting is on, so nothing moves when the image arrives. -->
-    <Style Selector="Grid.hero.overBanner">
-      <Setter Property="MinHeight" Value="200" />
-    </Style>
     <!-- A row opens its details: the chevron at its end lights up under the pointer. -->
     <Style Selector="Path.rowChevron">
       <Setter Property="Opacity" Value="0.35" />
@@ -49,11 +45,17 @@
           <SolidColorBrush Color="{DynamicResource BannerScrim80Color}" />
         </Border.Background>
       </Border>
+      <!-- Beside the banner in a window wider than the page: the same blurred copy, less dimmed. It is the same size as
+           the copy under it, so its colours carry on into the page below; it fades out with the banner (down, and as the
+           page scrolls) and towards the window's edges (see layoutBanner). -->
+      <Panel x:Name="BannerSides" IsVisible="False">
+        <local:FocalImage x:Name="BannerSidesImage" Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="HighQuality" />
+      </Panel>
     </Panel>
 
     <!-- ... and the sharp image behind the top bar and "now playing", fading out into the blurred copy. -->
     <!-- Its height follows the page zoom, and the sharp image is only as wide as the page's content: in a wider
-         window the sides get the blurred copy, fading out towards the window's edges (see layoutBanner). -->
+         window it fades into the blurred sides at its edges (see layoutBanner). -->
     <Panel x:Name="Banner" Height="460" VerticalAlignment="Top" ClipToBounds="True" IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
       <Panel.OpacityMask>
         <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
@@ -63,7 +65,6 @@
           <GradientStop Offset="1" Color="Transparent" />
         </LinearGradientBrush>
       </Panel.OpacityMask>
-      <local:FocalImage x:Name="BannerSides" Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="HighQuality" IsVisible="False" />
       <Panel x:Name="BannerColumn" HorizontalAlignment="Center">
         <local:FocalImage Source="{Binding BackgroundImage}" />
       </Panel>
@@ -91,16 +92,14 @@
 
     <!-- Top bar: app, pages, connection state, compact mode -->
     <!-- Doubles as the window's title bar (the content extends under the system title bar). -->
-    <!-- Fixed height: the connection pill and compact-mode button under the window buttons may hang below it
-         (ZIndex keeps them above the page and clickable) without making the bar taller. -->
-    <Border x:Name="TitleBar" DockPanel.Dock="Top" Height="64" ZIndex="1"
+    <Border x:Name="TitleBar" DockPanel.Dock="Top" Height="64"
             Classes="header" Classes.overBanner="{Binding ShowBackdrop}"
             BorderThickness="0,0,0,1"
             Padding="24,0">
       <Panel>
       <!-- Drag area: behind the controls (not their parent), so clicks on them never reach it. -->
       <Border x:Name="DragArea" Background="Transparent" Margin="-24,0" PointerPressed="DragWindow" />
-      <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="20">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="20">
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <Image Source="avares://LazerReplayCompare/Assets/AppLogo.png" Width="26" Height="26" VerticalAlignment="Center"
                  RenderOptions.BitmapInterpolationMode="HighQuality" />
@@ -112,37 +111,36 @@
           <Button Classes="tab" Classes.active="{Binding IsSettingsPage}" Content="Settings" Click="ShowSettingsPage" VerticalAlignment="Stretch" VerticalContentAlignment="Center" />
         </StackPanel>
 
-        <!-- Window buttons (the window has no system title bar), with the connection state and the compact-mode
-             button under them at the right edge. -->
-        <StackPanel Grid.Column="3" Spacing="4" Margin="0,0,-24,0" HorizontalAlignment="Right" VerticalAlignment="Top" Height="104" ClipToBounds="False">
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Classes="caption" Click="MinimizeWindow" ToolTip.Tip="Minimize">
-              <Path Data="M0,0.5 L10,0.5" Width="10" Height="1" />
-            </Button>
-            <Button Classes="caption" Click="ToggleMaximizeWindow" ToolTip.Tip="Maximize">
-              <Path x:Name="MaximizeGlyph" Data="M0.5,0.5 L9.5,0.5 L9.5,9.5 L0.5,9.5 Z" Width="10" Height="10" />
-            </Button>
-            <Button Classes="caption close" Click="CloseWindow" ToolTip.Tip="Close">
-              <Path Data="M0,0 L10,10 M10,0 L0,10" Width="10" Height="10" />
-            </Button>
-          </StackPanel>
-          <StackPanel Spacing="6" Margin="0,0,16,0" HorizontalAlignment="Right">
-            <Border Classes="pill" Classes.ok="{Binding AllConnected}" HorizontalAlignment="Right" Padding="10,4"
-                    ToolTip.Tip="{Binding ConnectionDetails}">
-              <StackPanel Orientation="Horizontal" Spacing="7">
-                <Ellipse Width="7" Height="7" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding ConnectionText}" FontSize="12" VerticalAlignment="Center" />
-              </StackPanel>
-            </Border>
-            <Button Click="OpenCompactMode" HorizontalAlignment="Right" MinHeight="28" Padding="10,0"
-                    ToolTip.Tip="Small always-on-top window for while you play">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <Path Width="13" Height="13" Stretch="Uniform" StrokeThickness="2" Stroke="{DynamicResource TextSecondaryBrush}"
-                      Data="M3,3 L21,3 L21,21 L3,21 Z M12,12 L19,12 L19,19 L12,19 Z" />
-                <TextBlock Text="Compact mode" FontSize="12" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-          </StackPanel>
+        <!-- Connection state and compact mode, in the bar (so the page never scrolls under them) -->
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Border Classes="pill" Classes.ok="{Binding AllConnected}" Padding="10,4" VerticalAlignment="Center"
+                  ToolTip.Tip="{Binding ConnectionDetails}">
+            <StackPanel Orientation="Horizontal" Spacing="7">
+              <Ellipse Width="7" Height="7" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding ConnectionText}" FontSize="12" VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <Button Click="OpenCompactMode" MinHeight="28" Padding="10,0" VerticalAlignment="Center"
+                  ToolTip.Tip="Small always-on-top window for while you play">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Path Width="13" Height="13" Stretch="Uniform" StrokeThickness="2" Stroke="{DynamicResource TextSecondaryBrush}"
+                    Data="M3,3 L21,3 L21,21 L3,21 Z M12,12 L19,12 L19,19 L12,19 Z" />
+              <TextBlock Text="Compact mode" FontSize="12" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+
+        <!-- Window buttons (the window has no system title bar), in the top right corner -->
+        <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="0,0,-24,0" VerticalAlignment="Top">
+          <Button Classes="caption" Click="MinimizeWindow" ToolTip.Tip="Minimize">
+            <Path Data="M0,0.5 L10,0.5" Width="10" Height="1" />
+          </Button>
+          <Button Classes="caption" Click="ToggleMaximizeWindow" ToolTip.Tip="Maximize">
+            <Path x:Name="MaximizeGlyph" Data="M0.5,0.5 L9.5,0.5 L9.5,9.5 L0.5,9.5 Z" Width="10" Height="10" />
+          </Button>
+          <Button Classes="caption close" Click="CloseWindow" ToolTip.Tip="Close">
+            <Path Data="M0,0 L10,10 M10,0 L0,10" Width="10" Height="10" />
+          </Button>
         </StackPanel>
       </Grid>
       </Panel>
@@ -210,15 +208,15 @@
           </Border>
 
           <!-- Now playing (the whole width, so a long title isn't cut short by the pickers) + overlay metrics under it -->
-          <Grid Classes="hero" Classes.overBanner="{Binding ShowBackdrop}" RowDefinitions="*,Auto" RowSpacing="12">
-            <StackPanel Spacing="4" VerticalAlignment="Bottom">
+          <Grid Classes="hero" Classes.overBanner="{Binding ShowBackdrop}" RowDefinitions="Auto,Auto" RowSpacing="14">
+            <StackPanel Spacing="4">
               <TextBlock Classes="overline" Text="NOW PLAYING" />
               <TextBlock Text="{Binding BeatmapTitle}" FontSize="28" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
               <TextBlock Classes="secondary" Text="{Binding BeatmapSubtitle}" TextTrimming="CharacterEllipsis" />
               <TextBlock Classes="muted" FontSize="12" Text="{Binding StatusText}" IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
             <!-- What the Main and Sub overlays show (the live panel shows both items); Sub wraps under Main when narrow. -->
-            <WrapPanel Grid.Row="1" ItemSpacing="8" LineSpacing="8" ItemsAlignment="End" HorizontalAlignment="Right">
+            <WrapPanel Grid.Row="1" ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Left">
               <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <TextBlock Classes="secondary" Text="Main" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />

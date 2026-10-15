@@ -37,7 +37,10 @@ public sealed partial class MainWindow : Window
     private LayoutTransformControl pageZoom = null!;
     private Panel banner = null!;
     private Panel bannerColumn = null!;
-    private Control bannerSides = null!;
+    private Panel bannerSides = null!;
+    private Control bannerSidesImage = null!;
+    // how far the page is scrolled (page units): the banner and its blurred sides move up and fade with it
+    private double bannerScroll;
     private Grid targetRow = null!;
     private Grid replayHeader = null!;
     private bool narrowPage;
@@ -101,7 +104,8 @@ public sealed partial class MainWindow : Window
         // The sharp banner scrolls with the page, so it stays behind "now playing" (the blurred copy stays put).
         banner = this.FindControl<Panel>("Banner")!;
         bannerColumn = this.FindControl<Panel>("BannerColumn")!;
-        bannerSides = this.FindControl<Control>("BannerSides")!;
+        bannerSides = this.FindControl<Panel>("BannerSides")!;
+        bannerSidesImage = this.FindControl<Control>("BannerSidesImage")!;
         var bannerOffset = new TranslateTransform();
         banner.RenderTransform = bannerOffset;
         SizeChanged += (_, _) => layoutBanner();
@@ -111,9 +115,11 @@ public sealed partial class MainWindow : Window
         {
             // (the scroll offset is in page units; the banner sits outside the zoomed page)
             var offset = scroll.Offset.Y;
+            bannerScroll = offset;
             bannerOffset.Y = -offset * viewModel.Zoom;
             // ... and gradually gives way to the blurred copy as the page scrolls.
             banner.Opacity = Math.Clamp(1 - offset / 320, 0, 1);
+            fadeBannerSides();
         }
 
         compareScroll.ScrollChanged += (_, _) =>
@@ -1169,7 +1175,7 @@ public sealed partial class MainWindow : Window
 
     /// <summary>
     /// Sizes the banner to the page zoom. The sharp image is only as wide as the page's content (and a fade); in a
-    /// wider window the sides show the blurred copy, fading out towards the window's edges.
+    /// wider window the sides show the page's blurred copy, less dimmed, fading out towards the window's edges.
     /// </summary>
     private void layoutBanner()
     {
@@ -1208,7 +1214,7 @@ public sealed partial class MainWindow : Window
 
         // the blurred sides: full behind the sharp image's fade, gone at the window's edges
         var inner = (side + fade / 2) / width;
-        bannerSides.OpacityMask = new LinearGradientBrush
+        bannerSidesImage.OpacityMask = new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
             EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative),
@@ -1217,6 +1223,32 @@ public sealed partial class MainWindow : Window
                 new GradientStop(Colors.Transparent, 0),
                 new GradientStop(Colors.Black, inner),
                 new GradientStop(Colors.Black, 1 - inner),
+                new GradientStop(Colors.Transparent, 1),
+            },
+        };
+        fadeBannerSides();
+    }
+
+    /// <summary>
+    /// Fades the blurred sides the way the banner fades (they sit in the page's backdrop, outside the banner): out
+    /// towards its bottom edge, which moves up as the page scrolls, and away as it scrolls further.
+    /// </summary>
+    private void fadeBannerSides()
+    {
+        if (!bannerSides.IsVisible)
+            return;
+
+        var top = -bannerScroll * viewModel.Zoom;
+        bannerSides.Opacity = banner.Opacity;
+        bannerSides.OpacityMask = new LinearGradientBrush
+        {
+            // the banner's own fade (see its OpacityMask), at the banner's place in the window
+            StartPoint = new RelativePoint(0, top, RelativeUnit.Absolute),
+            EndPoint = new RelativePoint(0, top + banner.Height, RelativeUnit.Absolute),
+            GradientStops =
+            {
+                new GradientStop(Colors.Black, 0.62),
+                new GradientStop(Color.FromArgb(0x99, 0, 0, 0), 0.82),
                 new GradientStop(Colors.Transparent, 1),
             },
         };
