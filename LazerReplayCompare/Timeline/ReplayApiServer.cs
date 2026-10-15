@@ -106,7 +106,7 @@ public sealed class ReplayApiServer : IDisposable
             if (uri.AbsolutePath == "/best-replay")
             {
                 var (_, bestReplays, selectedReplay) = getReplays();
-                WriteJson(stream, new { replayCount = bestReplays.Count, selectedReplay, replay = selectedReplay ?? bestReplays.FirstOrDefault() });
+                WriteJson(stream, new { replayCount = bestReplays.Count, selectedReplay, replay = selectedReplay ?? bestReplays.FirstOrDefault(replay => replay.HasReplay) });
                 return;
             }
 
@@ -167,7 +167,7 @@ public sealed class ReplayApiServer : IDisposable
     private object BuildState()
     {
         var (md5, replayList, selectedReplay) = getReplays();
-        var replay = selectedReplay ?? replayList.FirstOrDefault();
+        var replay = selectedReplay ?? replayList.FirstOrDefault(entry => entry.HasReplay);
         var correctionMode = getDefaultCorrectionMode().ToString().ToLowerInvariant();
         var metrics = getOverlayMetrics();
         var replayListVersion = replayList.Count == 0

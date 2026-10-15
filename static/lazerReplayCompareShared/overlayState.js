@@ -87,7 +87,8 @@ export function isSupportedClient(client) {
 }
 
 export function isAutoCompatibleReplay(replay, currentModsKey, client = 'lazer') {
-    if (!isSameRate(replay, currentModsKey)) return false;
+    // osu!stable scores whose replay file is missing are listed, but there is nothing to compare against
+    if (replay?.hasReplay === false || !isSameRate(replay, currentModsKey)) return false;
     // osu!stable scores ScoreV1 with one judgement per hold note, so it is compared against osu!stable replays only.
     if (client === 'stable') return Boolean(replay?.isLegacy);
     return hasClassicMode(getReplayModsKey(replay)) === hasClassicMode(currentModsKey);
@@ -98,6 +99,9 @@ export function chooseReplayTarget(replaysData, currentModsKey, selectedMode, au
     const selected = replaysData.selectedReplay;
 
     if (selected) {
+        if (selected.hasReplay === false) {
+            return { replay: null, mode: selectedMode, error: 'no replay file' };
+        }
         if (client === 'stable' && !selected.isLegacy) {
             return { replay: null, mode: selectedMode, error: 'osu!lazer replay: not compared in osu!stable' };
         }

@@ -123,13 +123,14 @@ Each replay includes:
     "Ok": 10,
     "Miss": 1
   },
-  "isLegacy": false
+  "isLegacy": false,
+  "hasReplay": true
 }
 ```
 
 `isLegacy` is true for replays set in osu!stable. Playing in osu!stable, the overlays only compare against these.
 
-While tosu reports osu!stable, the list is read from osu!stable's own folder (tosu's `folders.game`, or Settings → osu!stable folder) instead of osu!lazer's database: the beatmap's osu!mania scores in `scores.db`, each with its replay from `Data/r` (full `.osr` files). Replays are matched to scores by replay hash (or timestamp), looking at files named `{beatmap md5}-*.osr` first and at every replay header otherwise (headers are cached by size and write time); replays in `Data/r` for the beatmap that `scores.db` does not list yet are included too. Score, accuracy and rank are osu!stable's (ScoreV1, MAX and 300 count fully).
+While tosu reports osu!stable, the list is read from osu!stable's own folder (tosu's `folders.game`, or Settings → osu!stable folder) instead of osu!lazer's database: the beatmap's osu!mania scores in `scores.db`, each with its replay from `Data/r` (full `.osr` files). Replays are matched to scores by replay hash (or timestamp), looking at files named `{beatmap md5}-*.osr` first and at every replay header otherwise (headers are cached by size and write time); replays in `Data/r` for the beatmap that `scores.db` does not list yet are included too. Scores whose replay is missing from `Data/r` are listed with `hasReplay: false` (and a key instead of a file in `filePath`): they show in the list, but are never a comparison target and can't be pinned. Score, accuracy and rank are osu!stable's (ScoreV1, MAX and 300 count fully).
 
 Use `modsKey` or the structured `mods` array when a plugin needs mod or playback-rate filtering.
 

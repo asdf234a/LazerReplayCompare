@@ -650,6 +650,14 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (!target.HasReplay)
+        {
+            viewModel.ShowCorrectionNotice("No replay to compare",
+                "osu!stable lists this score in scores.db, but its replay file is missing from Data/r, so there is nothing to compare against.",
+                "No replay file");
+            return;
+        }
+
         var client = LiveClients.Parse(currentSnapshot.Client);
         if (client == LiveClient.Stable && !target.IsLegacy)
         {

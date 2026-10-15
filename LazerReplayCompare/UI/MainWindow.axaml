@@ -339,8 +339,8 @@
                           <Grid>
                             <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TargetAccentBrush}" IsVisible="{Binding IsTarget}" />
                             <Grid ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*" MinHeight="48">
-                              <ToggleButton Classes="pin" IsChecked="{Binding IsPinned, Mode=TwoWay}" ToolTip.Tip="{Binding PinTooltip}"
-                                            HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,0,0,0">
+                              <ToggleButton Classes="pin" IsChecked="{Binding IsPinned, Mode=TwoWay}" IsEnabled="{Binding HasReplay}" ToolTip.Tip="{Binding PinTooltip}"
+                                            ToolTip.ShowOnDisabled="True" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,0,0,0">
                                 <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
                                       Data="M12,17 L12,22 M9,3 L15,3 L14,9 L18,13 L6,13 L10,9 Z" />
                               </ToggleButton>
@@ -348,6 +348,10 @@
                                 <TextBlock Text="{Binding Player}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                 <Border Classes="targetBadge" IsVisible="{Binding IsTarget}" VerticalAlignment="Center">
                                   <TextBlock Text="TARGET" />
+                                </Border>
+                                <Border Classes="noReplayBadge" IsVisible="{Binding !HasReplay}" VerticalAlignment="Center"
+                                        ToolTip.Tip="osu!stable lists this score in scores.db, but its replay file is missing from Data/r">
+                                  <TextBlock Text="NO REPLAY" />
                                 </Border>
                               </StackPanel>
                               <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding DateText}" VerticalAlignment="Center" Margin="8,0" />

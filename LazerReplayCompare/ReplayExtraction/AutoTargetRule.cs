@@ -36,7 +36,7 @@ public static class AutoTargetRule
     public static bool IsCompatible(ReplayEntry replay, PlaySpeed current)
     {
         var speed = ForReplay(replay);
-        if (Math.Abs(speed.Rate - current.Rate) > rate_epsilon)
+        if (!replay.HasReplay || Math.Abs(speed.Rate - current.Rate) > rate_epsilon)
             return false;
 
         // osu!stable scores ScoreV1 with one judgement per hold note, so it is compared against osu!stable replays only.

@@ -12,7 +12,12 @@ public record ReplayMod(
     string Type = "",
     string ExtendedInfo = "");
 
+/// <param name="FilePath">The replay file; for a score without one, a key identifying the score (not a file).</param>
 /// <param name="IsLegacy">Set in osu!stable (imported into osu!lazer): scored with ScoreV1, one judgement per hold note.</param>
+/// <param name="HasReplay">
+/// False for a score osu!stable lists in scores.db whose replay is missing from Data/r: it is listed, but there is nothing
+/// to compare against.
+/// </param>
 public record ReplayEntry(
     string FilePath,
     string Player,
@@ -26,4 +31,5 @@ public record ReplayEntry(
     Dictionary<string, int> Statistics,
     long Timestamp,
     string Date,
-    bool IsLegacy = false);
+    bool IsLegacy = false,
+    bool HasReplay = true);

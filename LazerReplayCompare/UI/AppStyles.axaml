@@ -80,6 +80,19 @@
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
+  <!-- osu!stable score without a replay file -->
+  <Style Selector="Border.noReplayBadge">
+    <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="Padding" Value="5,0" />
+  </Style>
+  <Style Selector="Border.noReplayBadge TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
   <!-- Connection pill -->
   <Style Selector="Border.pill">
     <Setter Property="CornerRadius" Value="999" />

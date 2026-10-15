@@ -8,7 +8,8 @@ namespace LazerReplayCompare;
 /// osu!stable's own local scores for a beatmap: the local leaderboard in <c>scores.db</c>, with each score's replay
 /// from the hidden <c>Data/r</c> folder (full .osr files). Replays are matched to scores by their replay hash (or
 /// timestamp), as their file names are not documented; replays of plays that are not in <c>scores.db</c> yet (osu!stable
-/// may write it later) are listed from <c>Data/r</c> directly.
+/// may write it later) are listed from <c>Data/r</c> directly. Scores whose replay is missing are listed without one
+/// (<see cref="ReplayEntry.HasReplay"/>).
 /// </summary>
 public sealed class StableReplayFinder
 {
@@ -31,7 +32,8 @@ public sealed class StableReplayFinder
         lock (sync)
         {
             var replayFolder = Path.Combine(stableRoot, "Data", "r");
-            var scores = readScoresDb(Path.Combine(stableRoot, "scores.db"), beatmapMd5);
+            var scoresDb = Path.Combine(stableRoot, "scores.db");
+            var scores = readScoresDb(scoresDb, beatmapMd5);
 
             // Replays named after the beatmap first (the usual "{beatmap md5}-{time}.osr"); the whole folder only when
             // a score's replay is not among them.
@@ -45,15 +47,22 @@ public sealed class StableReplayFinder
             var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var score in scores)
             {
-                if (find(replays, score) is not { } path || !used.Add(path)) continue;
-                entries.Add(toEntry(score, path));
+                if (find(replays, score) is { } path)
+                {
+                    if (used.Add(path)) entries.Add(toEntry(score, path, hasReplay: true));
+                    continue;
+                }
+
+                // in the local leaderboard, but its replay is gone: listed, not comparable
+                var key = $"{scoresDb}#{(string.IsNullOrEmpty(score.ReplayMd5) ? score.Timestamp.ToString(System.Globalization.CultureInfo.InvariantCulture) : score.ReplayMd5)}";
+                if (used.Add(key)) entries.Add(toEntry(score, key, hasReplay: false));
             }
 
             // plays not written to scores.db yet
             foreach (var (path, score) in replays)
             {
                 if (score.Mode != mania_mode || !string.Equals(score.BeatmapMd5, beatmapMd5, StringComparison.OrdinalIgnoreCase) || !used.Add(path)) continue;
-                entries.Add(toEntry(score, path));
+                entries.Add(toEntry(score, path, hasReplay: true));
             }
 
             return entries.OrderByDescending(entry => entry.Score).ToList();
@@ -193,7 +202,7 @@ public sealed class StableReplayFinder
         return Encoding.UTF8.GetString(reader.ReadBytes(length));
     }
 
-    private static ReplayEntry toEntry(StableScore score, string path)
+    private static ReplayEntry toEntry(StableScore score, string path, bool hasReplay)
     {
         var lazerMods = new ManiaRuleset().ConvertFromLegacyMods((LegacyMods)score.Mods).ToList();
         var mods = ReplayFinder.FromLazerMods(lazerMods);
@@ -226,7 +235,8 @@ public sealed class StableReplayFinder
             Statistics: statistics,
             Timestamp: date.Ticks,
             Date: date.ToString("O"),
-            IsLegacy: true);
+            IsLegacy: true,
+            HasReplay: hasReplay);
     }
 
     /// <summary>osu!stable's osu!mania grade (silver with Hidden, Fade In or Flashlight), named like osu!lazer's ScoreRank.</summary>

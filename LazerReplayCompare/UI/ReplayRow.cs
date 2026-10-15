@@ -28,6 +28,9 @@ public sealed class ReplayRow : ObservableObject
     public string ComboText => Entry.MaxCombo.ToString("N0", CultureInfo.InvariantCulture);
     public string Rank => Entry.Rank;
 
+    /// <summary>False for an osu!stable score whose replay file is missing: listed, but it can't be compared against.</summary>
+    public bool HasReplay => Entry.HasReplay;
+
     public bool IsPinned
     {
         get => isPinned;
@@ -38,7 +41,8 @@ public sealed class ReplayRow : ObservableObject
         }
     }
 
-    public string PinTooltip => IsPinned ? "Unpin (compare against the best score again)" : "Pin: compare against this replay";
+    public string PinTooltip => !HasReplay ? "No replay file in osu!stable's Data/r: this score can't be compared against"
+        : IsPinned ? "Unpin (compare against the best score again)" : "Pin: compare against this replay";
 
     public bool IsTarget
     {
