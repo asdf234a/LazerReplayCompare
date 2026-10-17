@@ -65,7 +65,9 @@ public sealed partial class MainWindow : Window
     private bool detailsStable;
     private bool detailsFromResults;
     private int resultsRefreshes;
-    private const int max_results_refreshes = 6;
+    // rescans while a results screen's replay is not listed yet: every 2 s for half a minute (osu!stable's Data/r is also
+    // watched, see watchStableReplays)
+    private const int max_results_refreshes = 15;
 
     private static readonly double[] zoom_steps = [0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
 
@@ -83,6 +85,12 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? correctionCancellation;
     private (CorrectionMode Mode, string ScaleMetric) lastTimelineSettings;
     private FileSystemWatcher? customItemsWatcher;
+
+    // osu!stable's Data/r, watched while osu!stable is played: a play it has just saved is listed (and its results screen
+    // opened) as soon as its replay is written, however long that takes
+    private FileSystemWatcher? stableReplaysWatcher;
+    private string stableReplaysWatched = string.Empty;
+    private DispatcherTimer? stableReplaysQuiet;
 
     public MainWindow()
     {
@@ -210,6 +218,7 @@ public sealed partial class MainWindow : Window
     {
         closing = true;
         customItemsWatcher?.Dispose();
+        stableReplaysWatcher?.Dispose();
         compactWindow?.Close();
         tosuClient.Dispose();
         apiServer.Dispose();
@@ -425,6 +434,57 @@ public sealed partial class MainWindow : Window
         viewModel.OsuStablePath = path;
         viewModel.StableFound = OsuStablePathResolver.IsOsuStableRoot(path);
         settingsService.SetOsuStablePath(path);
+        watchStableReplays();
+    }
+
+    /// <summary>Watches osu!stable's Data/r while osu!stable is played, and rescans when a replay is written there.</summary>
+    private void watchStableReplays()
+    {
+        var folder = currentSnapshot.IsStable && viewModel.StableFound
+            ? System.IO.Path.Combine((viewModel.OsuStablePath ?? string.Empty).Trim(), "Data", "r")
+            : string.Empty;
+        if (string.Equals(folder, stableReplaysWatched, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        stableReplaysWatcher?.Dispose();
+        stableReplaysWatcher = null;
+        stableReplaysWatched = folder;
+        if (folder.Length == 0 || !Directory.Exists(folder))
+            return;
+
+        try
+        {
+            stableReplaysWatcher = new FileSystemWatcher(folder, "*.osr")
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size,
+                EnableRaisingEvents = true,
+            };
+
+            // a replay is written in several steps: rescan once the folder has been quiet for a moment
+            void written(object? sender, FileSystemEventArgs e) => Dispatcher.UIThread.Post(() =>
+            {
+                if (stableReplaysQuiet == null)
+                {
+                    stableReplaysQuiet = new DispatcherTimer { Interval = TimeSpan.FromSeconds(0.8) };
+                    stableReplaysQuiet.Tick += (_, _) =>
+                    {
+                        stableReplaysQuiet.Stop();
+                        if (currentSnapshot.IsStable)
+                            RefreshReplays();
+                    };
+                }
+
+                stableReplaysQuiet.Stop();
+                stableReplaysQuiet.Start();
+            });
+            stableReplaysWatcher.Created += written;
+            stableReplaysWatcher.Changed += written;
+            stableReplaysWatcher.Renamed += (sender, e) => written(sender, e);
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
     }
 
     // --- tosu ---
@@ -439,6 +499,7 @@ public sealed partial class MainWindow : Window
             var oldStable = currentSnapshot.IsStable;
             currentSnapshot = snapshot;
             viewModel.IsStableClient = snapshot.IsStable;
+            watchStableReplays();
 
             // A details page opened by hand stays open on another map; one a results screen opened belongs to it
             // (and closes with it, see OnResultsScreen).
@@ -1107,7 +1168,7 @@ public sealed partial class MainWindow : Window
         {
             if (pendingResults != null && !OpenPendingResults())
                 refreshForResults();
-        }, TimeSpan.FromSeconds(1.5));
+        }, TimeSpan.FromSeconds(2));
     }
 
     // --- Back and zoom ---

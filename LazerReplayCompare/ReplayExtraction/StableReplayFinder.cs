@@ -24,6 +24,10 @@ public sealed class StableReplayFinder
 
     private readonly object sync = new();
 
+    // A replay written this recently is read whatever its name, so a play osu!stable has just saved (and not yet written
+    // to scores.db) is listed even when its file is not named after the beatmap.
+    private static readonly TimeSpan recent_replay = TimeSpan.FromMinutes(30);
+
     // .osr headers by path, refreshed when a file's size or write time changes
     private readonly Dictionary<string, (long Length, DateTime Written, StableScore? Score)> headers = new(StringComparer.OrdinalIgnoreCase);
 
@@ -42,6 +46,15 @@ public sealed class StableReplayFinder
                 : new List<(string Path, StableScore Score)>();
             if (Directory.Exists(replayFolder) && scores.Any(score => find(replays, score) == null))
                 replays = headersOf(Directory.EnumerateFiles(replayFolder, "*.osr"));
+            else if (Directory.Exists(replayFolder))
+            {
+                var listed = replays.Select(replay => replay.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var since = DateTime.UtcNow - recent_replay;
+                var recent = new DirectoryInfo(replayFolder).EnumerateFiles("*.osr")
+                                                            .Where(file => file.LastWriteTimeUtc >= since && !listed.Contains(file.FullName))
+                                                            .Select(file => file.FullName);
+                replays.AddRange(headersOf(recent));
+            }
 
             var entries = new List<ReplayEntry>();
             var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
