@@ -20,7 +20,7 @@ public sealed partial class MainWindow : Window
     private const int ApiPort = 24052;
     private const string TosuHost = "127.0.0.1:24050";
 
-    private readonly ReplayFinder replayFinder = new();
+    private readonly LazerReplayStore lazerReplays = new(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LazerReplayCompare"));
     private readonly StableReplayFinder stableReplayFinder = new();
     private readonly TosuClient tosuClient = new();
     private readonly ReplayTimelineBuilder timelineBuilder = new();
@@ -168,6 +168,7 @@ public sealed partial class MainWindow : Window
         };
         this.FindControl<StackPanel>("CompareContent")!.SizeChanged += (_, e) => setNarrowPage(e.NewSize.Width < ResponsiveLayout.NarrowWidth);
 
+        lazerReplays.Changed += OnLazerReplaysChanged;
         ApplySavedSettings();
         viewModel.SettingsChanged += OnSettingsChanged;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -236,7 +237,7 @@ public sealed partial class MainWindow : Window
         closing = true;
         customItemsWatcher?.Dispose();
         stableReplaysWatcher?.Dispose();
-        replayFinder.Dispose();
+        lazerReplays.Dispose();
         compactWindow?.Close();
         tosuClient.Dispose();
         apiServer.Dispose();
@@ -252,6 +253,7 @@ public sealed partial class MainWindow : Window
             ? current.OsuLazerPath
             : OsuLazerPathResolver.Resolve(null) ?? current.OsuLazerPath;
         viewModel.LazerFound = OsuLazerPathResolver.IsOsuLazerRoot(viewModel.OsuLazerPath);
+        openLazerReplays();
         viewModel.OsuStablePath = OsuStablePathResolver.Resolve(null, current.OsuStablePath) ?? current.OsuStablePath;
         viewModel.StableFound = OsuStablePathResolver.IsOsuStableRoot(viewModel.OsuStablePath);
 
@@ -417,7 +419,22 @@ public sealed partial class MainWindow : Window
         viewModel.OsuLazerPath = path;
         viewModel.LazerFound = OsuLazerPathResolver.IsOsuLazerRoot(path);
         settingsService.SetOsuLazerPath(path);
+        openLazerReplays();
     }
+
+    /// <summary>Points the kept osu!lazer replay list at the osu!lazer folder (it reads the database once, then watches).</summary>
+    private void openLazerReplays()
+    {
+        if (viewModel.LazerFound && !string.IsNullOrWhiteSpace(viewModel.OsuLazerPath))
+            lazerReplays.Open(viewModel.OsuLazerPath);
+    }
+
+    /// <summary>The kept osu!lazer replays changed: the list follows if it shows that beatmap.</summary>
+    private void OnLazerReplaysChanged(string? md5) => Dispatcher.UIThread.Post(() =>
+    {
+        if (!currentSnapshot.IsStable && (md5 == null || string.Equals(md5, currentSnapshot.BeatmapChecksum, StringComparison.OrdinalIgnoreCase)))
+            RefreshReplays();
+    });
 
     // --- osu!stable folder ---
 
@@ -677,7 +694,7 @@ public sealed partial class MainWindow : Window
 
     private void RefreshReplays(object? sender, RoutedEventArgs e) => RefreshReplays(fresh: true);
 
-    /// <param name="fresh">Read osu!lazer's database afresh instead of the copy the last scan made (see ReplayFinder).</param>
+    /// <param name="fresh">Also read osu!lazer's database again (the list is otherwise kept up to date by watching its files).</param>
     private void RefreshReplays(bool fresh = false)
     {
         if (string.IsNullOrWhiteSpace(currentSnapshot.BeatmapChecksum))
@@ -707,6 +724,10 @@ public sealed partial class MainWindow : Window
         viewModel.IsLoadingReplays = true;
         viewModel.StatusText = string.Empty;
         var scan = beginScan();
+        lazerReplays.Open(osuLazerRoot);
+        if (fresh)
+            lazerReplays.Refresh();
+        var beatmapPath = BuildBeatmapPath(currentSnapshot);
 
         _ = Task.Run(() =>
         {
@@ -715,7 +736,9 @@ public sealed partial class MainWindow : Window
                 if (!isLatestScan(scan))
                     return;
 
-                var (replays, backgroundPath) = replayFinder.FindReplaysAndBackground(md5, realmPath, filesRoot, fresh);
+                var (replays, backgroundPath) = lazerReplays.Find(md5, beatmapPath);
+                // the first reading of the database is still under way: nothing is missing yet
+                bool fillingIn = lazerReplays.IsFillingIn;
                 lock (replayLock)
                 {
                     if (scan != replayScan)
@@ -723,7 +746,8 @@ public sealed partial class MainWindow : Window
 
                     currentReplays = replays;
                     currentReplaysMd5 = md5;
-                    replaySelection.ClearIfMissing(replays);
+                    if (!fillingIn)
+                        replaySelection.ClearIfMissing(replays);
                 }
 
                 Dispatcher.UIThread.Post(() =>
@@ -731,9 +755,11 @@ public sealed partial class MainWindow : Window
                     if (!isLatestScan(scan))
                         return;
 
-                    viewModel.IsLoadingReplays = false;
+                    viewModel.IsLoadingReplays = fillingIn;
                     FillReplayList(replays);
-                    OnDatabaseBackground(md5, backgroundPath);
+                    // (while the database is first read, the background waits for its answer rather than tosu's)
+                    if (!fillingIn)
+                        OnDatabaseBackground(md5, backgroundPath);
                 });
             }
             catch (Exception ex)
@@ -1252,7 +1278,7 @@ public sealed partial class MainWindow : Window
         if (pendingResults == null || resultsRefreshes++ >= max_results_refreshes)
             return;
 
-        RefreshReplays(fresh: true);
+        RefreshReplays();
         DispatcherTimer.RunOnce(() =>
         {
             if (pendingResults != null && !OpenPendingResults())

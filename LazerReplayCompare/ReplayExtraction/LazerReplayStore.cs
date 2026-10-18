@@ -1,0 +1,430 @@
+using System.Text.Json;
+
+namespace LazerReplayCompare;
+
+/// <summary>
+/// osu!lazer's replays, kept by the app between runs (lazer-replays.json and lazer-beatmaps.json in its settings folder).
+/// <para>
+/// When an osu!lazer folder is opened the kept list is shown straight away, and osu!lazer's database is read once (from a
+/// copy, see <see cref="ReplayFinder"/>). After that the files folder is watched instead: osu!lazer writes every replay
+/// it keeps there (played, imported or downloaded; under a temporary name, then renamed) and deletes the ones it
+/// removes, so new replays are read from their file as soon as they appear. The rescan button, or the watcher losing
+/// events (a large import), reads the database again. When the database can't be read (a newer osu!lazer with another
+/// schema) the kept list and the watcher carry on.
+/// </para>
+/// </summary>
+public sealed class LazerReplayStore : IDisposable
+{
+    private const int format = 1;
+    private static readonly TimeSpan save_delay = TimeSpan.FromSeconds(2);
+
+    private static readonly JsonSerializerOptions json_options = new() { WriteIndented = false };
+
+    /// <summary>A beatmap's replays changed (its MD5), or possibly every beatmap's (null: the database was read).</summary>
+    public event Action<string?>? Changed;
+
+    private readonly string replaysFile;
+    private readonly string beatmapsFile;
+    private readonly object sync = new();
+    private readonly object writing = new();
+    private readonly Timer saveTimer;
+
+    private string root = string.Empty;
+    private string filesRoot = string.Empty;
+    // bumped when another folder is opened, so work on the old one is dropped
+    private int generation;
+
+    private Dictionary<string, StoredReplay> replays = new(StringComparer.OrdinalIgnoreCase);    // by replay file
+    private Dictionary<string, StoredBeatmap> beatmaps = new(StringComparer.OrdinalIgnoreCase);  // by beatmap MD5
+    // replays seen in the files folder whose beatmap file isn't known yet (MD5 by replay file): read when it is looked at
+    private readonly Dictionary<string, string> waiting = new(StringComparer.OrdinalIgnoreCase);
+
+    private FileSystemWatcher? watcher;
+
+    private bool reading;
+    private bool readAgain;
+    // what the watcher added (or deleted: null) while the database was being read; it may be newer than the copy
+    private readonly Dictionary<string, StoredReplay?> seenWhileReading = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <param name="folder">Where the kept list is saved.</param>
+    public LazerReplayStore(string folder)
+    {
+        replaysFile = Path.Combine(folder, "lazer-replays.json");
+        beatmapsFile = Path.Combine(folder, "lazer-beatmaps.json");
+        saveTimer = new Timer(_ => save(beatmapsToo: false));
+        ReplayFinder.DeleteLeftoverCopies();
+    }
+
+    /// <summary>The database is being read and nothing is kept yet (the list fills in once it is read).</summary>
+    public bool IsFillingIn
+    {
+        get
+        {
+            lock (sync)
+                return reading && replays.Count == 0;
+        }
+    }
+
+    /// <summary>Uses this osu!lazer folder: the kept list (if it is this folder's), the database read once, then the watcher.</summary>
+    public void Open(string lazerRoot)
+    {
+        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(lazerRoot.Trim()));
+        lock (sync)
+        {
+            if (string.Equals(root, full, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            watcher?.Dispose();
+            watcher = null;
+            generation++;
+            root = full;
+            filesRoot = Path.Combine(full, "files");
+            replays = new Dictionary<string, StoredReplay>(StringComparer.OrdinalIgnoreCase);
+            beatmaps = new Dictionary<string, StoredBeatmap>(StringComparer.OrdinalIgnoreCase);
+            waiting.Clear();
+            load();
+            watch();
+        }
+
+        Changed?.Invoke(null);
+        Refresh();
+    }
+
+    /// <summary>Reads osu!lazer's database again (in the background); <see cref="Changed"/> follows.</summary>
+    public void Refresh()
+    {
+        int scan;
+        string realmPath, files;
+        lock (sync)
+        {
+            if (root.Length == 0)
+                return;
+
+            if (reading)
+            {
+                readAgain = true;
+                return;
+            }
+
+            reading = true;
+            seenWhileReading.Clear();
+            scan = generation;
+            realmPath = Path.Combine(root, "client.realm");
+            files = filesRoot;
+        }
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var (read, readBeatmaps) = ReplayFinder.ReadDatabase(realmPath, files);
+                lock (sync)
+                {
+                    if (scan != generation)
+                        return;
+
+                    var next = new Dictionary<string, StoredReplay>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var replay in read)
+                        next.TryAdd(replay.Entry.FilePath, replay);
+
+                    foreach (var (path, seen) in seenWhileReading)
+                    {
+                        if (seen == null)
+                            next.Remove(path);
+                        else
+                            next[path] = seen;
+                    }
+
+                    replays = next;
+                    beatmaps = readBeatmaps;
+                    foreach (var path in waiting.Keys.Where(next.ContainsKey).ToList())
+                        waiting.Remove(path);
+                }
+
+                save(beatmapsToo: true);
+            }
+            catch (Exception ex)
+            {
+                // the kept list stays: a newer osu!lazer's database, a file that couldn't be copied...
+                InternalLogger.Log(ex);
+            }
+            finally
+            {
+                bool again;
+                lock (sync)
+                {
+                    reading = false;
+                    again = readAgain;
+                    readAgain = false;
+                    seenWhileReading.Clear();
+                }
+
+                readWaiting(null);
+                Changed?.Invoke(null);
+                if (again)
+                    Refresh();
+            }
+        });
+    }
+
+    /// <summary>
+    /// The beatmap's replays, best first, and its background file (empty when unknown). <paramref name="beatmapPath"/>
+    /// (the .osu file tosu reports) reads replays of a beatmap osu!lazer got after the database was last read.
+    /// </summary>
+    public (List<ReplayEntry> Replays, string BackgroundPath) Find(string md5, string? beatmapPath)
+    {
+        readWaiting(md5, beatmapPath);
+
+        lock (sync)
+        {
+            var list = replays.Values
+                              .Where(replay => replay.Beatmaps.Contains(md5, StringComparer.OrdinalIgnoreCase))
+                              .Select(replay => replay.Entry)
+                              .OrderByDescending(entry => entry.Score)
+                              .ToList();
+
+            var background = ReplayFinder.GetLazerFilePath(filesRoot, beatmaps.GetValueOrDefault(md5)?.Background);
+            return (list, File.Exists(background) ? background : string.Empty);
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (sync)
+        {
+            watcher?.Dispose();
+            watcher = null;
+        }
+
+        saveTimer.Dispose();
+        save(beatmapsToo: false);
+    }
+
+    // --- watching the files folder ---
+
+    private void watch()
+    {
+        if (!Directory.Exists(filesRoot))
+            return;
+
+        try
+        {
+            watcher = new FileSystemWatcher(filesRoot)
+            {
+                IncludeSubdirectories = true,
+                // (folders too: a new folder is looked into, see added)
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName,
+                InternalBufferSize = 64 * 1024,
+            };
+            int scan = generation;
+            watcher.Created += (_, e) => added(e.FullPath, scan);
+            watcher.Renamed += (_, e) => added(e.FullPath, scan);
+            watcher.Deleted += (_, e) => deleted(e.FullPath, scan);
+            // events were lost (thousands of files at once): read the database instead
+            watcher.Error += (_, e) =>
+            {
+                InternalLogger.Log(e.GetException());
+                Refresh();
+            };
+            watcher.EnableRaisingEvents = true;
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+
+    /// <summary>A file appeared (osu!lazer renames its finished files into place): kept if it is a replay.</summary>
+    private void added(string path, int scan)
+    {
+        // A new folder: its first file can be written before the folder itself is watched, so it is looked into once.
+        if (Directory.Exists(path))
+        {
+            _ = Task.Delay(250).ContinueWith(_ =>
+            {
+                try
+                {
+                    foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                        added(file, scan);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    InternalLogger.Log(ex);
+                }
+            }, TaskScheduler.Default);
+            return;
+        }
+
+        // osu!lazer's half-written files ("_{hash}_{guid}")
+        if (Path.GetFileName(path).StartsWith('_') || !File.Exists(path))
+            return;
+
+        string? beatmapFile;
+        lock (sync)
+        {
+            if (scan != generation || replays.ContainsKey(path))
+                return;
+        }
+
+        var md5 = ReplayFinder.ReplayBeatmapOf(path);
+        if (md5 == null)
+            return;
+
+        lock (sync)
+        {
+            if (scan != generation)
+                return;
+
+            beatmapFile = beatmaps.GetValueOrDefault(md5)?.File;
+            waiting[path] = md5;
+        }
+
+        if (!string.IsNullOrEmpty(beatmapFile))
+            readWaiting(md5, ReplayFinder.GetLazerFilePath(filesRoot, beatmapFile));
+        Changed?.Invoke(md5);
+    }
+
+    private void deleted(string path, int scan)
+    {
+        string[] affected;
+        lock (sync)
+        {
+            if (scan != generation)
+                return;
+
+            waiting.Remove(path);
+            if (!replays.Remove(path, out var removed))
+                return;
+
+            if (reading)
+                seenWhileReading[path] = null;
+            affected = removed.Beatmaps;
+        }
+
+        saveTimer.Change(save_delay, Timeout.InfiniteTimeSpan);
+        foreach (var md5 in affected)
+            Changed?.Invoke(md5);
+    }
+
+    /// <summary>
+    /// Reads waiting replays: of one beatmap (<paramref name="md5"/>, with <paramref name="beatmapPath"/> when its file
+    /// isn't known), or of every beatmap whose file is known (null).
+    /// </summary>
+    private void readWaiting(string? md5, string? beatmapPath = null)
+    {
+        List<(string Path, string Md5, string BeatmapPath)> toRead;
+        int scan;
+        lock (sync)
+        {
+            scan = generation;
+            toRead = waiting.Where(item => md5 == null || string.Equals(item.Value, md5, StringComparison.OrdinalIgnoreCase))
+                            .Select(item =>
+                            {
+                                var known = ReplayFinder.GetLazerFilePath(filesRoot, beatmaps.GetValueOrDefault(item.Value)?.File);
+                                return (item.Key, item.Value, File.Exists(known) ? known : beatmapPath ?? string.Empty);
+                            })
+                            .Where(item => File.Exists(item.Item3))
+                            .ToList();
+        }
+
+        bool any = false;
+        foreach (var (path, replayMd5, osu) in toRead)
+        {
+            StoredReplay replay;
+            try
+            {
+                replay = new StoredReplay(new[] { replayMd5 }, ReplayFinder.ReadReplay(path, osu));
+            }
+            catch (Exception ex)
+            {
+                // not readable with this beatmap file (yet): stays waiting
+                InternalLogger.Log(ex);
+                continue;
+            }
+
+            lock (sync)
+            {
+                if (scan != generation || !waiting.Remove(path))
+                    continue;
+
+                replays[path] = replay;
+                if (reading)
+                    seenWhileReading[path] = replay;
+                any = true;
+            }
+
+            if (md5 == null)
+                Changed?.Invoke(replayMd5);
+        }
+
+        if (any)
+            saveTimer.Change(save_delay, Timeout.InfiniteTimeSpan);
+    }
+
+    // --- keeping the list between runs ---
+
+    private sealed record ReplaysFile(int Format, string Root, List<StoredReplay> Replays);
+
+    private sealed record BeatmapsFile(int Format, string Root, Dictionary<string, StoredBeatmap> Beatmaps);
+
+    /// <summary>The kept list, if it is this folder's (replays whose file has gone are left out).</summary>
+    private void load()
+    {
+        try
+        {
+            if (File.Exists(replaysFile) && JsonSerializer.Deserialize<ReplaysFile>(File.ReadAllText(replaysFile), json_options) is { } kept
+                && kept.Format == format && string.Equals(kept.Root, root, StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var replay in kept.Replays.Where(replay => File.Exists(replay.Entry.FilePath)))
+                    replays.TryAdd(replay.Entry.FilePath, replay);
+            }
+
+            if (File.Exists(beatmapsFile) && JsonSerializer.Deserialize<BeatmapsFile>(File.ReadAllText(beatmapsFile), json_options) is { } maps
+                && maps.Format == format && string.Equals(maps.Root, root, StringComparison.OrdinalIgnoreCase))
+            {
+                beatmaps = new Dictionary<string, StoredBeatmap>(maps.Beatmaps, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or NotSupportedException)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+
+    private void save(bool beatmapsToo)
+    {
+        ReplaysFile kept;
+        BeatmapsFile? maps = null;
+        lock (sync)
+        {
+            if (root.Length == 0)
+                return;
+
+            kept = new ReplaysFile(format, root, replays.Values.ToList());
+            if (beatmapsToo)
+                maps = new BeatmapsFile(format, root, new Dictionary<string, StoredBeatmap>(beatmaps));
+        }
+
+        lock (writing)
+        {
+            write(replaysFile, kept);
+            if (maps != null)
+                write(beatmapsFile, maps);
+        }
+    }
+
+    private static void write<T>(string path, T value)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var temporary = path + ".tmp";
+            File.WriteAllText(temporary, JsonSerializer.Serialize(value, json_options));
+            File.Move(temporary, path, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+}

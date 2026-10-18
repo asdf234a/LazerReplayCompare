@@ -2,7 +2,7 @@
 
 Lazer Replay Compare is a Windows GUI helper app for osu!lazer and tosu.
 
-It reads osu!lazer's `client.realm` and `files` storage, finds replay files for the beatmap currently selected in tosu, and exposes a small localhost API for overlay plugins.
+It reads osu!lazer's `client.realm` (once at start, from a copy) and watches its `files` storage for new replays, lists the replays of the beatmap currently selected in tosu, and exposes a small localhost API for overlay plugins.
 
 ## Features
 

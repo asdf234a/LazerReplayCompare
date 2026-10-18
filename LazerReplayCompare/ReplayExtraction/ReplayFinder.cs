@@ -1,67 +1,51 @@
 using System.Collections;
 using System.Globalization;
+using System.Reflection;
+using System.Text;
 using osu.Game.Scoring;
 using Realms;
 
 namespace LazerReplayCompare;
 
+/// <summary>A replay in osu!lazer's files, with the beatmaps (MD5) its score belongs to.</summary>
+public sealed record StoredReplay(string[] Beatmaps, ReplayEntry Entry);
+
+/// <summary>Where a beatmap's .osu file and background are in osu!lazer's files (by hash; empty when unknown).</summary>
+public sealed record StoredBeatmap(string File, string Background);
+
 /// <summary>
-/// The current beatmap's replays from osu!lazer's database. The database (client.realm, possibly hundreds of MB) is read
-/// from a copy so the game's own file is never opened; the copy is reused while client.realm keeps its size and write
-/// time, for a minute at most (a change may not show in either right away), unless a scan asks for a fresh one.
+/// Reads osu!lazer's data: its database (client.realm), always from a temporary copy so the game's own file is never
+/// opened, and single replay files from its files folder.
 /// </summary>
-public sealed class ReplayFinder : IDisposable
+public static class ReplayFinder
 {
-    private const ulong CurrentRealmSchemaVersion = 52;
     private const string copy_prefix = "LazerReplayCompare-";
-    private static readonly TimeSpan copy_reuse = TimeSpan.FromMinutes(1);
 
-    private readonly object sync = new();
+    /// <summary>The database's schema version as the installed osu!lazer writes it (52 when it can't be read).</summary>
+    public static ulong SchemaVersion { get; } = readSchemaVersion();
 
-    // the copy the last scan read, what it is a copy of, and when it was made
-    private string? copyPath;
-    private (string Source, long Length, DateTime Written) copyOf;
-    private DateTime copiedAt;
-
-    public ReplayFinder()
+    /// <summary>Every score with a replay file (scores being deleted left out), and every beatmap's files.</summary>
+    public static (List<StoredReplay> Replays, Dictionary<string, StoredBeatmap> Beatmaps) ReadDatabase(string realmPath, string filesRoot)
     {
-        deleteLeftoverCopies();
-    }
+        var copy = Path.Combine(Path.GetTempPath(), $"{copy_prefix}{Guid.NewGuid():N}.realm");
+        File.Copy(realmPath, copy, overwrite: false);
 
-    public List<ReplayEntry> FindReplays(string beatmapMd5, string realmPath, string filesRoot)
-        => FindReplaysAndBackground(beatmapMd5, realmPath, filesRoot).Replays;
-
-    /// <summary>
-    /// The beatmap's saved replays, plus its background image file (lazer stores files by hash, so the background's
-    /// original file name from the beatmap metadata is looked up in the beatmap set's files). Background is empty
-    /// when the beatmap or its background is not in the database.
-    /// </summary>
-    /// <param name="fresh">Copy the database again even if it looks unchanged (a score was just saved).</param>
-    public (List<ReplayEntry> Replays, string BackgroundPath) FindReplaysAndBackground(string beatmapMd5, string realmPath, string filesRoot, bool fresh = false)
-    {
-        lock (sync)
+        try
         {
-            var tempRealmPath = realmCopy(realmPath, fresh);
-            try
-            {
-                return read(tempRealmPath, beatmapMd5, filesRoot);
-            }
-            catch
-            {
-                // a copy that can't be read is not reused
-                deleteCopy(tempRealmPath);
-                copyPath = null;
-                throw;
-            }
+            return read(copy, filesRoot);
+        }
+        finally
+        {
+            deleteCopy(copy);
         }
     }
 
-    private static (List<ReplayEntry> Replays, string BackgroundPath) read(string tempRealmPath, string beatmapMd5, string filesRoot)
+    private static (List<StoredReplay>, Dictionary<string, StoredBeatmap>) read(string realmPath, string filesRoot)
     {
-        var config = new RealmConfiguration(tempRealmPath)
+        var config = new RealmConfiguration(realmPath)
         {
             IsReadOnly = true,
-            SchemaVersion = CurrentRealmSchemaVersion,
+            SchemaVersion = SchemaVersion,
             Schema = new[]
             {
                 typeof(ScoreInfo),
@@ -79,28 +63,19 @@ public sealed class ReplayFinder : IDisposable
 
         using var realm = Realm.GetInstance(config);
 
-        var backgroundPath = FindBackgroundPath(realm, beatmapMd5, filesRoot);
-        var entries = new List<ReplayEntry>();
+        var replays = new List<StoredReplay>();
         foreach (var score in realm.All<ScoreInfo>().AsEnumerable())
         {
-            if (score.BeatmapInfo?.MD5Hash != beatmapMd5 &&
-                score.BeatmapInfo?.OnlineMD5Hash != beatmapMd5 &&
-                score.BeatmapHash != beatmapMd5)
-            {
+            if (score.DeletePending)
                 continue;
-            }
 
-            var mods = GetReplayMods(score);
-            var modsText = ModUtility.FormatModsText(mods);
-            var modsKey = ModUtility.BuildModsKey(mods);
-            var player = score.User?.Username ?? "unknown";
-            var totalScore = score.TotalScore;
-            var accuracy = score.Accuracy;
-            var maxCombo = score.MaxCombo;
-            var rank = score.Rank.ToString();
-            var statistics = score.Statistics.ToDictionary(stat => stat.Key.ToString(), stat => stat.Value);
-            var timestamp = score.Date.UtcDateTime.Ticks;
-            var date = score.Date.UtcDateTime.ToString("O");
+            var beatmaps = new[] { score.BeatmapInfo?.MD5Hash, score.BeatmapInfo?.OnlineMD5Hash, score.BeatmapHash }
+                           .Where(hash => !string.IsNullOrWhiteSpace(hash))
+                           .Select(hash => hash!.ToLowerInvariant())
+                           .Distinct()
+                           .ToArray();
+            if (beatmaps.Length == 0)
+                continue;
 
             foreach (var usage in score.Files)
             {
@@ -108,82 +83,129 @@ public sealed class ReplayFinder : IDisposable
                     continue;
 
                 var filePath = GetLazerFilePath(filesRoot, usage.File?.Hash);
-                if (!File.Exists(filePath))
-                    continue;
-
-                entries.Add(new ReplayEntry(
-                    FilePath: filePath,
-                    Player: player,
-                    Score: totalScore,
-                    Mods: mods,
-                    ModsText: modsText,
-                    ModsKey: modsKey,
-                    Accuracy: accuracy,
-                    MaxCombo: maxCombo,
-                    Rank: rank,
-                    Statistics: new Dictionary<string, int>(statistics, StringComparer.Ordinal),
-                    Timestamp: timestamp,
-                    Date: date,
-                    IsLegacy: score.IsLegacyScore || score.LegacyTotalScore != null));
+                if (File.Exists(filePath))
+                    replays.Add(new StoredReplay(beatmaps, ToEntry(score, filePath)));
             }
         }
 
-        var replays = entries
-            .GroupBy(entry => entry.FilePath, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .OrderByDescending(entry => entry.Score)
-            .ToList();
-        return (replays, backgroundPath);
-    }
-
-    public void Dispose()
-    {
-        lock (sync)
+        // each beatmap's .osu file (stored under its own hash) and background (looked up by name in its set's files)
+        var stored = new Dictionary<string, StoredBeatmap>(StringComparer.OrdinalIgnoreCase);
+        foreach (var set in realm.All<osu.Game.Beatmaps.BeatmapSetInfo>().AsEnumerable())
         {
-            if (copyPath != null)
-                deleteCopy(copyPath);
-            copyPath = null;
+            Dictionary<string, string>? files = null;
+            foreach (var beatmap in set.Beatmaps)
+            {
+                if (string.IsNullOrWhiteSpace(beatmap.MD5Hash))
+                    continue;
+
+                var background = beatmap.Metadata?.BackgroundFile;
+                var backgroundHash = string.Empty;
+                if (!string.IsNullOrWhiteSpace(background))
+                {
+                    files ??= set.Files.AsEnumerable()
+                                 .Where(file => file.Filename != null && file.File?.Hash != null)
+                                 .GroupBy(file => file.Filename!, StringComparer.OrdinalIgnoreCase)
+                                 .ToDictionary(group => group.Key, group => group.First().File!.Hash!, StringComparer.OrdinalIgnoreCase);
+                    backgroundHash = files.GetValueOrDefault(background) ?? string.Empty;
+                }
+
+                stored[beatmap.MD5Hash] = new StoredBeatmap(beatmap.Hash ?? string.Empty, backgroundHash);
+            }
         }
+
+        return (replays, stored);
     }
 
-    private static string FindBackgroundPath(Realm realm, string beatmapMd5, string filesRoot)
+    /// <summary>
+    /// The beatmap (MD5) a file in osu!lazer's files is a replay of, or null when it is not a replay. Only the start of the
+    /// file is read: ruleset, replay version and beatmap MD5.
+    /// </summary>
+    public static string? ReplayBeatmapOf(string path)
     {
         try
         {
-            var beatmap = realm.All<osu.Game.Beatmaps.BeatmapInfo>().Where(info => info.MD5Hash == beatmapMd5).AsEnumerable().FirstOrDefault();
-            var fileName = beatmap?.Metadata?.BackgroundFile;
-            if (beatmap?.BeatmapSet == null || string.IsNullOrWhiteSpace(fileName))
-                return string.Empty;
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var start = new byte[40];
+            if (stream.Read(start, 0, start.Length) < start.Length)
+                return null;
 
-            var usage = beatmap.BeatmapSet.Files.AsEnumerable()
-                               .FirstOrDefault(file => string.Equals(file.Filename, fileName, StringComparison.OrdinalIgnoreCase));
-            var path = GetLazerFilePath(filesRoot, usage?.File?.Hash);
-            return File.Exists(path) ? path : string.Empty;
+            int version = BitConverter.ToInt32(start, 1);
+            if (start[0] > 3 || version is < 20000000 or > 39999999 || start[5] != 0x0b || start[6] != 32)
+                return null;
+
+            var md5 = Encoding.ASCII.GetString(start, 7, 32);
+            return md5.All(Uri.IsHexDigit) ? md5.ToLowerInvariant() : null;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            InternalLogger.Log(ex);
-            return string.Empty;
+            return null;
         }
     }
 
-    /// <summary>The copy to read: the last one while client.realm looks unchanged, otherwise a new one (under a new name).</summary>
-    private string realmCopy(string realmPath, bool fresh)
+    /// <summary>A replay file's score, read with its beatmap (the .osu file).</summary>
+    public static ReplayEntry ReadReplay(string path, string beatmapPath)
     {
-        var source = new FileInfo(realmPath);
-        var key = (Path.GetFullPath(realmPath), source.Length, source.LastWriteTimeUtc);
-        if (!fresh && copyPath != null && copyOf == key && DateTime.UtcNow - copiedAt < copy_reuse && File.Exists(copyPath))
-            return copyPath;
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        var score = new LazerReplayScoreDecoder(beatmapPath).Parse(stream).ScoreInfo;
+        return ToEntry(score, path);
+    }
 
-        var next = Path.Combine(Path.GetTempPath(), $"{copy_prefix}{Guid.NewGuid():N}.realm");
-        File.Copy(realmPath, next, overwrite: false);
+    /// <summary>A score as the replay list shows it (from the database, or read from its replay file).</summary>
+    public static ReplayEntry ToEntry(ScoreInfo score, string filePath)
+    {
+        var mods = GetReplayMods(score);
+        return new ReplayEntry(
+            FilePath: filePath,
+            Player: score.User?.Username ?? "unknown",
+            Score: score.TotalScore,
+            Mods: mods,
+            ModsText: ModUtility.FormatModsText(mods),
+            ModsKey: ModUtility.BuildModsKey(mods),
+            Accuracy: score.Accuracy,
+            MaxCombo: score.MaxCombo,
+            Rank: score.Rank.ToString(),
+            Statistics: score.Statistics.ToDictionary(stat => stat.Key.ToString(), stat => stat.Value, StringComparer.Ordinal),
+            Timestamp: score.Date.UtcDateTime.Ticks,
+            Date: score.Date.UtcDateTime.ToString("O"),
+            IsLegacy: score.IsLegacyScore || score.LegacyTotalScore != null);
+    }
 
-        if (copyPath != null)
-            deleteCopy(copyPath);
-        copyPath = next;
-        copyOf = key;
-        copiedAt = DateTime.UtcNow;
-        return next;
+    public static string GetLazerFilePath(string filesRoot, string? hash)
+    {
+        if (string.IsNullOrWhiteSpace(hash) || hash.Length < 2)
+            return string.Empty;
+
+        return Path.Combine(filesRoot, hash[0].ToString(), hash[..2], hash);
+    }
+
+    /// <summary>
+    /// Copies (and Realm's files next to them) left in the temp folder by an app that did not close normally, or by older
+    /// versions, which deleted only the copy itself.
+    /// </summary>
+    public static void DeleteLeftoverCopies()
+    {
+        try
+        {
+            var leftovers = Directory.EnumerateFileSystemEntries(Path.GetTempPath(), copy_prefix + "*.realm*")
+                                     .Select(entry => entry.EndsWith(".realm", StringComparison.OrdinalIgnoreCase)
+                                         ? entry
+                                         : entry[..(entry.LastIndexOf(".realm", StringComparison.OrdinalIgnoreCase) + ".realm".Length)])
+                                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                                     .ToList();
+
+            foreach (var path in leftovers)
+            {
+                // one another running copy of the app made lately is left alone
+                if (File.Exists(path) && DateTime.UtcNow - File.GetCreationTimeUtc(path) < TimeSpan.FromHours(1))
+                    continue;
+
+                deleteCopy(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            InternalLogger.Log(ex);
+        }
     }
 
     /// <summary>Deletes a copy and the files Realm keeps next to it (.lock, .note, .management).</summary>
@@ -213,41 +235,21 @@ public sealed class ReplayFinder : IDisposable
         }
     }
 
-    /// <summary>
-    /// Copies (and Realm's files next to them) left in the temp folder by an app that did not close normally, or by older
-    /// versions, which deleted only the copy itself.
-    /// </summary>
-    private static void deleteLeftoverCopies()
+    /// <summary>osu!lazer's RealmAccess.schema_version, read from the installed osu.Game (a constant, so a newer osu!lazer brings its own).</summary>
+    private static ulong readSchemaVersion()
     {
         try
         {
-            var temp = Path.GetTempPath();
-            var leftovers = Directory.EnumerateFileSystemEntries(temp, copy_prefix + "*.realm*")
-                                     .Select(entry => entry.EndsWith(".realm", StringComparison.OrdinalIgnoreCase) ? entry : entry[..(entry.LastIndexOf(".realm", StringComparison.OrdinalIgnoreCase) + ".realm".Length)])
-                                     .Distinct(StringComparer.OrdinalIgnoreCase)
-                                     .ToList();
-
-            foreach (var path in leftovers)
-            {
-                // one another running copy of the app made lately is left alone
-                if (File.Exists(path) && DateTime.UtcNow - File.GetCreationTimeUtc(path) < TimeSpan.FromHours(1))
-                    continue;
-
-                deleteCopy(path);
-            }
+            var field = typeof(osu.Game.Database.RealmAccess).GetField("schema_version", BindingFlags.NonPublic | BindingFlags.Static);
+            if (field?.GetRawConstantValue() is int version && version > 0)
+                return (ulong)version;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
             InternalLogger.Log(ex);
         }
-    }
 
-    private static string GetLazerFilePath(string filesRoot, string? hash)
-    {
-        if (string.IsNullOrWhiteSpace(hash) || hash.Length < 2)
-            return string.Empty;
-
-        return Path.Combine(filesRoot, hash[0].ToString(), hash[..2], hash);
+        return 52;
     }
 
     private static List<ReplayMod> GetReplayMods(ScoreInfo score)
@@ -396,5 +398,4 @@ public sealed class ReplayFinder : IDisposable
         return string.Join(",", settings.OrderBy(pair => pair.Key, StringComparer.Ordinal)
             .Select(pair => $"{pair.Key}={pair.Value}"));
     }
-
 }
