@@ -97,7 +97,7 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
-        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, () => settingsService.OverlayDisplay, timelineBuilder);
+        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, () => settingsService.OverlayDisplay, GetApiAllowedRoots, timelineBuilder);
 
         AvaloniaXamlLoader.Load(this);
         DataContext = viewModel;
@@ -347,6 +347,10 @@ public sealed partial class MainWindow : Window
             OpenInExplorer($"/select,\"{OverlayItems.CustomPath}\"");
         }
     }
+
+    /// <summary>The folders the API server may open files in: the osu!lazer and osu!stable folders and tosu's songs folder.</summary>
+    private IEnumerable<string?> GetApiAllowedRoots() =>
+        new[] { viewModel.OsuLazerPath, viewModel.OsuStablePath, currentSnapshot.SongsFolder };
 
     private (string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay) GetCurrentReplays()
     {
