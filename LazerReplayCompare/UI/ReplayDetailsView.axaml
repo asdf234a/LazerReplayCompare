@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:LazerReplayCompare"
              x:Class="LazerReplayCompare.ReplayDetailsView"
@@ -170,9 +170,9 @@
       <!-- No replay file -->
       <Border Classes="surface" Classes.glass="{Binding $parent[Window].DataContext.ShowBackdrop}" Padding="32" MinHeight="160" IsVisible="{Binding ShowNoReplay}">
         <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
-          <TextBlock Text="No replay file" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+          <TextBlock Text="{Binding NoReplayTitle}" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
           <TextBlock Classes="secondary" FontSize="13" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="460"
-                     Text="osu!stable lists this score in scores.db, but its replay is missing from Data/r: there are no presses to analyse." />
+                     Text="{Binding NoReplayText}" />
         </StackPanel>
       </Border>
 

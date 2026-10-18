@@ -1,4 +1,4 @@
-namespace LazerReplayCompare;
+﻿namespace LazerReplayCompare;
 
 public sealed class ReplaySelectionService
 {
@@ -6,6 +6,10 @@ public sealed class ReplaySelectionService
 
     public bool IsSelected(ReplayEntry replay)
     {
+        // nothing is pinned while there is no path, and a score with no replay file (so no path) is never the pinned one
+        if (string.IsNullOrWhiteSpace(SelectedReplayPath) || string.IsNullOrWhiteSpace(replay.FilePath))
+            return false;
+
         return string.Equals(replay.FilePath, SelectedReplayPath, StringComparison.OrdinalIgnoreCase);
     }
 

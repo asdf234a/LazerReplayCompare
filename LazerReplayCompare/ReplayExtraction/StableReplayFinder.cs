@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using osu.Game.Beatmaps.Legacy;
 using osu.Game.Rulesets.Mania;
 
@@ -230,38 +230,50 @@ public sealed class StableReplayFinder
     }
 
     private static ReplayEntry toEntry(StableScore score, string path, bool hasReplay)
+        => BuildEntry(path, score.Player, score.Score, score.MaxCombo, score.Mods,
+            score.CountGeki, score.Count300, score.CountKatu, score.Count100, score.Count50, score.CountMiss,
+            new DateTime(score.Timestamp, DateTimeKind.Utc), hasReplay);
+
+    /// <summary>
+    /// One osu!stable osu!mania score as the app lists it. Shared by scores.db / .osr headers and by a results screen's
+    /// score, which osu!stable has not saved yet (see <paramref name="hasReplay"/>), so both are counted and graded the
+    /// same way.
+    /// </summary>
+    public static ReplayEntry BuildEntry(
+        string path, string player, long score, int maxCombo, int legacyMods,
+        int countGeki, int count300, int countKatu, int count100, int count50, int countMiss,
+        DateTime dateUtc, bool hasReplay)
     {
-        var lazerMods = new ManiaRuleset().ConvertFromLegacyMods((LegacyMods)score.Mods).ToList();
+        var lazerMods = new ManiaRuleset().ConvertFromLegacyMods((LegacyMods)legacyMods).ToList();
         var mods = ReplayFinder.FromLazerMods(lazerMods);
         var statistics = new Dictionary<string, int>(StringComparer.Ordinal)
         {
-            ["Perfect"] = score.CountGeki,
-            ["Great"] = score.Count300,
-            ["Good"] = score.CountKatu,
-            ["Ok"] = score.Count100,
-            ["Meh"] = score.Count50,
-            ["Miss"] = score.CountMiss,
+            ["Perfect"] = countGeki,
+            ["Great"] = count300,
+            ["Good"] = countKatu,
+            ["Ok"] = count100,
+            ["Meh"] = count50,
+            ["Miss"] = countMiss,
         };
 
         // osu!stable's osu!mania accuracy: MAX and 300 both count fully
         int total = statistics.Values.Sum();
         double accuracy = total == 0 ? 1
-            : (300.0 * (score.CountGeki + score.Count300) + 200.0 * score.CountKatu + 100.0 * score.Count100 + 50.0 * score.Count50) / (300.0 * total);
-        var date = new DateTime(score.Timestamp, DateTimeKind.Utc);
+            : (300.0 * (countGeki + count300) + 200.0 * countKatu + 100.0 * count100 + 50.0 * count50) / (300.0 * total);
 
         return new ReplayEntry(
             FilePath: path,
-            Player: string.IsNullOrWhiteSpace(score.Player) ? "unknown" : score.Player,
-            Score: score.Score,
+            Player: string.IsNullOrWhiteSpace(player) ? "unknown" : player,
+            Score: score,
             Mods: mods,
             ModsText: ModUtility.FormatModsText(mods),
             ModsKey: ModUtility.BuildModsKey(mods),
             Accuracy: accuracy,
-            MaxCombo: score.MaxCombo,
+            MaxCombo: maxCombo,
             Rank: rank(accuracy, lazerMods.Any(mod => mod.Acronym is "HD" or "FI" or "FL")),
             Statistics: statistics,
-            Timestamp: date.Ticks,
-            Date: date.ToString("O"),
+            Timestamp: dateUtc.Ticks,
+            Date: dateUtc.ToString("O"),
             IsLegacy: true,
             HasReplay: hasReplay);
     }

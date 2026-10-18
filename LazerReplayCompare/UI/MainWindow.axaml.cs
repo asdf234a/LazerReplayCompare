@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
@@ -1184,7 +1184,8 @@ public sealed partial class MainWindow : Window
         bool pinned;
         lock (replayLock)
             pinned = replaySelection.IsSelected(entry);
-        var details = new ReplayDetailsViewModel(entry, viewModel.BeatmapTitle, viewModel.BeatmapSubtitle, viewModel.Target, pinned, scoreV1: currentSnapshot.IsStable);
+        var details = new ReplayDetailsViewModel(entry, viewModel.BeatmapTitle, viewModel.BeatmapSubtitle, viewModel.Target, pinned,
+            scoreV1: currentSnapshot.IsStable, notSavedYet: fromResults && !entry.HasReplay && string.IsNullOrEmpty(entry.FilePath));
         viewModel.Details = details;
         detailsView.ScrollToTop();
 
@@ -1270,8 +1271,21 @@ public sealed partial class MainWindow : Window
 
         pendingResults = results;
         resultsRefreshes = 0;
-        if (!OpenPendingResults())
-            refreshForResults();
+        if (OpenPendingResults())
+            return;
+
+        // osu!stable writes a play's .osr only when its results screen is left, so there is no replay to wait for:
+        // the score the results screen itself reports is shown instead (a summary, with no presses to analyse). The
+        // page is not opened again once osu!stable does write the replay.
+        if (snapshot.IsStable && results.ToUnsavedEntry() is { } unsaved)
+        {
+            pendingResults = null;
+            openedResults = results;
+            OpenDetails(unsaved, fromResults: true);
+            return;
+        }
+
+        refreshForResults();
     }
 
     /// <summary>Opens the pending results screen's replay when it is listed; false when it is not (yet).</summary>

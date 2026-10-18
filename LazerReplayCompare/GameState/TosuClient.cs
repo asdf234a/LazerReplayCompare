@@ -1,4 +1,4 @@
-using System.Net.WebSockets;
+﻿using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 
@@ -155,7 +155,26 @@ public sealed record TosuSnapshot(
             score,
             (int)GetLong(results, "maxCombo"),
             FirstNonEmpty(GetString(results, "name"), GetString(results, "playerName"), GetString(results, "username")),
-            DateTimeOffset.TryParse(created, out var date) ? date : null);
+            DateTimeOffset.TryParse(created, out var date) ? date : null,
+            GetJudgements(results),
+            results.TryGetProperty("mods", out var mods) && mods.ValueKind == JsonValueKind.Object
+                ? (int)GetLong(mods, "number")
+                : 0);
+    }
+
+    /// <summary>The results screen's judgement counts (tosu's hits), named as osu!stable's score fields are.</summary>
+    private static ResultsScreenJudgements? GetJudgements(JsonElement results)
+    {
+        if (!results.TryGetProperty("hits", out var hits) || hits.ValueKind != JsonValueKind.Object)
+            return null;
+
+        return new ResultsScreenJudgements(
+            Geki: (int)GetLong(hits, "geki"),
+            Count300: (int)GetLong(hits, "300"),
+            Katu: (int)GetLong(hits, "katu"),
+            Count100: (int)GetLong(hits, "100"),
+            Count50: (int)GetLong(hits, "50"),
+            Miss: (int)GetLong(hits, "0"));
     }
 
     private static long GetLong(JsonElement root, string name)
@@ -240,12 +259,43 @@ public sealed record TosuSnapshot(
 }
 
 /// <summary>The score a results screen shows: enough to find its replay in the list.</summary>
-public sealed record ResultsScreenScore(long Score, int MaxCombo, string Player, DateTimeOffset? Date)
+/// <summary>A results screen's judgement counts, named as osu!stable's score fields are.</summary>
+public sealed record ResultsScreenJudgements(int Geki, int Count300, int Katu, int Count100, int Count50, int Miss);
+
+public sealed record ResultsScreenScore(
+    long Score, int MaxCombo, string Player, DateTimeOffset? Date,
+    ResultsScreenJudgements? Judgements = null, int LegacyMods = 0)
 {
     /// <summary>
     /// The listed replay this is: same score (and max combo / player when there are several), or failing that the replay
     /// set within two minutes of it with the same max combo.
     /// </summary>
+    /// <summary>
+    /// This score as a listed entry, with no replay file: osu!stable writes the .osr only when the results screen is
+    /// left, so a play it has just finished has nothing to analyse while its results screen is shown. Null when tosu
+    /// reports no judgements, as there would be nothing to show.
+    /// </summary>
+    public ReplayEntry? ToUnsavedEntry()
+    {
+        if (Judgements is not { } hits)
+            return null;
+
+        return StableReplayFinder.BuildEntry(
+            path: string.Empty,
+            player: Player,
+            score: Score,
+            maxCombo: MaxCombo,
+            legacyMods: LegacyMods,
+            countGeki: hits.Geki,
+            count300: hits.Count300,
+            countKatu: hits.Katu,
+            count100: hits.Count100,
+            count50: hits.Count50,
+            countMiss: hits.Miss,
+            dateUtc: (Date ?? DateTimeOffset.UtcNow).UtcDateTime,
+            hasReplay: false);
+    }
+
     public ReplayEntry? FindIn(IEnumerable<ReplayEntry> replays)
     {
         var candidates = replays.Where(replay => replay.HasReplay).ToList();

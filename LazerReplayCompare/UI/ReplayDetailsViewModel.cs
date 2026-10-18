@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using osu.Game.Rulesets.Scoring;
 
@@ -40,6 +40,7 @@ public sealed class ReplayDetailsViewModel : ObservableObject
     private ReplayEntry? target;
     private bool isPinned;
     private readonly bool listedFromStable;
+    private readonly bool notSavedYet;
     private bool isOnCurrentMap = true;
     private bool isLoading;
     private string errorText = string.Empty;
@@ -47,10 +48,12 @@ public sealed class ReplayDetailsViewModel : ObservableObject
     private int highlightColumn = -1;
 
     /// <param name="scoreV1">The score is osu!stable's own ScoreV1 (listed from osu!stable's scores.db).</param>
-    public ReplayDetailsViewModel(ReplayEntry entry, string beatmapTitle, string beatmapSubtitle, ReplayEntry? target, bool isPinned, bool scoreV1)
+    /// <param name="notSavedYet">The score comes from a results screen whose play osu!stable has not saved yet.</param>
+    public ReplayDetailsViewModel(ReplayEntry entry, string beatmapTitle, string beatmapSubtitle, ReplayEntry? target, bool isPinned, bool scoreV1, bool notSavedYet = false)
     {
         Entry = entry;
         listedFromStable = scoreV1;
+        this.notSavedYet = notSavedYet;
         ScoreLabel = scoreV1 ? "Score (ScoreV1)" : "Score";
         Title = beatmapTitle;
         Subtitle = beatmapSubtitle;
@@ -91,6 +94,13 @@ public sealed class ReplayDetailsViewModel : ObservableObject
 
     public bool HasReplay => Entry.HasReplay;
     public bool ShowNoReplay => !HasReplay;
+
+    /// <summary>Why there are no presses to analyse: a play osu!stable has not saved yet, or a missing replay file.</summary>
+    public string NoReplayTitle => notSavedYet ? "Replay not saved yet" : "No replay file";
+
+    public string NoReplayText => notSavedYet
+        ? "osu!stable writes a play's replay when its results screen is left, so there are no presses to analyse yet. The replay is listed once you leave this screen."
+        : "osu!stable lists this score in scores.db, but its replay is missing from Data/r: there are no presses to analyse.";
 
     public ReplayEntry? Target
     {
