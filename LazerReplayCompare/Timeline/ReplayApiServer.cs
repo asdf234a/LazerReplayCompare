@@ -9,11 +9,14 @@ public sealed class ReplayApiServer : IDisposable
     private readonly Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays;
     private readonly Func<CorrectionMode> getDefaultCorrectionMode;
     private readonly Func<OverlayDisplay> getOverlayDisplay;
+    private readonly Func<IEnumerable<string?>> getAllowedRoots;
     private readonly ReplayTimelineBuilder timelineBuilder;
 
     // /perfect results by beatmap, client and mods (most recent last)
     private readonly List<(string Key, long[] Scores)> perfectScores = new();
     private const int kept_perfect_scores = 8;
+    private const int max_header_line = 8192;
+    private const int max_headers = 100;
     private readonly CancellationTokenSource cancellation = new();
     private TcpListener? listener;
 
@@ -21,12 +24,14 @@ public sealed class ReplayApiServer : IDisposable
         Func<(string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay)> getReplays,
         Func<CorrectionMode> getDefaultCorrectionMode,
         Func<OverlayDisplay> getOverlayDisplay,
+        Func<IEnumerable<string?>> getAllowedRoots,
         ReplayTimelineBuilder timelineBuilder)
     {
         this.timelineBuilder = timelineBuilder;
         this.getReplays = getReplays;
         this.getDefaultCorrectionMode = getDefaultCorrectionMode;
         this.getOverlayDisplay = getOverlayDisplay;
+        this.getAllowedRoots = getAllowedRoots;
     }
 
     public int Port { get; private set; }
@@ -67,6 +72,10 @@ public sealed class ReplayApiServer : IDisposable
         using var _ = client;
         using var stream = client.GetStream();
         using var reader = new StreamReader(stream, leaveOpen: true);
+        // The Origin to name in Access-Control-Allow-Origin once the request has passed LocalRequestGuard
+        string? origin = null;
+
+        void Respond(object value, int statusCode = 200) => WriteJson(stream, value, statusCode, origin);
 
         try
         {
@@ -74,43 +83,67 @@ public sealed class ReplayApiServer : IDisposable
             if (string.IsNullOrWhiteSpace(requestLine))
                 return;
 
+            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             string? line;
-            do
+            while (!string.IsNullOrEmpty(line = reader.ReadLine()))
             {
-                line = reader.ReadLine();
-            } while (!string.IsNullOrEmpty(line));
+                if (line.Length > max_header_line || headers.Count >= max_headers)
+                {
+                    Respond(new { error = "Bad request" }, 400);
+                    return;
+                }
+
+                var colon = line.IndexOf(':');
+                if (colon > 0)
+                    headers[line[..colon].Trim()] = line[(colon + 1)..].Trim();
+            }
+
+            if (LocalRequestGuard.Refusal(headers, Port) is { } refusal)
+            {
+                InternalLogger.Log($"API: refused a request ({refusal}) from Origin {headers.GetValueOrDefault("Origin") ?? "-"}, Host {headers.GetValueOrDefault("Host") ?? "-"}");
+                Respond(new { error = "Forbidden" }, 403);
+                return;
+            }
+
+            origin = headers.GetValueOrDefault("Origin");
 
             var parts = requestLine.Split(' ');
-            if (parts.Length < 2)
+            if (parts.Length < 2 || !parts[1].StartsWith('/'))
             {
-                WriteJson(stream, new { error = "Bad request" }, 400);
+                Respond(new { error = "Bad request" }, 400);
                 return;
             }
 
             var uri = new Uri("http://127.0.0.1" + parts[1]);
             if (parts[0] == "OPTIONS")
             {
-                WriteJson(stream, new { }, 204);
+                Respond(new { }, 204);
+                return;
+            }
+
+            if (parts[0] != "GET")
+            {
+                Respond(new { error = "Method not allowed" }, 405);
                 return;
             }
 
             if (uri.AbsolutePath == "/health")
             {
-                WriteJson(stream, new { name = "LazerReplayCompare", status = "ok" });
+                Respond(new { name = "LazerReplayCompare", status = "ok" });
                 return;
             }
 
             if (uri.AbsolutePath == "/replays")
             {
                 var (md5, replayList, selectedReplay) = getReplays();
-                WriteJson(stream, new { beatmapMd5 = md5, selectedReplay, replays = replayList });
+                Respond(new { beatmapMd5 = md5, selectedReplay, replays = replayList });
                 return;
             }
 
             if (uri.AbsolutePath == "/best-replay")
             {
                 var (_, bestReplays, selectedReplay) = getReplays();
-                WriteJson(stream, new { replayCount = bestReplays.Count, selectedReplay, replay = selectedReplay ?? bestReplays.FirstOrDefault(replay => replay.HasReplay) });
+                Respond(new { replayCount = bestReplays.Count, selectedReplay, replay = selectedReplay ?? bestReplays.FirstOrDefault(replay => replay.HasReplay) });
                 return;
             }
 
@@ -119,6 +152,13 @@ public sealed class ReplayApiServer : IDisposable
                 var query = ParseQuery(uri.Query);
                 var replayPath = GetQueryValue(query, "osr") ?? GetQueryValue(query, "replay") ?? GetQueryValue(query, "filePath");
                 var beatmapPath = GetQueryValue(query, "osu") ?? GetQueryValue(query, "beatmap");
+                var roots = getAllowedRoots().ToList();
+                if (!LocalRequestGuard.IsInside(replayPath, roots) || (beatmapPath != null && !LocalRequestGuard.IsInside(beatmapPath, roots)))
+                {
+                    Respond(new { error = "Only files inside the osu! folders can be read" }, 403);
+                    return;
+                }
+
                 var rateStr = GetQueryValue(query, "rate");
                 var correction = GetQueryValue(query, "correctionMode") ?? GetQueryValue(query, "correction") ?? GetQueryValue(query, "mode");
                 var rate = double.TryParse(rateStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var r) && r > 0 ? r : 0;
@@ -127,7 +167,7 @@ public sealed class ReplayApiServer : IDisposable
                 // the game the live play runs in: osu!stable replays are scored the osu!stable way against osu!stable
                 var liveClient = LiveClients.Parse(GetQueryValue(query, "client"));
 
-                WriteJson(stream, timelineBuilder.GetOrBuild(replayPath ?? string.Empty, beatmapPath, rate, correctionMode, scaleMetric, liveClient));
+                Respond(timelineBuilder.GetOrBuild(replayPath!, beatmapPath, rate, correctionMode, scaleMetric, liveClient));
                 return;
             }
 
@@ -135,31 +175,45 @@ public sealed class ReplayApiServer : IDisposable
             {
                 var query = ParseQuery(uri.Query);
                 var beatmapPath = GetQueryValue(query, "osu") ?? GetQueryValue(query, "beatmap") ?? string.Empty;
+                if (!LocalRequestGuard.IsInside(beatmapPath, getAllowedRoots()))
+                {
+                    Respond(new { error = "Only files inside the osu! folders can be read" }, 403);
+                    return;
+                }
+
                 var liveClient = LiveClients.Parse(GetQueryValue(query, "client"));
                 var mods = (GetQueryValue(query, "mods") ?? string.Empty).Split(new[] { ',', '+', ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 var rate = double.TryParse(GetQueryValue(query, "rate"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var r) && r > 0 ? r : 0;
-                WriteJson(stream, new { client = liveClient.ToString().ToLowerInvariant(), scores = GetPerfectScores(beatmapPath, liveClient, mods, rate) });
+                Respond(new { client = liveClient.ToString().ToLowerInvariant(), scores = GetPerfectScores(beatmapPath, liveClient, mods, rate) });
                 return;
             }
 
             if (uri.AbsolutePath == "/metrics")
             {
-                WriteJson(stream, new { metrics = MetricRegistry.ToJson() });
+                Respond(new { metrics = MetricRegistry.ToJson() });
                 return;
             }
 
             if (uri.AbsolutePath == "/state")
             {
-                WriteJson(stream, BuildState());
+                Respond(BuildState());
                 return;
             }
 
-            WriteJson(stream, new { error = "Not found" }, 404);
+            Respond(new { error = "Not found" }, 404);
         }
         catch (Exception ex)
         {
             InternalLogger.Log(ex);
-            WriteJson(stream, new { error = ex.Message }, 500);
+            // The exception's message can name files and folders; it stays in the log
+            try
+            {
+                Respond(new { error = "Internal error" }, 500);
+            }
+            catch (Exception)
+            {
+                // the connection is gone
+            }
         }
     }
 
@@ -241,7 +295,7 @@ public sealed class ReplayApiServer : IDisposable
         };
     }
 
-    private static void WriteJson(Stream stream, object value, int statusCode = 200)
+    private static void WriteJson(Stream stream, object value, int statusCode, string? origin)
     {
         var body = JsonSerializer.SerializeToUtf8Bytes(value, new JsonSerializerOptions
         {
@@ -253,7 +307,9 @@ public sealed class ReplayApiServer : IDisposable
             200 => "OK",
             204 => "No Content",
             400 => "Bad Request",
+            403 => "Forbidden",
             404 => "Not Found",
+            405 => "Method Not Allowed",
             500 => "Internal Server Error",
             501 => "Not Implemented",
             _ => "OK",
@@ -262,9 +318,14 @@ public sealed class ReplayApiServer : IDisposable
         using var writer = new StreamWriter(stream, leaveOpen: true) { NewLine = "\r\n" };
         writer.WriteLine($"HTTP/1.1 {statusCode} {reason}");
         writer.WriteLine("Content-Type: application/json; charset=utf-8");
-        writer.WriteLine("Access-Control-Allow-Origin: *");
-        writer.WriteLine("Access-Control-Allow-Methods: GET, OPTIONS");
-        writer.WriteLine("Access-Control-Allow-Headers: Content-Type");
+        // Only pages served from this PC (checked by LocalRequestGuard) may read the answers
+        if (origin != null)
+        {
+            writer.WriteLine($"Access-Control-Allow-Origin: {origin}");
+            writer.WriteLine("Vary: Origin");
+            writer.WriteLine("Access-Control-Allow-Methods: GET, OPTIONS");
+            writer.WriteLine("Access-Control-Allow-Headers: Content-Type");
+        }
         writer.WriteLine($"Content-Length: {body.Length}");
         writer.WriteLine("Connection: close");
         writer.WriteLine();
