@@ -24,11 +24,12 @@ public enum MetricFormat
 }
 
 /// <summary>
-/// One comparison metric (score, accuracy, judgement-weighted scores...). The app, the timeline scaler and the overlays
-/// (through <c>/state</c> and <c>/metrics</c>) all evaluate metrics from these definitions, so a new metric only needs a
-/// new entry in <see cref="MetricRegistry.All"/>.
+/// One comparison metric (score, accuracy, judgement-weighted scores...): what a Scaled timeline is stretched by (the
+/// timeline scaler, and the app picking it from the Main item, see OverlayItems.ScaleMetric), also listed at
+/// <c>/metrics</c> for other overlays. The bundled overlays work out their items themselves
+/// (lazerReplayCompareShared/metrics.js), from the list OverlayItems sends through <c>/state</c>.
 /// </summary>
-/// <param name="Key">Stable identifier stored in settings and sent to the overlays.</param>
+/// <param name="Key">Stable identifier, used in timeline queries (scaleMetric).</param>
 /// <param name="DisplayName">Label shown in the app.</param>
 /// <param name="Source">Where the value comes from.</param>
 /// <param name="Format">How the value is displayed.</param>

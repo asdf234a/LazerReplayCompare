@@ -29,6 +29,8 @@ public sealed class ReplayApiServer : IDisposable
         this.getOverlayDisplay = getOverlayDisplay;
     }
 
+    private static readonly TimeSpan request_timeout = TimeSpan.FromSeconds(10);
+
     public int Port { get; private set; }
 
     public void Start(int port)
@@ -53,6 +55,9 @@ public sealed class ReplayApiServer : IDisposable
             try
             {
                 var client = await listener.AcceptTcpClientAsync(cancellation.Token);
+                // a connection that stops sending its request (or reading the answer) gives its thread back
+                client.ReceiveTimeout = (int)request_timeout.TotalMilliseconds;
+                client.SendTimeout = (int)request_timeout.TotalMilliseconds;
                 _ = Task.Run(() => HandleClient(client));
             }
             catch (OperationCanceledException)

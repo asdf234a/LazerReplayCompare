@@ -77,6 +77,9 @@ public sealed partial class MainWindow : Window
 
     private List<ReplayEntry> currentReplays = new();
     private string currentReplaysMd5 = string.Empty;
+    // Each replay scan gets a number (under replayLock); a scan's result only lands when no newer scan has started, so
+    // the list of a map left quickly, finishing last, can't replace the new map's.
+    private int replayScan;
     private bool fillingReplayList;
     private TosuSnapshot currentSnapshot = new("lazer", "", "", "", "", "", "", "", "");
     private CompactWindow? compactWindow;
@@ -180,6 +183,20 @@ public sealed partial class MainWindow : Window
             return;
         started = true;
 
+        // (async void: an exception escaping it would end the app)
+        try
+        {
+            await startServices();
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+
+    /// <summary>The API server, the tosu connection and the first-run folder check (once, when the window first opens).</summary>
+    private async Task startServices()
+    {
         try
         {
             apiServer.Start(ApiPort);
@@ -219,6 +236,7 @@ public sealed partial class MainWindow : Window
         closing = true;
         customItemsWatcher?.Dispose();
         stableReplaysWatcher?.Dispose();
+        replayFinder.Dispose();
         compactWindow?.Close();
         tosuClient.Dispose();
         apiServer.Dispose();
@@ -294,8 +312,15 @@ public sealed partial class MainWindow : Window
             };
             void changed(object? sender, FileSystemEventArgs e) => Dispatcher.UIThread.Post(async () =>
             {
-                await Task.Delay(150);   // editors write in several steps
-                viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay);
+                try
+                {
+                    await Task.Delay(150);   // editors write in several steps
+                    viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay);
+                }
+                catch (Exception ex)
+                {
+                    InternalLogger.Log(ex);
+                }
             });
             customItemsWatcher.Changed += changed;
             customItemsWatcher.Created += changed;
@@ -332,7 +357,17 @@ public sealed partial class MainWindow : Window
 
     // --- osu!lazer folder ---
 
-    private async void BrowseOsuLazerFolder(object? sender, RoutedEventArgs e) => await BrowseOsuLazerFolderCore(false);
+    private async void BrowseOsuLazerFolder(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await BrowseOsuLazerFolderCore(false);
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
 
     private async Task BrowseOsuLazerFolderCore(bool firstRun)
     {
@@ -387,6 +422,18 @@ public sealed partial class MainWindow : Window
     // --- osu!stable folder ---
 
     private async void BrowseOsuStableFolder(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await BrowseOsuStableFolderCore();
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+
+    private async Task BrowseOsuStableFolderCore()
     {
         var topLevel = GetTopLevel(this);
         if (topLevel == null)
@@ -628,9 +675,10 @@ public sealed partial class MainWindow : Window
 
     // --- Replays ---
 
-    private void RefreshReplays(object? sender, RoutedEventArgs e) => RefreshReplays();
+    private void RefreshReplays(object? sender, RoutedEventArgs e) => RefreshReplays(fresh: true);
 
-    private void RefreshReplays()
+    /// <param name="fresh">Read osu!lazer's database afresh instead of the copy the last scan made (see ReplayFinder).</param>
+    private void RefreshReplays(bool fresh = false)
     {
         if (string.IsNullOrWhiteSpace(currentSnapshot.BeatmapChecksum))
         {
@@ -658,14 +706,21 @@ public sealed partial class MainWindow : Window
         viewModel.LazerFound = true;
         viewModel.IsLoadingReplays = true;
         viewModel.StatusText = string.Empty;
+        var scan = beginScan();
 
         _ = Task.Run(() =>
         {
             try
             {
-                var (replays, backgroundPath) = replayFinder.FindReplaysAndBackground(md5, realmPath, filesRoot);
+                if (!isLatestScan(scan))
+                    return;
+
+                var (replays, backgroundPath) = replayFinder.FindReplaysAndBackground(md5, realmPath, filesRoot, fresh);
                 lock (replayLock)
                 {
+                    if (scan != replayScan)
+                        return;
+
                     currentReplays = replays;
                     currentReplaysMd5 = md5;
                     replaySelection.ClearIfMissing(replays);
@@ -673,6 +728,9 @@ public sealed partial class MainWindow : Window
 
                 Dispatcher.UIThread.Post(() =>
                 {
+                    if (!isLatestScan(scan))
+                        return;
+
                     viewModel.IsLoadingReplays = false;
                     FillReplayList(replays);
                     OnDatabaseBackground(md5, backgroundPath);
@@ -680,8 +738,12 @@ public sealed partial class MainWindow : Window
             }
             catch (Exception ex)
             {
+                InternalLogger.Log(ex);
                 Dispatcher.UIThread.Post(() =>
                 {
+                    if (!isLatestScan(scan))
+                        return;
+
                     viewModel.IsLoadingReplays = false;
                     viewModel.StatusText = $"Couldn't read replays: {ex.Message}";
                     OnDatabaseBackground(md5, string.Empty);
@@ -703,14 +765,21 @@ public sealed partial class MainWindow : Window
         viewModel.StableFound = true;
         viewModel.IsLoadingReplays = true;
         viewModel.StatusText = string.Empty;
+        var scan = beginScan();
 
         _ = Task.Run(() =>
         {
             try
             {
+                if (!isLatestScan(scan))
+                    return;
+
                 var replays = stableReplayFinder.FindReplays(md5, stableRoot);
                 lock (replayLock)
                 {
+                    if (scan != replayScan)
+                        return;
+
                     currentReplays = replays;
                     currentReplaysMd5 = md5;
                     replaySelection.ClearIfMissing(replays);
@@ -718,6 +787,9 @@ public sealed partial class MainWindow : Window
 
                 Dispatcher.UIThread.Post(() =>
                 {
+                    if (!isLatestScan(scan))
+                        return;
+
                     viewModel.IsLoadingReplays = false;
                     FillReplayList(replays);
                     OnDatabaseBackground(md5, string.Empty);
@@ -728,12 +800,29 @@ public sealed partial class MainWindow : Window
                 InternalLogger.Log(ex);
                 Dispatcher.UIThread.Post(() =>
                 {
+                    if (!isLatestScan(scan))
+                        return;
+
                     viewModel.IsLoadingReplays = false;
                     viewModel.StatusText = $"Couldn't read osu!stable replays: {ex.Message}";
                     OnDatabaseBackground(md5, string.Empty);
                 });
             }
         });
+    }
+
+    /// <summary>Numbers a replay scan that is about to start (scans started before it are now stale).</summary>
+    private int beginScan()
+    {
+        lock (replayLock)
+            return ++replayScan;
+    }
+
+    /// <summary>Whether no newer replay scan has started since <paramref name="scan"/>.</summary>
+    private bool isLatestScan(int scan)
+    {
+        lock (replayLock)
+            return scan == replayScan;
     }
 
     private void FillReplayList(IReadOnlyList<ReplayEntry> replays)
@@ -1163,7 +1252,7 @@ public sealed partial class MainWindow : Window
         if (pendingResults == null || resultsRefreshes++ >= max_results_refreshes)
             return;
 
-        RefreshReplays();
+        RefreshReplays(fresh: true);
         DispatcherTimer.RunOnce(() =>
         {
             if (pendingResults != null && !OpenPendingResults())
