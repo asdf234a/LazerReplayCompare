@@ -31,6 +31,9 @@ public sealed class StableReplayFinder
     // .osr headers by path, refreshed when a file's size or write time changes
     private readonly Dictionary<string, (long Length, DateTime Written, StableScore? Score)> headers = new(StringComparer.OrdinalIgnoreCase);
 
+    // scores.db's osu!mania scores by beatmap MD5, read again when the file's size or write time changes
+    private (string Path, long Length, DateTime Written, Dictionary<string, List<StableScore>> Scores)? scoresDbCache;
+
     public List<ReplayEntry> FindReplays(string beatmapMd5, string stableRoot)
     {
         lock (sync)
@@ -41,19 +44,18 @@ public sealed class StableReplayFinder
 
             // Replays named after the beatmap first (the usual "{beatmap md5}-{time}.osr"); the whole folder only when
             // a score's replay is not among them.
-            var replays = Directory.Exists(replayFolder)
-                ? headersOf(Directory.EnumerateFiles(replayFolder, beatmapMd5 + "-*.osr"))
+            // (files listed with their size and write time, so a cached header costs no extra look at the file)
+            var folder = new DirectoryInfo(replayFolder);
+            var replays = folder.Exists
+                ? headersOf(folder.EnumerateFiles(beatmapMd5 + "-*.osr"))
                 : new List<(string Path, StableScore Score)>();
-            if (Directory.Exists(replayFolder) && scores.Any(score => find(replays, score) == null))
-                replays = headersOf(Directory.EnumerateFiles(replayFolder, "*.osr"));
-            else if (Directory.Exists(replayFolder))
+            if (folder.Exists && scores.Any(score => find(replays, score) == null))
+                replays = headersOf(folder.EnumerateFiles("*.osr"));
+            else if (folder.Exists)
             {
                 var listed = replays.Select(replay => replay.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var since = DateTime.UtcNow - recent_replay;
-                var recent = new DirectoryInfo(replayFolder).EnumerateFiles("*.osr")
-                                                            .Where(file => file.LastWriteTimeUtc >= since && !listed.Contains(file.FullName))
-                                                            .Select(file => file.FullName);
-                replays.AddRange(headersOf(recent));
+                replays.AddRange(headersOf(folder.EnumerateFiles("*.osr").Where(file => file.LastWriteTimeUtc >= since && !listed.Contains(file.FullName))));
             }
 
             var entries = new List<ReplayEntry>();
@@ -95,14 +97,14 @@ public sealed class StableReplayFinder
         return null;
     }
 
-    private List<(string Path, StableScore Score)> headersOf(IEnumerable<string> paths)
+    private List<(string Path, StableScore Score)> headersOf(IEnumerable<FileInfo> files)
     {
         var result = new List<(string, StableScore)>();
-        foreach (var path in paths)
+        foreach (var file in files)
         {
+            var path = file.FullName;
             try
             {
-                var file = new FileInfo(path);
                 if (!headers.TryGetValue(path, out var cached) || cached.Length != file.Length || cached.Written != file.LastWriteTimeUtc)
                 {
                     StableScore? header = null;
@@ -133,38 +135,47 @@ public sealed class StableReplayFinder
     }
 
     /// <summary>The beatmap's osu!mania scores in scores.db (empty when there is no scores.db).</summary>
-    private static List<StableScore> readScoresDb(string path, string beatmapMd5)
+    private List<StableScore> readScoresDb(string path, string beatmapMd5)
     {
-        var result = new List<StableScore>();
-        if (!File.Exists(path))
-            return result;
+        var file = new FileInfo(path);
+        if (!file.Exists)
+            return new List<StableScore>();
 
-        // osu!stable may be writing it: read a snapshot
-        byte[] data;
-        using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-        using (var memory = new MemoryStream())
+        if (scoresDbCache is not { } cache || cache.Path != path || cache.Length != file.Length || cache.Written != file.LastWriteTimeUtc)
         {
-            stream.CopyTo(memory);
-            data = memory.ToArray();
-        }
+            var scores = new Dictionary<string, List<StableScore>>(StringComparer.OrdinalIgnoreCase);
 
-        using var reader = new BinaryReader(new MemoryStream(data), Encoding.UTF8);
-        reader.ReadInt32(); // version
-        int beatmaps = reader.ReadInt32();
-        for (int b = 0; b < beatmaps; b++)
-        {
-            string md5 = readString(reader);
-            int count = reader.ReadInt32();
-            bool wanted = string.Equals(md5, beatmapMd5, StringComparison.OrdinalIgnoreCase);
-            for (int s = 0; s < count; s++)
+            // osu!stable may be writing it: read a snapshot (if it changes meanwhile, its new size or time reads it again)
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var memory = new MemoryStream((int)Math.Min(stream.Length, int.MaxValue)))
             {
-                var score = readScore(reader, replayHeader: false);
-                if (wanted && score.Mode == mania_mode)
-                    result.Add(score);
+                stream.CopyTo(memory);
+                memory.Position = 0;
+
+                using var reader = new BinaryReader(memory, Encoding.UTF8);
+                reader.ReadInt32(); // version
+                int beatmaps = reader.ReadInt32();
+                for (int b = 0; b < beatmaps; b++)
+                {
+                    string md5 = readString(reader);
+                    int count = reader.ReadInt32();
+                    for (int s = 0; s < count; s++)
+                    {
+                        var score = readScore(reader, replayHeader: false);
+                        if (score.Mode != mania_mode)
+                            continue;
+
+                        if (!scores.TryGetValue(md5, out var list))
+                            scores[md5] = list = new List<StableScore>();
+                        list.Add(score);
+                    }
+                }
             }
+
+            scoresDbCache = cache = (path, file.Length, file.LastWriteTimeUtc, scores);
         }
 
-        return result;
+        return cache.Scores.TryGetValue(beatmapMd5, out var found) ? found : new List<StableScore>();
     }
 
     /// <summary>
@@ -211,6 +222,9 @@ public sealed class StableReplayFinder
             length |= (part & 0x7f) << shift;
             shift += 7;
         } while ((part & 0x80) != 0);
+
+        if (length < 0 || length > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException($"Unexpected string length {length}.");
 
         return Encoding.UTF8.GetString(reader.ReadBytes(length));
     }

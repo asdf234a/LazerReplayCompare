@@ -35,6 +35,7 @@ public sealed class ReplayApiServer : IDisposable
     }
 
     private static readonly TimeSpan request_timeout = TimeSpan.FromSeconds(10);
+    private static readonly JsonSerializerOptions json_options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public int Port { get; private set; }
 
@@ -302,10 +303,7 @@ public sealed class ReplayApiServer : IDisposable
 
     private static void WriteJson(Stream stream, object value, int statusCode, string? origin)
     {
-        var body = JsonSerializer.SerializeToUtf8Bytes(value, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        });
+        var body = JsonSerializer.SerializeToUtf8Bytes(value, json_options);
 
         var reason = statusCode switch
         {

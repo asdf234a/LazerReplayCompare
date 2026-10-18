@@ -115,7 +115,7 @@ The first timeline for a replay can take a moment to build. Until it is ready, t
 
 - The app is for osu!lazer **mania** replays. Mirror is handled by flipping the columns.
 - Settings are stored in `%LocalAppData%\LazerReplayCompare\settings.json`, custom overlay items in `metrics.json` next to it.
-- osu!lazer's replays are listed from the app's own copy of the list (`lazer-replays.json` and `lazer-beatmaps.json` next to the settings). It is filled from osu!lazer's database once when the app starts (read from a temporary copy, so the game's own file is never opened) and then kept up to date by watching osu!lazer's `files` folder: a replay you play, import or download shows up within a moment, and one osu!lazer deletes disappears. **Rescan replays** reads the database again.
+- osu!lazer's replays are listed from the app's own copy of the list (`lazer-replays.json` and `lazer-beatmaps.json` next to the settings). It is filled from osu!lazer's database once when the app starts (read from a temporary copy, so the game's own file is never opened) and then kept up to date by watching osu!lazer's `files` folder: a replay you play, import or download shows up within a moment, and one osu!lazer deletes disappears. After a large import the database is read again once the import is over; **Rescan replays** reads it again any time.
 
 ## Building from source
 

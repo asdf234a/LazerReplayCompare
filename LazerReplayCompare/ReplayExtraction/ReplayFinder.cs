@@ -142,12 +142,91 @@ public static class ReplayFinder
         }
     }
 
+    // Every file of an imported beatmap set lands in osu!lazer's files folder too, so a file that only looks like a replay
+    // is checked before decoding: no real replay comes near these sizes, and the decoder would allocate whatever a
+    // length field says.
+    private const long max_replay_file = 32 * 1024 * 1024;
+    private const long max_replay_data = 64 * 1024 * 1024;
+
     /// <summary>A replay file's score, read with its beatmap (the .osu file).</summary>
     public static ReplayEntry ReadReplay(string path, string beatmapPath)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        checkReplaySizes(stream);
+        stream.Position = 0;
+
         var score = new LazerReplayScoreDecoder(beatmapPath).Parse(stream).ScoreInfo;
         return ToEntry(score, path);
+    }
+
+    /// <summary>Throws when a replay file, or the data it says it holds, is larger than any real replay's.</summary>
+    private static void checkReplaySizes(Stream stream)
+    {
+        if (stream.Length > max_replay_file)
+            throw new InvalidDataException("The file is too large to be a replay.");
+
+        using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+        reader.ReadByte(); // ruleset
+        int version = reader.ReadInt32();
+        for (int i = 0; i < 3; i++)
+            skipString(reader); // beatmap MD5, player, replay MD5
+        stream.Seek(6 * 2 + 4 + 2 + 1 + 4, SeekOrigin.Current); // judgement counts, score, combo, perfect, mods
+        skipString(reader); // life bar graph
+        reader.ReadInt64(); // date
+
+        checkCompressed(reader); // the frames
+        if (version >= 20140721)
+            reader.ReadInt64(); // online score id
+        else if (version >= 20121008)
+            reader.ReadInt32();
+        if (version >= 30000001)
+            checkCompressed(reader); // osu!lazer's score details
+
+        static void skipString(BinaryReader reader)
+        {
+            byte flag = reader.ReadByte();
+            if (flag == 0x00)
+                return;
+            if (flag != 0x0b)
+                throw new InvalidDataException($"Unexpected string flag 0x{flag:x2}.");
+
+            long length = 0;
+            int shift = 0;
+            byte part;
+            do
+            {
+                part = reader.ReadByte();
+                length |= (long)(part & 0x7f) << shift;
+                shift += 7;
+            } while ((part & 0x80) != 0 && shift < 35);
+
+            if (length > reader.BaseStream.Length - reader.BaseStream.Position)
+                throw new InvalidDataException("The replay is cut off.");
+            reader.BaseStream.Seek(length, SeekOrigin.Current);
+        }
+
+        // LZMA data: 5 bytes of properties, then the uncompressed size (-1 when unknown, as some tools write it)
+        static void checkCompressed(BinaryReader reader)
+        {
+            int length = reader.ReadInt32();
+            if (length <= 0)
+                return;
+
+            var data = reader.BaseStream;
+            if (length > data.Length - data.Position)
+                throw new InvalidDataException("The replay is cut off.");
+
+            long end = data.Position + length;
+            if (length >= 13)
+            {
+                data.Seek(5, SeekOrigin.Current);
+                long size = reader.ReadInt64();
+                if (size < -1 || size > max_replay_data)
+                    throw new InvalidDataException("The replay's data is too large to be real.");
+            }
+
+            data.Position = end;
+        }
     }
 
     /// <summary>A score as the replay list shows it (from the database, or read from its replay file).</summary>

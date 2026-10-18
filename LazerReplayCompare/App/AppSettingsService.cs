@@ -9,50 +9,77 @@ public sealed class AppSettingsService
         Current.Save();
     }
 
+    // Each setter saves only when the value changes (the window passes every setting after any one of them changed).
+
     public void SetOsuLazerPath(string path)
     {
+        if (Current.OsuLazerPath == path)
+            return;
+
         Current.OsuLazerPath = path;
         Save();
     }
 
     public void SetOsuStablePath(string path)
     {
+        if (Current.OsuStablePath == path)
+            return;
+
         Current.OsuStablePath = path;
         Save();
     }
 
     public void SetTheme(string theme)
     {
-        Current.Theme = string.IsNullOrWhiteSpace(theme) ? "System" : theme;
+        theme = string.IsNullOrWhiteSpace(theme) ? "System" : theme;
+        if (Current.Theme == theme)
+            return;
+
+        Current.Theme = theme;
         Save();
     }
 
     public void SetCorrectionMode(CorrectionMode mode)
     {
+        if (Current.CorrectionMode == mode.ToString())
+            return;
+
         Current.CorrectionMode = mode.ToString();
         Save();
     }
 
     public void SetShowBackground(bool show)
     {
+        if (Current.ShowBackground == show)
+            return;
+
         Current.ShowBackground = show;
         Save();
     }
 
     public void SetOpenDetailsOnResults(bool open)
     {
+        if (Current.OpenDetailsOnResults == open)
+            return;
+
         Current.OpenDetailsOnResults = open;
         Save();
     }
 
     public void SetZoom(double zoom)
     {
+        if (Current.Zoom == zoom)
+            return;
+
         Current.Zoom = zoom;
         Save();
     }
 
     public void SetOverlayDisplay(string mainItem, string mainShow, string subItem, string subShow)
     {
+        if (Current.MainItem == mainItem && Current.MainShow == mainShow && Current.SubItem == subItem && Current.SubShow == subShow)
+            return;
+
         Current.MainItem = mainItem;
         Current.MainShow = mainShow;
         Current.SubItem = subItem;

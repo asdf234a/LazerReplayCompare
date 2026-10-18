@@ -86,6 +86,7 @@ public sealed partial class MainWindow : Window
     private bool closing;
     private bool started;
     private CancellationTokenSource? correctionCancellation;
+    private string lastCorrectionKey = string.Empty;
     private (CorrectionMode Mode, string ScaleMetric) lastTimelineSettings;
     private FileSystemWatcher? customItemsWatcher;
 
@@ -603,6 +604,8 @@ public sealed partial class MainWindow : Window
     }
 
     private const string TosuBackgroundUrl = "http://" + TosuHost + "/files/beatmap/background";
+    // how long a map must stay selected before its background is decoded and its target replay checked
+    private static readonly TimeSpan settle_delay = TimeSpan.FromMilliseconds(250);
     private static readonly HttpClient tosuHttp = new() { Timeout = TimeSpan.FromSeconds(5) };
 
     /// <summary>Beatmap the shown (or loading) background belongs to, and where it is coming from ("" = not chosen yet).</summary>
@@ -643,13 +646,17 @@ public sealed partial class MainWindow : Window
         LoadBackground(beatmap, string.IsNullOrWhiteSpace(path) ? TosuBackgroundUrl : path);
     }
 
-    /// <summary>Decodes a background file or URL off the UI thread (reduced to banner size).</summary>
+    /// <summary>Decodes a background file or URL off the UI thread (reduced to banner size), once the map stays.</summary>
     private void LoadBackground(string beatmap, string source)
     {
         backgroundSource = source;
 
         _ = Task.Run(async () =>
         {
+            await Task.Delay(settle_delay);
+            if (beatmap != Volatile.Read(ref backgroundBeatmap) || source != Volatile.Read(ref backgroundSource))
+                return;
+
             Avalonia.Media.Imaging.Bitmap? bitmap = null;
             try
             {
@@ -1012,16 +1019,26 @@ public sealed partial class MainWindow : Window
         var metricName = OverlayItems.NameOf(mainItem == OverlayItems.Off ? "score" : mainItem).ToLowerInvariant();
         viewModel.ShowCorrectionLoading();
 
-        _ = Task.Run(() =>
+        // browsing song select changes the target on every map: a new one is checked once the map stays
+        var key = string.Join("|", target.FilePath, beatmapPath, mode, metric.Key, client);
+        var delay = key == lastCorrectionKey ? TimeSpan.Zero : settle_delay;
+        lastCorrectionKey = key;
+        var token = cancellation.Token;
+        _ = Task.Run(async () =>
         {
             try
             {
+                await Task.Delay(delay, token);
                 var timeline = timelineBuilder.GetOrBuild(target.FilePath, beatmapPath, 0, mode, metric.Key, client);
                 Dispatcher.UIThread.Post(() =>
                 {
                     if (!cancellation.IsCancellationRequested)
                         viewModel.ShowCorrection(timeline.Correction, metricName);
                 });
+            }
+            catch (OperationCanceledException)
+            {
+                // another target was chosen meanwhile
             }
             catch (Exception ex)
             {

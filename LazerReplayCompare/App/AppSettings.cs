@@ -58,15 +58,27 @@ public sealed class AppSettings
         }
     }
 
+    private static readonly JsonSerializerOptions save_options = new() { WriteIndented = true };
+
+    /// <summary>
+    /// Writes the settings (to a temporary file first, so a crash mid-write can't leave half a file). A file that can't be
+    /// written (locked by a sync tool or antivirus) is logged, not thrown: the settings still apply for this run.
+    /// </summary>
     public void Save()
     {
-        var directory = Path.GetDirectoryName(SettingsPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-            Directory.CreateDirectory(directory);
-
-        File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, new JsonSerializerOptions
+        try
         {
-            WriteIndented = true,
-        }));
+            var directory = Path.GetDirectoryName(SettingsPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+
+            var temporary = SettingsPath + ".tmp";
+            File.WriteAllText(temporary, JsonSerializer.Serialize(this, save_options));
+            File.Move(temporary, SettingsPath, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            InternalLogger.Log(ex);
+        }
     }
 }

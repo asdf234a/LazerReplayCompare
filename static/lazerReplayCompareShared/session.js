@@ -67,6 +67,10 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
     let loadedStateKey = '';
     let loadKey = '';
     let checking = false;
+    // a state whose load failed is tried again only after a pause (a timeline that can't be built is rebuilt each try)
+    let failedStateKey = '';
+    let retryAfter = 0;
+    const retry_delay = 5000;
     const perfectCache = new Map();
 
     const baseKey = () => `${state.beatmapChecksum}|${state.osuPath}|${state.modsKey}`;
@@ -248,6 +252,8 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
                 state.error = err.message || String(err);
                 loadKey = '';
                 loadedStateKey = '';
+                failedStateKey = stateKey;
+                retryAfter = Date.now() + retry_delay;
             }
         } finally {
             state.loading = false;
@@ -288,7 +294,8 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
             }
 
             const stateKey = `${baseKey()}|${data.timelineKey || data.selectedReplayKey || ''}|${data.replayListVersion || ''}|${scaleMetric()}|${needsPerfect()}`;
-            if (stateKey !== loadedStateKey) await load(stateKey, state.correctionMode);
+            if (stateKey !== loadedStateKey && (stateKey !== failedStateKey || Date.now() >= retryAfter))
+                await load(stateKey, state.correctionMode);
         } catch (err) {
             state.error = err.message || String(err);
             update();
@@ -339,7 +346,8 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
         }
 
         updateOsuPath(state);
-        if (state.framesKey !== baseKey() && !state.noReplay) check();
+        // outside play (or after a failed load) the 1 s check is enough; in play a new target is picked up on the next message
+        if (isPlaying() && state.framesKey !== baseKey() && !state.noReplay && Date.now() >= retryAfter) check();
         update();
     }
 
