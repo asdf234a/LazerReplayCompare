@@ -239,7 +239,8 @@
           </Border>
           <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="28" MinHeight="180" IsVisible="{Binding IsLoadingReplays}">
             <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
-              <ProgressBar IsIndeterminate="True" Width="160" />
+              <!-- (indeterminate only while shown: a hidden bar's animation would keep the window redrawing) -->
+              <ProgressBar IsIndeterminate="{Binding IsLoadingReplays}" Width="160" />
               <TextBlock Classes="muted" Text="Loading replays…" HorizontalAlignment="Center" />
             </StackPanel>
           </Border>
@@ -314,7 +315,7 @@
                                    Classes.info="{Binding IsToneInfo}" Classes.error="{Binding IsToneError}"
                                    FontSize="14" Text="{Binding CorrectionTitle}" />
                         <TextBlock Classes="secondary" FontSize="12" Text="{Binding CorrectionShort}" />
-                        <ProgressBar IsIndeterminate="True" Height="3" MinHeight="3" Margin="0,4,0,0" IsVisible="{Binding IsCorrectionLoading}" />
+                        <ProgressBar IsIndeterminate="{Binding IsCorrectionLoading}" Height="3" MinHeight="3" Margin="0,4,0,0" IsVisible="{Binding IsCorrectionLoading}" />
                       </StackPanel>
                     </Grid>
                   </Border>
