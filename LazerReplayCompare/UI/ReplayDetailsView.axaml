@@ -141,7 +141,7 @@
             <Grid x:Name="StatusRow" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14" RowSpacing="12">
               <!-- (a dock rather than a stack, so a long status is cut short instead of running under "vs target") -->
               <DockPanel VerticalAlignment="Center">
-                <ProgressBar DockPanel.Dock="Left" IsIndeterminate="True" Width="80" Height="3" MinHeight="3" Margin="0,0,8,0" IsVisible="{Binding IsLoading}" VerticalAlignment="Center" />
+                <ProgressBar DockPanel.Dock="Left" IsIndeterminate="{Binding IsLoading}" Width="80" Height="3" MinHeight="3" Margin="0,0,8,0" IsVisible="{Binding IsLoading}" VerticalAlignment="Center" />
                 <Path DockPanel.Dock="Left" Width="16" Height="16" Margin="0,0,8,0" Stretch="Uniform" StrokeThickness="2.4" StrokeLineCap="Round" StrokeJoin="Round"
                       Stroke="{DynamicResource GoodTextBrush}" Data="M5,12.5 L9.5,17 L19,7.5" IsVisible="{Binding StatusMatches}" VerticalAlignment="Center" />
                 <Panel VerticalAlignment="Center">

@@ -8,7 +8,7 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);publish\**</DefaultItemExcludes>
     <OsuLazerCurrentPath Condition="'$(OsuLazerCurrentPath)' == ''">$(LocalAppData)\osulazer\current</OsuLazerCurrentPath>
     <ApplicationIcon>LazerReplayCompare.ico</ApplicationIcon>
-    <Version>1.3.0</Version>
+    <Version>1.3.1</Version>
     <DebugType>none</DebugType>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
@@ -75,6 +75,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LazerReplayCompare.Core\LazerReplayCompare.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    Keep the heap close to the live data: the GC compacts its older generation sooner instead of letting dead
+    objects from replay decodes and timeline builds pile up (see IdleCollector).
+  -->
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
   </ItemGroup>
 
   <ItemGroup>

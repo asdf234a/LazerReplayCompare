@@ -55,7 +55,12 @@ public sealed class ReplayTimelineBuilder
 
         try
         {
-            return entry.Value;
+            bool built = !entry.IsValueCreated;
+            var timeline = entry.Value;
+            // a build decodes the whole replay and may simulate it many times over: give that memory back once idle
+            if (built)
+                IdleCollector.AfterHeavyWork();
+            return timeline;
         }
         catch
         {

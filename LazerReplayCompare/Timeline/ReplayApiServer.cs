@@ -254,6 +254,7 @@ public sealed class ReplayApiServer : IDisposable
         }
 
         var scores = PerfectScores.Build(beatmapPath, client, mods, rate);
+        IdleCollector.AfterHeavyWork();
         lock (perfectScores)
         {
             perfectScores.RemoveAll(entry => entry.Key == key);

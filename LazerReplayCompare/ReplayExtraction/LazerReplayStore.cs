@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace LazerReplayCompare;
@@ -200,6 +199,8 @@ public sealed class LazerReplayStore : IDisposable
 
                 readWaiting(null);
                 Changed?.Invoke(null);
+                // the database read (every score and beatmap, through Realm) leaves a lot behind
+                IdleCollector.AfterHeavyWork();
                 if (again)
                     Refresh();
             }
@@ -437,7 +438,11 @@ public sealed class LazerReplayStore : IDisposable
         }
 
         if (any)
+        {
             restart(saveTimer, save_delay);
+            // (each replay was decoded whole, frames included, to list it)
+            IdleCollector.AfterHeavyWork();
+        }
     }
 
     // --- keeping the list between runs ---
@@ -452,8 +457,8 @@ public sealed class LazerReplayStore : IDisposable
     /// </summary>
     private void load(string lazerRoot, int scan)
     {
-        var (kept, keptBytes) = read<ReplaysFile>(replaysFile);
-        var (maps, mapsBytes) = read<BeatmapsFile>(beatmapsFile);
+        var (kept, keptHash) = read<ReplaysFile>(replaysFile);
+        var (maps, mapsHash) = read<BeatmapsFile>(beatmapsFile);
 
         var keptReplays = kept is { Format: format, Replays: { } list } && string.Equals(kept.Root, lazerRoot, StringComparison.OrdinalIgnoreCase)
             ? list.Where(replay => replay is { Entry.FilePath: { } file } && File.Exists(file)).ToList()
@@ -476,22 +481,27 @@ public sealed class LazerReplayStore : IDisposable
         // (unless a save already wrote them since the folder was opened)
         lock (writing)
         {
-            if (keptBytes != null)
-                replaysSaved ??= SHA256.HashData(keptBytes);
-            if (mapsBytes != null)
-                beatmapsSaved ??= SHA256.HashData(mapsBytes);
+            if (keptHash != null)
+                replaysSaved ??= keptHash;
+            if (mapsHash != null)
+                beatmapsSaved ??= mapsHash;
         }
     }
 
-    private static (T? Value, byte[]? Bytes) read<T>(string path) where T : class
+    /// <summary>The file's contents and the hash of its bytes (parsed straight from disk: the files run to tens of megabytes).</summary>
+    private static (T? Value, byte[]? Hash) read<T>(string path) where T : class
     {
         try
         {
             if (!File.Exists(path))
                 return (null, null);
 
-            var bytes = File.ReadAllBytes(path);
-            return (JsonSerializer.Deserialize<T>(bytes, json_options), bytes);
+            using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16);
+            using var hashing = new HashingStream(file);
+            var value = JsonSerializer.Deserialize<T>(hashing, json_options);
+            // (the serializer stops at the end of the value; whatever follows is hashed too, as the file is compared whole)
+            hashing.CopyTo(Stream.Null);
+            return (value, hashing.Hash);
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -530,19 +540,32 @@ public sealed class LazerReplayStore : IDisposable
         }
     }
 
-    /// <summary>Writes <paramref name="value"/> unless the file already holds it (<paramref name="saved"/>: its hash).</summary>
+    /// <summary>
+    /// Writes <paramref name="value"/> unless the file already holds it (<paramref name="saved"/>: its hash). Serialized
+    /// straight to a temporary file in small chunks: the replay list runs to tens of megabytes, and building it in
+    /// memory first left that much on the large object heap after every save.
+    /// </summary>
     private static void write<T>(string path, T value, ref byte[]? saved)
     {
         try
         {
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(value, json_options);
-            var hash = SHA256.HashData(bytes);
-            if (saved != null && hash.AsSpan().SequenceEqual(saved))
-                return;
-
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var temporary = path + ".tmp";
-            File.WriteAllBytes(temporary, bytes);
+            byte[] hash;
+            using (var file = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16))
+            using (var hashing = new HashingStream(file))
+            {
+                JsonSerializer.Serialize(hashing, value, json_options);
+                hashing.Flush();
+                hash = hashing.Hash;
+            }
+
+            if (saved != null && hash.AsSpan().SequenceEqual(saved))
+            {
+                File.Delete(temporary);
+                return;
+            }
+
             File.Move(temporary, path, overwrite: true);
             saved = hash;
         }

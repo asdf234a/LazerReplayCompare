@@ -1213,6 +1213,7 @@ public sealed partial class MainWindow : Window
             try
             {
                 var analysis = ReplayAnalyzer.Analyze(entry.FilePath, beatmapPath);
+                IdleCollector.AfterHeavyWork();
                 Dispatcher.UIThread.Post(() =>
                 {
                     analyses.RemoveAll(a => a.Key == key);
