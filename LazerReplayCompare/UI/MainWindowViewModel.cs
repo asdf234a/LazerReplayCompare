@@ -594,6 +594,8 @@ public sealed class MainWindowViewModel : ObservableObject
     private OverlayOption? selectedBaseMode;
     private int rankTarget = 50;
     private int baseScore = 999000;
+    private OverlayOption? selectedAccLogKind;
+    private double accLogBase = 95;
 
     public ObservableCollection<OverlayOption> MainItemOptions { get; } = new();
     public ObservableCollection<OverlayOption> SubItemOptions { get; } = new();
@@ -643,8 +645,45 @@ public sealed class MainWindowViewModel : ObservableObject
 
         OnPropertyChanged(nameof(ShowScoreBase));
         OnPropertyChanged(nameof(BaseText));
+        OnPropertyChanged(nameof(ShowAccLog));
         SettingsChanged?.Invoke();
     }
+
+    /// <summary>What Acc log measures.</summary>
+    public IReadOnlyList<OverlayOption> AccLogKindOptions { get; } =
+    [
+        new("stable", "Stable"),
+        new("lazer", "Lazer"),
+        new("pp", "PPacc"),
+    ];
+
+    public OverlayOption? SelectedAccLogKind
+    {
+        get => selectedAccLogKind;
+        set => setOverlayOption(ref selectedAccLogKind, value);
+    }
+
+    /// <summary>The accuracy where Acc log is 0. Anything that isn't a number leaves it as it was.</summary>
+    public string AccLogBaseText
+    {
+        get => accLogBase.ToString("0.##", CultureInfo.InvariantCulture) + "%";
+        set
+        {
+            var text = (value ?? string.Empty).Trim().TrimEnd('%').Trim();
+            if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent) && double.IsFinite(percent))
+            {
+                var clamped = Math.Round(Math.Clamp(percent, 0.01, 99.99), 2);
+                var changed = clamped != accLogBase;
+                accLogBase = clamped;
+                if (changed)
+                    SettingsChanged?.Invoke();
+            }
+
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowAccLog => SelectedMainItem?.Key == "acc_log" || SelectedSubItem?.Key == "acc_log";
 
     /// <summary>What Score log measures from: a fixed score, or a place on the leaderboard.</summary>
     public IReadOnlyList<OverlayOption> BaseModeOptions { get; } =
@@ -734,6 +773,8 @@ public sealed class MainWindowViewModel : ObservableObject
         selectedBaseMode = BaseModeOptions.FirstOrDefault(o => o.Key == display.BaseMode) ?? BaseModeOptions[0];
         rankTarget = display.RankTarget;
         baseScore = display.BaseScore;
+        selectedAccLogKind = AccLogKindOptions.FirstOrDefault(o => o.Key == display.AccLogKind) ?? AccLogKindOptions[1];
+        accLogBase = display.AccLogBase;
         fillingOverlayOptions = false;
 
         OnPropertyChanged(nameof(SelectedMainItem));
@@ -743,12 +784,16 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedBaseMode));
         OnPropertyChanged(nameof(BaseText));
         OnPropertyChanged(nameof(ShowScoreBase));
+        OnPropertyChanged(nameof(SelectedAccLogKind));
+        OnPropertyChanged(nameof(AccLogBaseText));
+        OnPropertyChanged(nameof(ShowAccLog));
     }
 
     /// <summary>The pickers' choices.</summary>
     public OverlayDisplay OverlayDisplay => new(
         SelectedMainItem?.Key ?? "score", SelectedMainShow?.Key ?? OverlayShow.Diff,
-        SelectedSubItem?.Key ?? "acc", SelectedSubShow?.Key ?? OverlayShow.Value, rankTarget, selectedBaseMode?.Key ?? "score", baseScore);
+        SelectedSubItem?.Key ?? "acc", SelectedSubShow?.Key ?? OverlayShow.Value, rankTarget, selectedBaseMode?.Key ?? "score", baseScore,
+        selectedAccLogKind?.Key ?? "lazer", accLogBase);
 
     // --- Timeline mode and theme (radio groups) ---
 

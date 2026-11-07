@@ -59,6 +59,8 @@ public static class OverlayItems
         // where the score would land on the leaderboard at this pace; hidden below 50th
         new("live_rank", "Live rank", "rank", true),
         new("acc", "Acc", "percent", true),
+        // 0 at a picked accuracy, +10 each time the accuracy lost is halved; the formula is picked too (metrics.js)
+        new("acc_log", "Acc log", "decimal", true),
         new("stable_acc", "Stable acc", "percent", true),
         new("lazer_acc", "Lazer acc", "percent", true),
         // MAX ÷ 300, with no 300 yet as one (so it reads the MAX count until the first 300)
@@ -174,6 +176,7 @@ public static class OverlayItems
         ["score_acc_log"] = "Score",
         ["pp_score"] = "Score",
         ["acc"] = "Accuracy",
+        ["acc_log"] = "Accuracy",
         ["stable_acc"] = "Accuracy",
         ["lazer_acc"] = "Accuracy",
         ["pp_acc"] = "Accuracy",

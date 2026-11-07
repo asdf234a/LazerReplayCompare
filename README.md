@@ -5,6 +5,7 @@ LazerReplayCompare races your osu!mania play, in osu!lazer or osu!stable, agains
 ## What's new in 1.4.0
 
 - **Score log.** A new overlay item: how far you are from a base, on a scale where +10 means half the score lost. The base is a fixed score (999,000 by default) or a place on the beatmap's leaderboard, picked on the Compare page.
+- **Acc log.** The same scale for accuracy: 0 at a base accuracy you pick (95% by default), +10 for half the accuracy lost, measuring Stable, Lazer or PPacc accuracy.
 - **Live rank.** Where your score would land on the beatmap's leaderboard at this pace, shown as `#32`, hidden below 50th.
 - **Leaderboards in osu!lazer.** tosu can only read osu!stable's leaderboard, so the app reads osu!lazer's from the osu! API. Make an OAuth client under osu! account settings → OAuth and enter it in Settings → osu! API. Each beatmap is asked for once, when you play it.
 - **Shorter item lists.** Settings → Overlay items picks what the Main and Sub lists offer, and the lists are sorted into groups.

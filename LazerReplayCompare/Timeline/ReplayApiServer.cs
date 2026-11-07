@@ -303,6 +303,7 @@ public sealed class ReplayApiServer : IDisposable
                 main = new { item = display.MainItem, show = display.MainShow },
                 sub = new { item = display.SubItem, show = display.SubShow },
                 @base = new { mode = display.BaseMode, score = display.BaseScore, rank = display.RankTarget },
+                accBase = new { kind = display.AccLogKind, percent = display.AccLogBase },
             },
             // built-in items, and custom ones (judgement-count formulas) from metrics.json
             items = OverlayItems.ToJson(),

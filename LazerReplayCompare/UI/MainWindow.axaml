@@ -236,6 +236,15 @@
                            ToolTip.Tip="A score like 999000 or 999.5k, or a place from 1 to 50. Without that place on the leaderboard, Score log uses the last fixed score." />
                 </StackPanel>
               </Border>
+              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12" IsVisible="{Binding ShowAccLog}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="secondary" Text="Acc" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
+                  <ComboBox MinWidth="92" ItemsSource="{Binding AccLogKindOptions}" SelectedItem="{Binding SelectedAccLogKind, Mode=TwoWay}"
+                            ToolTip.Tip="Which accuracy Acc log measures" />
+                  <TextBox Width="84" Text="{Binding AccLogBaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="AccLogBaseKeyDown"
+                           ToolTip.Tip="The accuracy where Acc log is 0" />
+                </StackPanel>
+              </Border>
             </WrapPanel>
           </Grid>
 

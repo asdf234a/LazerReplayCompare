@@ -23,6 +23,12 @@ public sealed class AppSettings
     /// <summary>The leaderboard place (1..50) Score log measures from.</summary>
     public int RankTarget { get; set; } = 50;
 
+    /// <summary>What Acc log measures: "stable", "lazer" or "pp".</summary>
+    public string AccLogKind { get; set; } = "lazer";
+
+    /// <summary>The accuracy, in percent, where Acc log is 0.</summary>
+    public double AccLogBase { get; set; } = 95;
+
     /// <summary>Items left out of the Main and Sub lists (Settings).</summary>
     public List<string> HiddenItems { get; set; } = new();
 

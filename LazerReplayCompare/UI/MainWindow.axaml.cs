@@ -496,6 +496,12 @@ public sealed partial class MainWindow : Window
             viewModel.BaseText = box.Text ?? string.Empty;
     }
 
+    private void AccLogBaseKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && sender is TextBox box)
+            viewModel.AccLogBaseText = box.Text ?? string.Empty;
+    }
+
     private void OsuStablePathKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)

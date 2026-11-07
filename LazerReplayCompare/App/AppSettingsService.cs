@@ -95,7 +95,8 @@ public sealed class AppSettingsService
     public void SetOverlayDisplay(OverlayDisplay display)
     {
         if (Current.MainItem == display.MainItem && Current.MainShow == display.MainShow && Current.SubItem == display.SubItem && Current.SubShow == display.SubShow
-            && Current.BaseMode == display.BaseMode && Current.BaseScore == display.BaseScore && Current.RankTarget == display.RankTarget)
+            && Current.BaseMode == display.BaseMode && Current.BaseScore == display.BaseScore && Current.RankTarget == display.RankTarget
+            && Current.AccLogKind == display.AccLogKind && Current.AccLogBase == display.AccLogBase)
             return;
 
         Current.MainItem = display.MainItem;
@@ -105,6 +106,8 @@ public sealed class AppSettingsService
         Current.BaseMode = display.BaseMode;
         Current.BaseScore = display.BaseScore;
         Current.RankTarget = display.RankTarget;
+        Current.AccLogKind = display.AccLogKind;
+        Current.AccLogBase = display.AccLogBase;
         Save();
     }
 
@@ -112,8 +115,10 @@ public sealed class AppSettingsService
     public OverlayDisplay OverlayDisplay => new(
         OverlayItems.Normalize(Current.MainItem, "score", allowOff: true), OverlayShow.Normalize(Current.MainShow, OverlayShow.Diff),
         OverlayItems.Normalize(Current.SubItem, "acc", allowOff: true), OverlayShow.Normalize(Current.SubShow, OverlayShow.Value),
-        Math.Clamp(Current.RankTarget, 1, 50), Current.BaseMode == "rank" ? "rank" : "score", Math.Clamp(Current.BaseScore, 1, 999999));
+        Math.Clamp(Current.RankTarget, 1, 50), Current.BaseMode == "rank" ? "rank" : "score", Math.Clamp(Current.BaseScore, 1, 999999),
+        Current.AccLogKind is "stable" or "pp" ? Current.AccLogKind : "lazer", Math.Clamp(Current.AccLogBase, 0.01, 99.99));
 }
 
 /// <summary>What the Main and Sub overlays show (the live panel shows both items).</summary>
-public sealed record OverlayDisplay(string MainItem, string MainShow, string SubItem, string SubShow, int RankTarget = 50, string BaseMode = "score", int BaseScore = 999000);
+public sealed record OverlayDisplay(string MainItem, string MainShow, string SubItem, string SubShow, int RankTarget = 50, string BaseMode = "score", int BaseScore = 999000,
+    string AccLogKind = "lazer", double AccLogBase = 95);

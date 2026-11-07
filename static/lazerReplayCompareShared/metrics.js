@@ -1,6 +1,6 @@
 // Items the overlays can show, and how their values are worked out.
 //
-// Built in: score, score_acc, score_acc_log, live_rank, acc, stable_acc, lazer_acc, ma_ratio. Which item each overlay shows, and any custom items (made
+// Built in: score, score_acc, score_acc_log, live_rank, acc, acc_log, stable_acc, lazer_acc, ma_ratio. Which item each overlay shows, and any custom items (made
 // of judgement counts, from the app's metrics.json), come from LazerReplayCompare's /state.
 
 export const OFF = 'off';
@@ -45,6 +45,15 @@ function countAccuracy(hits, values, max) {
 const STABLE_VALUES = { Perfect: 300, Great: 300, Good: 200, Ok: 100, Meh: 50 };
 // osu!lazer's osu!mania accuracy: MAX is worth 305.
 const LAZER_VALUES = { Perfect: 305, Great: 300, Good: 200, Ok: 100, Meh: 50 };
+// PPacc: every step of a judgement counts, MAX against 300 too.
+const PP_VALUES = { Perfect: 320, Great: 300, Good: 200, Ok: 100, Meh: 50 };
+
+// What Acc log can measure: the judgement values, their maximum, and what the smallest loss of a judgement costs.
+const ACC_LOG_KINDS = {
+    stable: { values: STABLE_VALUES, max: 300, smallestLoss: 1 / 3 },
+    lazer: { values: LAZER_VALUES, max: 305, smallestLoss: 5 / 305 },
+    pp: { values: PP_VALUES, max: 320, smallestLoss: 20 / 320 },
+};
 
 /**
  * Score as a share of the best possible so far (0..1), or null. Exactly 1 while every judgement so far is a MAX, whatever
@@ -83,6 +92,18 @@ function lostShare(s) {
 function baseLostShare(s) {
     const score = baseMode === 'rank' ? Number(s.rankScores?.[basePlace - 1]) : 0;
     return score > 0 && score < 1000000 ? 1 - score / 1000000 : 1 - baseScore / 1000000;
+}
+
+/**
+ * Share of the accuracy lost so far, or null. Never zero: nothing lost counts as GREATS_IN_ALL_MAX of the smallest loss a
+ * judgement can cost, the same way Score log treats all MAX.
+ */
+function lostAccuracy(s) {
+    const total = totalHits(s.hits);
+    if (total <= 0) return null;
+    const kind = ACC_LOG_KINDS[accLogKind];
+    const lost = 1 - weighted(s.hits, kind.values) / (kind.max * total);
+    return lost > 1e-12 ? lost : (GREATS_IN_ALL_MAX * kind.smallestLoss) / total;
 }
 
 /**
@@ -134,6 +155,16 @@ const BUILT_IN = {
         },
     },
     acc: { name: 'Acc', format: 'percent', scaleKey: 'Acc', value: (s) => (Number(s.accuracy) || 0) * 100 },
+    // 0 at its base accuracy (95% unless picked otherwise), +10 each time the accuracy lost is halved.
+    acc_log: {
+        name: 'Acc log',
+        format: 'decimal',
+        scaleKey: 'Score',
+        value: (s) => {
+            const lost = lostAccuracy(s);
+            return lost == null ? null : 10 * Math.log2((1 - accLogBase / 100) / lost);
+        },
+    },
     stable_acc: { name: 'Stable acc', format: 'percent', scaleKey: 'V1Acc', hits: true, value: (s) => countAccuracy(s.hits, STABLE_VALUES, 300) },
     lazer_acc: { name: 'Lazer acc', format: 'percent', scaleKey: 'LazerAcc', hits: true, value: (s) => countAccuracy(s.hits, LAZER_VALUES, 305) },
     // MAX ÷ 300; with no 300 yet it divides by one, so it reads the MAX count until the first 300
@@ -170,11 +201,22 @@ let stableClient = false;
 let baseMode = 'score';
 let baseScore = 999000;
 let basePlace = 50;
+// what Acc log measures, and the accuracy (in percent) where it is 0, picked in the app
+let accLogKind = 'lazer';
+let accLogBase = 95;
 
 /** The game being played ('lazer' or 'stable'): percentages are shown the way it shows them. */
 export function setClient(client) {
     cutPercentages = client !== 'stable';
     stableClient = client === 'stable';
+}
+
+/** What Acc log measures: { kind: 'stable' | 'lazer' | 'pp', percent }, picked in the app. */
+export function setAccBase(base) {
+    if (!base) return;
+    if (ACC_LOG_KINDS[base.kind]) accLogKind = base.kind;
+    const percent = Number(base.percent);
+    if (percent > 0 && percent < 100) accLogBase = percent;
 }
 
 /** What Score log measures from: { mode: 'score' | 'rank', score, rank }, picked in the app. */
