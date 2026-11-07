@@ -11,6 +11,7 @@ public sealed class ReplayApiServer : IDisposable
     private readonly Func<OverlayDisplay> getOverlayDisplay;
     private readonly Func<IEnumerable<string?>> getAllowedRoots;
     private readonly ReplayTimelineBuilder timelineBuilder;
+    private readonly OsuLeaderboard leaderboard;
 
     // /perfect results by beatmap, client and mods (most recent last)
     private readonly List<(string Key, long[] Scores)> perfectScores = new();
@@ -25,8 +26,10 @@ public sealed class ReplayApiServer : IDisposable
         Func<CorrectionMode> getDefaultCorrectionMode,
         Func<OverlayDisplay> getOverlayDisplay,
         Func<IEnumerable<string?>> getAllowedRoots,
-        ReplayTimelineBuilder timelineBuilder)
+        ReplayTimelineBuilder timelineBuilder,
+        OsuLeaderboard leaderboard)
     {
+        this.leaderboard = leaderboard;
         this.timelineBuilder = timelineBuilder;
         this.getReplays = getReplays;
         this.getDefaultCorrectionMode = getDefaultCorrectionMode;
@@ -194,6 +197,16 @@ public sealed class ReplayApiServer : IDisposable
                 return;
             }
 
+            if (uri.AbsolutePath == "/leaderboard")
+            {
+                var query = ParseQuery(uri.Query);
+                IReadOnlyList<LeaderboardScore> scores = int.TryParse(GetQueryValue(query, "beatmap"), out var beatmapId)
+                    ? leaderboard.GetAsync(beatmapId).GetAwaiter().GetResult()
+                    : [];
+                Respond(new { scores = scores.Select(score => new { position = score.Position, id = score.UserId, name = score.Name, score = score.Score }) });
+                return;
+            }
+
             if (uri.AbsolutePath == "/metrics")
             {
                 Respond(new { metrics = MetricRegistry.ToJson() });
@@ -289,6 +302,7 @@ public sealed class ReplayApiServer : IDisposable
             {
                 main = new { item = display.MainItem, show = display.MainShow },
                 sub = new { item = display.SubItem, show = display.SubShow },
+                @base = new { mode = display.BaseMode, score = display.BaseScore, rank = display.RankTarget },
             },
             // built-in items, and custom ones (judgement-count formulas) from metrics.json
             items = OverlayItems.ToJson(),

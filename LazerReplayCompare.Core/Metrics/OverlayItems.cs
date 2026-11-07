@@ -6,10 +6,14 @@ namespace LazerReplayCompare;
 /// Something an overlay can show. Built-in items are worked out by the overlays themselves; custom items (from
 /// metrics.json) are weighted sums of judgement counts, sent to the overlays with their definition.
 /// </summary>
-/// <param name="Format">"integer", "percent" or "decimal" (two decimals, no unit).</param>
+/// <param name="Format">"integer", "percent", "decimal" (two decimals, no unit) or "rank" (#32).</param>
 /// <param name="Weights">Value of one judgement (Perfect, Great, Good, Ok, Meh, Miss), custom items only.</param>
 /// <param name="Average">Divide by the number of judgements (an accuracy-like value).</param>
 /// <param name="Scale">Multiplier applied last.</param>
+/// <param name="Per">Judgement values of a sum to divide by (instead of <paramref name="Average"/>), custom items only.</param>
+/// <param name="Add">Added to the sum and to what it is divided by, so nothing starts at zero (0 ÷ 0, log 0).</param>
+/// <param name="Log">Base of a logarithm taken of the value (before <paramref name="Scale"/>); null for none.</param>
+/// <param name="Pow">Power the value is raised to after <paramref name="Log"/>, keeping its sign; null for none.</param>
 public sealed record OverlayItem(
     string Key,
     string Name,
@@ -18,7 +22,11 @@ public sealed record OverlayItem(
     IReadOnlyDictionary<string, double>? Weights = null,
     bool Average = false,
     double Scale = 1,
-    bool Round = false);
+    bool Round = false,
+    IReadOnlyDictionary<string, double>? Per = null,
+    double Add = 0,
+    double? Log = null,
+    double? Pow = null);
 
 /// <summary>How an overlay shows its item: the difference to the compared replay, the live value, or the replay's value.</summary>
 public static class OverlayShow
@@ -45,6 +53,11 @@ public static class OverlayItems
     [
         new("score", "Score", "integer", true),
         new("score_acc", "Score acc", "percent", true),
+        // 0 at a base picked on the Compare page (999,000, or a place on the leaderboard), +10 each time the score lost is
+        // halved; all MAX counts as e^-gamma of a 300 (see metrics.js)
+        new("score_acc_log", "Score log", "decimal", true),
+        // where the score would land on the leaderboard at this pace; hidden below 50th
+        new("live_rank", "Live rank", "rank", true),
         new("acc", "Acc", "percent", true),
         new("stable_acc", "Stable acc", "percent", true),
         new("lazer_acc", "Lazer acc", "percent", true),
@@ -63,6 +76,8 @@ public static class OverlayItems
         ["PpScore"] = "pp_score",
         ["MaRatio"] = "ma_ratio",
         ["MA"] = "ma_ratio",
+        ["rank_log"] = "score_acc_log",
+        ["score_k"] = "score_acc_log",
         ["None"] = Off,
     };
 
@@ -149,6 +164,28 @@ public static class OverlayItems
         return All.FirstOrDefault(item => same(item.Key, name))?.Key ?? fallback;
     }
 
+    /// <summary>The groups of the item lists, in order.</summary>
+    public static readonly IReadOnlyList<string> Groups = ["Score", "Accuracy", "Judgements", "Ranking", "Custom"];
+
+    private static readonly Dictionary<string, string> item_groups = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["score"] = "Score",
+        ["score_acc"] = "Score",
+        ["score_acc_log"] = "Score",
+        ["pp_score"] = "Score",
+        ["acc"] = "Accuracy",
+        ["stable_acc"] = "Accuracy",
+        ["lazer_acc"] = "Accuracy",
+        ["pp_acc"] = "Accuracy",
+        ["ma_ratio"] = "Judgements",
+        ["bms"] = "Judgements",
+        ["miss_count"] = "Judgements",
+        ["live_rank"] = "Ranking",
+    };
+
+    /// <summary>The group an item is listed under; a custom item the app doesn't know goes under Custom.</summary>
+    public static string GroupOf(string item) => item_groups.GetValueOrDefault(item, "Custom");
+
     /// <summary>The <see cref="MetricRegistry"/> metric a scaled timeline is stretched by for this item.</summary>
     public static string ScaleMetric(string item) => item.ToLowerInvariant() switch
     {
@@ -171,6 +208,10 @@ public static class OverlayItems
         average = item.Average,
         scale = item.Scale,
         round = item.Round,
+        per = item.Per,
+        add = item.Add,
+        log = item.Log,
+        pow = item.Pow,
     }).ToList();
 
     private static bool same(string a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
@@ -188,6 +229,10 @@ public static class OverlayItems
         public string? Format { get; set; }
         public double? Scale { get; set; }
         public bool Round { get; set; }
+        public Dictionary<string, double>? Per { get; set; }
+        public double Add { get; set; }
+        public double? Log { get; set; }
+        public double? Pow { get; set; }
     }
 
     private static IReadOnlyList<OverlayItem> parse(string text)
@@ -198,13 +243,25 @@ public static class OverlayItems
                .Select(entry => new OverlayItem(
                    entry.Key.Trim(),
                    string.IsNullOrWhiteSpace(entry.Value.Name) ? entry.Key.Trim() : entry.Value.Name.Trim(),
-                   string.Equals(entry.Value.Format, "percent", StringComparison.OrdinalIgnoreCase) ? "percent" : "integer",
+                   customFormat(entry.Value.Format),
                    false,
                    entry.Value.Weights,
                    entry.Value.Average,
                    entry.Value.Scale is > 0 or < 0 ? entry.Value.Scale.Value : 1,
-                   entry.Value.Round))
+                   entry.Value.Round,
+                   entry.Value.Per is { Count: > 0 } ? entry.Value.Per : null,
+                   entry.Value.Add,
+                   entry.Value.Log is > 0 and not 1 ? entry.Value.Log : null,
+                   entry.Value.Pow is > 0 and not 1 ? entry.Value.Pow : null))
                .ToList();
+    }
+
+    private static string customFormat(string? format)
+    {
+        if (string.Equals(format, "percent", StringComparison.OrdinalIgnoreCase))
+            return "percent";
+
+        return string.Equals(format, "decimal", StringComparison.OrdinalIgnoreCase) ? "decimal" : "integer";
     }
 
     private const string example = """
@@ -215,7 +272,11 @@ public static class OverlayItems
             //   name     shown name
             //   weights  value of one Perfect (MAX), Great (300), Good (200), Ok (100), Meh (50), Miss
             //   average  divide by the number of judgements (an accuracy-like value)
-            //   format   "integer" or "percent" (shown with two decimals and %)
+            //   per      divide by this sum of judgement values instead (optional)
+            //   add      added to the sum and to what it is divided by, so nothing starts at zero (optional)
+            //   log      take the logarithm in this base (optional): 2, 10, or 2.718281828 for ln
+            //   pow      raise the value to this power, after log, keeping its sign (optional)
+            //   format   "integer", "percent" (two decimals and %) or "decimal" (two decimals)
             //   scale    multiplier applied last (optional)
             //   round    round to a whole number (optional)
             "metrics": {

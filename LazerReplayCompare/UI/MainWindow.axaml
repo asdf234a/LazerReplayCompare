@@ -227,6 +227,15 @@
                             ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
                 </StackPanel>
               </Border>
+              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12" IsVisible="{Binding ShowScoreBase}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="secondary" Text="Base" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
+                  <ComboBox MinWidth="92" ItemsSource="{Binding BaseModeOptions}" SelectedItem="{Binding SelectedBaseMode, Mode=TwoWay}"
+                            ToolTip.Tip="Where Score log is 0: a fixed score, or a place on the beatmap's leaderboard" />
+                  <TextBox Width="104" Text="{Binding BaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="BaseTextKeyDown"
+                           ToolTip.Tip="A score like 999000 or 999.5k, or a place from 1 to 50. Without that place on the leaderboard, Score log uses the last fixed score." />
+                </StackPanel>
+              </Border>
             </WrapPanel>
           </Grid>
 
@@ -498,6 +507,55 @@
                 <Button Classes="primary" Content="Open overlay folder" Click="OpenOverlayFolder" IsVisible="{Binding HasOverlayFolder}" />
               </StackPanel>
             </Grid>
+          </Border>
+
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">
+            <StackPanel Spacing="12">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="sectionTitle" Text="Overlay items" />
+                <TextBlock Classes="muted" FontSize="13" Text="What the Main and Sub lists on the Compare page offer. An item in use stays listed." TextWrapping="Wrap" />
+              </StackPanel>
+              <ItemsControl ItemsSource="{Binding OverlayItemGroups}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="10" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="local:OverlayItemGroup">
+                    <StackPanel Spacing="2">
+                      <TextBlock Classes="muted" FontSize="12" Text="{Binding Name}" />
+                      <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="18" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="local:OverlayItemToggle">
+                            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsShown, Mode=TwoWay}" />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">
+            <StackPanel Spacing="10">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="sectionTitle" Text="osu! API" />
+                <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
+                           Text="For leaderboards in osu!lazer (Score log from a rank, Live rank): tosu can only read osu!stable's. Make an OAuth client under osu! account settings → OAuth. Each beatmap is asked for once, when you play it. The secret is kept unencrypted in settings.json." />
+              </StackPanel>
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                <TextBox Text="{Binding OsuClientId, Mode=TwoWay}" PlaceholderText="Client ID" />
+                <TextBox Grid.Column="1" Text="{Binding OsuClientSecret, Mode=TwoWay}" PlaceholderText="Client Secret" PasswordChar="•" />
+              </Grid>
+            </StackPanel>
           </Border>
 
           <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">

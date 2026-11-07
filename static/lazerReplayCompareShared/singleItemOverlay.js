@@ -6,7 +6,7 @@
 //       target – the compared replay's value at the same note
 
 import { createCounter } from './counter.js';
-import { OFF, itemValue, needsPerfect, resolveItem, scaleKeyOf, setItems, timelineFactor } from './metrics.js';
+import { OFF, itemValue, needsPerfect, needsRank, resolveItem, scaleKeyOf, setItems, setScoreBase, timelineFactor } from './metrics.js';
 import { createSession } from './session.js';
 
 const SHOW_MODES = ['diff', 'value', 'target'];
@@ -29,8 +29,10 @@ export function startSingleItemOverlay({ name, role, defaults }) {
         // a scaled timeline is stretched by what this overlay shows
         scaleMetric: () => scaleKeyOf(currentItem()),
         needsPerfect: () => needsPerfect(currentItem()),
+        needsRank: () => needsRank(currentItem()),
         onState: (data) => {
             setItems(data?.items);
+            setScoreBase(data?.display?.base);
             const chosen = data?.display?.[role];
             if (!chosen) return;
             display.item = chosen.item ?? display.item;

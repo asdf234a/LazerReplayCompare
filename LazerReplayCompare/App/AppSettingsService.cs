@@ -57,6 +57,23 @@ public sealed class AppSettingsService
         Save();
     }
 
+    public void SetHiddenItems(IEnumerable<string> items)
+    {
+        var list = items.Order(StringComparer.Ordinal).ToList();
+        if (list.SequenceEqual(Current.HiddenItems))
+            return;
+
+        Current.HiddenItems = list;
+        Save();
+    }
+
+    public void SetOsuClient(string clientId, string secret)
+    {
+        Current.OsuClientId = clientId;
+        Current.OsuClientSecret = secret;
+        Save();
+    }
+
     public void SetOpenDetailsOnResults(bool open)
     {
         if (Current.OpenDetailsOnResults == open)
@@ -75,23 +92,28 @@ public sealed class AppSettingsService
         Save();
     }
 
-    public void SetOverlayDisplay(string mainItem, string mainShow, string subItem, string subShow)
+    public void SetOverlayDisplay(OverlayDisplay display)
     {
-        if (Current.MainItem == mainItem && Current.MainShow == mainShow && Current.SubItem == subItem && Current.SubShow == subShow)
+        if (Current.MainItem == display.MainItem && Current.MainShow == display.MainShow && Current.SubItem == display.SubItem && Current.SubShow == display.SubShow
+            && Current.BaseMode == display.BaseMode && Current.BaseScore == display.BaseScore && Current.RankTarget == display.RankTarget)
             return;
 
-        Current.MainItem = mainItem;
-        Current.MainShow = mainShow;
-        Current.SubItem = subItem;
-        Current.SubShow = subShow;
+        Current.MainItem = display.MainItem;
+        Current.MainShow = display.MainShow;
+        Current.SubItem = display.SubItem;
+        Current.SubShow = display.SubShow;
+        Current.BaseMode = display.BaseMode;
+        Current.BaseScore = display.BaseScore;
+        Current.RankTarget = display.RankTarget;
         Save();
     }
 
     /// <summary>What the overlays show, normalised (unknown items fall back to score / acc).</summary>
     public OverlayDisplay OverlayDisplay => new(
         OverlayItems.Normalize(Current.MainItem, "score", allowOff: true), OverlayShow.Normalize(Current.MainShow, OverlayShow.Diff),
-        OverlayItems.Normalize(Current.SubItem, "acc", allowOff: true), OverlayShow.Normalize(Current.SubShow, OverlayShow.Value));
+        OverlayItems.Normalize(Current.SubItem, "acc", allowOff: true), OverlayShow.Normalize(Current.SubShow, OverlayShow.Value),
+        Math.Clamp(Current.RankTarget, 1, 50), Current.BaseMode == "rank" ? "rank" : "score", Math.Clamp(Current.BaseScore, 1, 999999));
 }
 
 /// <summary>What the Main and Sub overlays show (the live panel shows both items).</summary>
-public sealed record OverlayDisplay(string MainItem, string MainShow, string SubItem, string SubShow);
+public sealed record OverlayDisplay(string MainItem, string MainShow, string SubItem, string SubShow, int RankTarget = 50, string BaseMode = "score", int BaseScore = 999000);

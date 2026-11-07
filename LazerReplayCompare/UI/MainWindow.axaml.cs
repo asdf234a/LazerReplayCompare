@@ -25,6 +25,7 @@ public sealed partial class MainWindow : Window
     private readonly TosuClient tosuClient = new();
     private readonly ReplayTimelineBuilder timelineBuilder = new();
     private readonly ReplayApiServer apiServer;
+    private readonly OsuLeaderboard leaderboard;
     private readonly object replayLock = new();
     private readonly AppSettingsService settingsService = new();
     private readonly ReplaySelectionService replaySelection = new();
@@ -98,7 +99,8 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
-        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, () => settingsService.OverlayDisplay, GetApiAllowedRoots, timelineBuilder);
+        leaderboard = new OsuLeaderboard(() => (settingsService.Current.OsuClientId, settingsService.Current.OsuClientSecret));
+        apiServer = new ReplayApiServer(GetCurrentReplays, GetCurrentCorrectionMode, () => settingsService.OverlayDisplay, GetApiAllowedRoots, timelineBuilder, leaderboard);
 
         AvaloniaXamlLoader.Load(this);
         DataContext = viewModel;
@@ -242,6 +244,7 @@ public sealed partial class MainWindow : Window
         compactWindow?.Close();
         tosuClient.Dispose();
         apiServer.Dispose();
+        leaderboard.Dispose();
         base.OnClosed(e);
     }
 
@@ -261,6 +264,8 @@ public sealed partial class MainWindow : Window
         viewModel.Theme = NormalizeTheme(current.Theme);
         viewModel.ShowBackground = current.ShowBackground;
         viewModel.OpenDetailsOnResults = current.OpenDetailsOnResults;
+        viewModel.OsuClientId = current.OsuClientId;
+        viewModel.OsuClientSecret = current.OsuClientSecret;
         applyZoom(current.Zoom);
         viewModel.CorrectionMode = ParseCorrectionMode(current.CorrectionMode);
 
@@ -268,7 +273,7 @@ public sealed partial class MainWindow : Window
 
         // custom overlay items: metrics.json next to the settings, watched so new items appear in the pickers at once
         OverlayItems.CustomPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LazerReplayCompare", "metrics.json");
-        viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay);
+        viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay, settingsService.Current.HiddenItems);
         watchCustomItems();
         lastTimelineSettings = (viewModel.CorrectionMode, OverlayItems.ScaleMetric(viewModel.OverlayDisplay.MainItem));
     }
@@ -278,9 +283,11 @@ public sealed partial class MainWindow : Window
         settingsService.SetTheme(viewModel.Theme);
         settingsService.SetShowBackground(viewModel.ShowBackground);
         settingsService.SetOpenDetailsOnResults(viewModel.OpenDetailsOnResults);
+        settingsService.SetOsuClient(viewModel.OsuClientId, viewModel.OsuClientSecret);
         settingsService.SetCorrectionMode(viewModel.CorrectionMode);
         var display = viewModel.OverlayDisplay;
-        settingsService.SetOverlayDisplay(display.MainItem, display.MainShow, display.SubItem, display.SubShow);
+        settingsService.SetOverlayDisplay(display);
+        settingsService.SetHiddenItems(viewModel.HiddenItems);
 
         ThemeService.Apply(this, viewModel.Theme);
         if (compactWindow != null)
@@ -318,7 +325,7 @@ public sealed partial class MainWindow : Window
                 try
                 {
                     await Task.Delay(150);   // editors write in several steps
-                    viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay);
+                    viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay, settingsService.Current.HiddenItems);
                 }
                 catch (Exception ex)
                 {
@@ -481,6 +488,13 @@ public sealed partial class MainWindow : Window
     }
 
     private void OsuStablePathCommitted(object? sender, RoutedEventArgs e) => CommitOsuStablePath();
+
+    // the base's text box applies on leaving it, and on Enter
+    private void BaseTextKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && sender is TextBox box)
+            viewModel.BaseText = box.Text ?? string.Empty;
+    }
 
     private void OsuStablePathKeyDown(object? sender, KeyEventArgs e)
     {

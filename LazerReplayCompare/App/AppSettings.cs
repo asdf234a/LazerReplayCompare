@@ -16,6 +16,20 @@ public sealed class AppSettings
     public string SubItem { get; set; } = string.Empty;
     public string SubShow { get; set; } = OverlayShow.Value;
 
+    /// <summary>What Score log measures from: "score" (<see cref="BaseScore"/>) or "rank" (<see cref="RankTarget"/>).</summary>
+    public string BaseMode { get; set; } = "score";
+    public int BaseScore { get; set; } = 999000;
+
+    /// <summary>The leaderboard place (1..50) Score log measures from.</summary>
+    public int RankTarget { get; set; } = 50;
+
+    /// <summary>Items left out of the Main and Sub lists (Settings).</summary>
+    public List<string> HiddenItems { get; set; } = new();
+
+    /// <summary>The user's osu! OAuth client, for osu!lazer's leaderboards (tosu can't read them).</summary>
+    public string OsuClientId { get; set; } = string.Empty;
+    public string OsuClientSecret { get; set; } = string.Empty;
+
     // Before 1.2 the overlays' metrics: read once into MainItem / SubItem, then dropped.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? MainMetric { get; set; }
@@ -49,6 +63,9 @@ public sealed class AppSettings
             if (string.IsNullOrWhiteSpace(settings.SubItem) && !string.IsNullOrWhiteSpace(settings.SubMetric))
                 settings.SubItem = settings.SubMetric;
             settings.MainMetric = settings.SubMetric = null;
+            // Rank N log became Score log measured from a place
+            if (settings.MainItem == "rank_log" || settings.SubItem == "rank_log")
+                settings.BaseMode = "rank";
             return settings;
         }
         catch (Exception ex)

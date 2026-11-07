@@ -25,13 +25,15 @@ const LAZER_COMPARE_HOST = window.LAZER_COMPARE_HOST || '127.0.0.1:24052';
  * @param {() => void} options.onUpdate            Called whenever something shown may have changed.
  * @param {() => string} [options.scaleMetric]     App metric to stretch scaled timelines by (from the shown item).
  * @param {() => boolean} [options.needsPerfect]   Whether perfect scores are needed (score_acc is shown).
+ * @param {() => boolean} [options.needsRank]      Whether the leaderboard's scores are needed (Score log from a place, or Live rank, is shown).
  * @param {(data: object) => void} [options.onState]  Called with every /state answer (what to show, custom items).
  */
-export function createSession({ name, onUpdate, scaleMetric = () => 'Score', needsPerfect = () => false, onState = () => {} }) {
+export function createSession({ name, onUpdate, scaleMetric = () => 'Score', needsPerfect = () => false, needsRank = () => false, onState = () => {} }) {
     const state = {
         client: 'lazer',
         gameState: '',
         beatmapChecksum: '',
+        beatmapId: 0,
         songsFolder: '',
         beatmapFolder: '',
         beatmapFile: '',
@@ -62,6 +64,10 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
         // score if every judgement so far were MAX: live play's mods, and the replay's
         perfectLive: null,
         perfectReplay: null,
+
+        // the beatmap's leaderboard, best first, without the play going on; the same without the player's own scores
+        rankScores: [],
+        rankOthers: [],
     };
 
     let loadedStateKey = '';
@@ -72,6 +78,9 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
     let retryAfter = 0;
     const retry_delay = 5000;
     const perfectCache = new Map();
+    let rankCheckAfter = 0;
+    let rankLoaded = false;     // for this play
+    const rank_check_delay = 5000;
 
     const baseKey = () => `${state.beatmapChecksum}|${state.osuPath}|${state.modsKey}`;
 
@@ -304,6 +313,47 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
         }
     }
 
+    /**
+     * The leaderboard, once per play, as soon as it is there: osu!stable's from tosu, osu!lazer's from the app (tosu can't
+     * read it; the app asks the osu! API, each beatmap once). Not part of the websocket's filters: it is the bulk of a
+     * message (tosu can't pick fields of a list), and it doesn't change during a play.
+     */
+    async function loadRanks() {
+        if (!isPlaying()) {
+            rankLoaded = false;
+            return;
+        }
+
+        if (!needsRank() || rankLoaded || Date.now() < rankCheckAfter) return;
+        rankCheckAfter = Date.now() + rank_check_delay;
+        try {
+            const beatmap = state.beatmapChecksum;
+            let rows;
+            if (state.client === 'stable') {
+                const response = await fetch(`http://${TOSU_HOST}/json/v2`);
+                const data = await response.json();
+                if (data.beatmap?.checksum !== beatmap || !Array.isArray(data.leaderboard)) return;
+                const liveScore = Number(data.play?.score);
+                rows = data.leaderboard.filter((row) => Number(row.id) !== 0 && !(row.name === state.player && Number(row.score) === liveScore));
+            } else {
+                if (!state.beatmapId) return;
+                const data = await fetchJson(`/leaderboard?beatmap=${state.beatmapId}`);
+                if (state.beatmapChecksum !== beatmap || !Array.isArray(data.scores)) return;
+                rows = data.scores;
+            }
+
+            rows = [...rows].sort((a, b) => Number(a.position) - Number(b.position));
+            if (rows.length === 0) return;
+
+            state.rankScores = rows.map((row) => Number(row.score));
+            state.rankOthers = rows.filter((row) => row.name !== state.player).map((row) => Number(row.score));
+            rankLoaded = true;
+            update();
+        } catch (err) {
+            console.warn(`[${name}] leaderboard:`, err.message || err);
+        }
+    }
+
     function onTosu(data) {
         if (data.client != null) {
             state.client = data.client;
@@ -316,11 +366,17 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
 
         if (data.beatmap?.checksum && data.beatmap.checksum !== state.beatmapChecksum) {
             state.beatmapChecksum = data.beatmap.checksum;
+            state.beatmapId = 0;
             state.hitIndex = 0;
             state.perfectLive = null;
+            state.rankScores = [];
+            state.rankOthers = [];
+            rankCheckAfter = 0;
+            rankLoaded = false;
             resetTarget();
         }
 
+        if (data.beatmap?.id != null) state.beatmapId = Number(data.beatmap.id) || 0;
         if (data.folders?.songs) state.songsFolder = data.folders.songs;
         if (data.folders?.beatmap != null) state.beatmapFolder = data.folders.beatmap;
         if (data.files?.beatmap) state.beatmapFile = data.files.beatmap;
@@ -357,7 +413,7 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
         socket.addEventListener('open', () => {
             socket.send(`applyFilters:${JSON.stringify([
                 'client',
-                { field: 'beatmap', keys: ['checksum'] },
+                { field: 'beatmap', keys: ['checksum', 'id'] },
                 { field: 'files', keys: ['beatmap'] },
                 { field: 'folders', keys: ['songs', 'beatmap'] },
                 { field: 'play', keys: ['score', 'accuracy', 'hits', 'combo', 'mods'] },
@@ -381,6 +437,7 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
 
     connect();
     setInterval(check, 1000);
+    setInterval(loadRanks, 1000);
 
     return {
         state,
@@ -389,9 +446,9 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
         isResults,
         baseKey,
         /** The live play as an item source. */
-        liveSource: () => ({ score: state.score, accuracy: state.accuracy, hits: state.hits, perfect: perfectAt(state.perfectLive, state.hitIndex) }),
+        liveSource: () => ({ score: state.score, accuracy: state.accuracy, hits: state.hits, perfect: perfectAt(state.perfectLive, state.hitIndex), rankScores: state.rankScores, rankOthers: state.rankOthers }),
         /** A replay frame as an item source. */
-        frameSource: (frame) => (frame ? { score: frame.score, accuracy: frame.accuracy, hits: frame.hits, perfect: perfectAt(state.perfectReplay, frame.index) } : null),
+        frameSource: (frame) => (frame ? { score: frame.score, accuracy: frame.accuracy, hits: frame.hits, perfect: perfectAt(state.perfectReplay, frame.index), rankScores: state.rankScores, rankOthers: state.rankOthers } : null),
         /** Re-checks now (after a config change that affects what is loaded). */
         refresh: () => check(),
     };

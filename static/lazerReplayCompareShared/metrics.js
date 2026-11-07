@@ -1,6 +1,6 @@
 // Items the overlays can show, and how their values are worked out.
 //
-// Built in: score, score_acc, acc, stable_acc, lazer_acc, ma_ratio. Which item each overlay shows, and any custom items (made
+// Built in: score, score_acc, score_acc_log, live_rank, acc, stable_acc, lazer_acc, ma_ratio. Which item each overlay shows, and any custom items (made
 // of judgement counts, from the app's metrics.json), come from LazerReplayCompare's /state.
 
 export const OFF = 'off';
@@ -47,8 +47,48 @@ const STABLE_VALUES = { Perfect: 300, Great: 300, Good: 200, Ok: 100, Meh: 50 };
 const LAZER_VALUES = { Perfect: 305, Great: 300, Good: 200, Ok: 100, Meh: 50 };
 
 /**
+ * Score as a share of the best possible so far (0..1), or null. Exactly 1 while every judgement so far is a MAX, whatever
+ * the two scores say (they can differ a little by then), and never above 1.
+ */
+function scoreShare(s) {
+    const total = totalHits(s.hits);
+    if (total > 0 && hitValue(s.hits, 'Perfect') === total) return 1;
+    return s.perfect > 0 ? Math.min((Number(s.score) || 0) / s.perfect, 1) : null;
+}
+
+// How many 300s a run of nothing but MAX stands for on a log scale: e^-gamma, the mean of log(rate) after seeing none,
+// for a Poisson rate with a flat prior.
+const GREATS_IN_ALL_MAX = Math.exp(-0.5772156649015329);
+
+/** Share of the score lost with `great` 300s among `total` judgements, nothing else but MAX, in the game being played. */
+function lostToGreats(great, total) {
+    const greats = great / total;
+    if (stableClient) return greats / 32;
+    const accuracy = 1 - greats / 61;
+    return 0.85 * (1 - Math.pow(accuracy, 2 + 2 * accuracy));
+}
+
+/**
+ * Share of the score lost so far, or null. Exactly as many 300s as GREATS_IN_ALL_MAX while every judgement is a MAX, so
+ * it is never zero.
+ */
+function lostShare(s) {
+    const total = totalHits(s.hits);
+    if (total > 0 && hitValue(s.hits, 'Perfect') === total) return lostToGreats(GREATS_IN_ALL_MAX, total);
+    const share = scoreShare(s);
+    return share == null || share >= 1 ? null : 1 - share;
+}
+
+/** Share of a million that Score log's base lost: the fixed score's without that place, or if that place lost nothing. */
+function baseLostShare(s) {
+    const score = baseMode === 'rank' ? Number(s.rankScores?.[basePlace - 1]) : 0;
+    return score > 0 && score < 1000000 ? 1 - score / 1000000 : 1 - baseScore / 1000000;
+}
+
+/**
  * A source is what an item is evaluated on: the live play or a replay frame, as
- * { score, accuracy (0..1), hits, perfect (score if every judgement so far were MAX, or null) }.
+ * { score, accuracy (0..1), hits, perfect (score if every judgement so far were MAX, or null), rankScores (the beatmap's
+ * leaderboard, best first, or nothing), rankOthers (the same without the player's own scores) }.
  * `scaleKey` names the app's metric a scaled timeline is stretched by (see timelineFactor).
  */
 const BUILT_IN = {
@@ -58,7 +98,40 @@ const BUILT_IN = {
         format: 'percent',
         scaleKey: 'Score',
         perfect: true,
-        value: (s) => (s.perfect > 0 ? (Number(s.score) || 0) / s.perfect * 100 : null),
+        value: (s) => {
+            const share = scoreShare(s);
+            return share == null ? null : share * 100;
+        },
+    },
+    // 0 at its base (999,000 unless picked otherwise), +10 each time the score lost is halved (10 at 999,500). All MAX so
+    // far has nothing lost, so it counts as GREATS_IN_ALL_MAX 300s: higher the longer it lasts, and the first 300 takes it
+    // down by about 8.
+    score_acc_log: {
+        name: 'Score log',
+        format: 'decimal',
+        scaleKey: 'Score',
+        perfect: true,
+        rank: () => baseMode === 'rank',
+        value: (s) => {
+            const lost = lostShare(s);
+            return lost == null ? null : 10 * Math.log2(baseLostShare(s) / lost);
+        },
+    },
+    // Where the score would land at this pace (Score acc x 1,000,000), among other players: a tie stays behind them. Nothing
+    // below 50th.
+    live_rank: {
+        name: 'Live rank',
+        format: 'rank',
+        scaleKey: 'Score',
+        perfect: true,
+        rank: () => true,
+        value: (s) => {
+            const share = scoreShare(s);
+            if (share == null || !s.rankOthers?.length) return null;
+            const expected = Math.floor(share * 1000000 + 1e-6);
+            const place = s.rankOthers.filter((score) => score >= expected).length + 1;
+            return place <= 50 ? place : null;
+        },
     },
     acc: { name: 'Acc', format: 'percent', scaleKey: 'Acc', value: (s) => (Number(s.accuracy) || 0) * 100 },
     stable_acc: { name: 'Stable acc', format: 'percent', scaleKey: 'V1Acc', hits: true, value: (s) => countAccuracy(s.hits, STABLE_VALUES, 300) },
@@ -92,10 +165,26 @@ let custom = {};
 
 // osu!lazer never shows a rounded-up percentage (its FormatAccuracy cuts it off at two decimals); osu!stable rounds.
 let cutPercentages = true;
+let stableClient = false;
+// what Score log measures from, picked in the app: a fixed score, or a place (1..50) on the beatmap's leaderboard
+let baseMode = 'score';
+let baseScore = 999000;
+let basePlace = 50;
 
 /** The game being played ('lazer' or 'stable'): percentages are shown the way it shows them. */
 export function setClient(client) {
     cutPercentages = client !== 'stable';
+    stableClient = client === 'stable';
+}
+
+/** What Score log measures from: { mode: 'score' | 'rank', score, rank }, picked in the app. */
+export function setScoreBase(base) {
+    if (!base) return;
+    baseMode = base.mode === 'rank' ? 'rank' : 'score';
+    const score = Math.round(Number(base.score));
+    if (score > 0 && score < 1000000) baseScore = score;
+    const place = Math.round(Number(base.rank));
+    if (place >= 1 && place <= 50) basePlace = place;
 }
 
 /**
@@ -113,7 +202,7 @@ function normalize(name) {
 
 /**
  * Replaces the custom items with the app's (the non-built-in entries of /state's `items`:
- * { key, name, format, weights, average, scale, round }). Ignored when missing.
+ * { key, name, format, weights, average, per, add, log, pow, scale, round }). Ignored when missing.
  */
 export function setItems(list) {
     if (!Array.isArray(list)) return;
@@ -121,17 +210,36 @@ export function setItems(list) {
     for (const item of list) {
         if (!item || item.builtIn || typeof item.key !== 'string' || !item.weights) continue;
         const scale = Number(item.scale) || 1;
+        const add = Number(item.add) || 0;
+        const logBase = Number(item.log) || 0;
+        const power = Number(item.pow) || 0;
         next[item.key] = {
             name: String(item.name || item.key),
-            format: item.format === 'percent' ? 'percent' : 'integer',
+            format: item.format === 'percent' || item.format === 'decimal' ? item.format : 'integer',
             // scaled timelines stretch the score; these keep the replay's own judgement counts
             scaleKey: 'Score',
             round: Boolean(item.round),
             value: (s) => {
-                const sum = weighted(s.hits, item.weights);
-                if (!item.average) return sum * scale;
                 const total = totalHits(s.hits);
-                return total > 0 ? (sum / total) * scale : null;
+                let value = weighted(s.hits, item.weights) + add;
+                if (item.per) {
+                    const divisor = weighted(s.hits, item.per) + add;
+                    if (divisor <= 0) return null;
+                    value /= divisor;
+                } else if (item.average) {
+                    if (total <= 0) return null;
+                    value /= total;
+                }
+
+                if (logBase > 0 && logBase !== 1) {
+                    if (total <= 0 || value <= 0) return null;
+                    value = Math.log(value) / Math.log(logBase);
+                }
+
+                // keeps the sign: a logarithm is negative below 1, where a fractional power has no value
+                if (power > 0 && power !== 1) value = Math.sign(value) * Math.pow(Math.abs(value), power);
+
+                return value * scale;
             },
         };
     }
@@ -162,6 +270,11 @@ export function itemName(key) {
 /** Whether the item needs the perfect scores (/perfect). */
 export function needsPerfect(key) {
     return Boolean(definition(key)?.perfect);
+}
+
+/** Whether the item measures from the beatmap's leaderboard. */
+export function needsRank(key) {
+    return Boolean(definition(key)?.rank?.());
 }
 
 /** The app metric a scaled timeline should be stretched by for this item. */
@@ -205,6 +318,11 @@ export function hasDecimals(key) {
  */
 export function formatItem(key, value, signed = false) {
     const number = shownValue(key, value, signed);
+
+    if (definition(key)?.format === 'rank' && !signed) {
+        const text = `#${Math.round(number)}`;
+        return { sign: '', value: text, suffix: '', text };
+    }
 
     if (hasDecimals(key)) {
         const text = Math.abs(number).toFixed(2);

@@ -2,6 +2,15 @@
 
 LazerReplayCompare races your osu!mania play, in osu!lazer or osu!stable, against your own saved replays. While you play, a tosu overlay shows, note by note, whether you are ahead of or behind the replay you are comparing against.
 
+## What's new in 1.4.0
+
+- **Score log.** A new overlay item: how far you are from a base, on a scale where +10 means half the score lost. The base is a fixed score (999,000 by default) or a place on the beatmap's leaderboard, picked on the Compare page.
+- **Live rank.** Where your score would land on the beatmap's leaderboard at this pace, shown as `#32`, hidden below 50th.
+- **Leaderboards in osu!lazer.** tosu can only read osu!stable's leaderboard, so the app reads osu!lazer's from the osu! API. Make an OAuth client under osu! account settings → OAuth and enter it in Settings → osu! API. Each beatmap is asked for once, when you play it.
+- **Shorter item lists.** Settings → Overlay items picks what the Main and Sub lists offer, and the lists are sorted into groups.
+- **Custom items.** `metrics.json` items can divide by a second sum (`per`), add to both sides so nothing starts at zero (`add`), take a logarithm (`log`), raise to a power (`pow`) and show two decimals (`"format": "decimal"`).
+- **Steady Score acc.** While every judgement so far is a MAX, Score acc is exactly 100%.
+
 ## What's new in 1.2.0
 
 - **Replay details.** Click a replay to open its details: rank, score, accuracy, MAX : 300 and max combo, the judgement ring, a hit error distribution, early/late, unstable rate and an offset hint, every press over the song, and long-note release charts. Each replay is judged by the engine of the game that recorded it; hover a chart to see its numbers.
@@ -99,7 +108,7 @@ Pick it on the Compare page, next to "now playing": an item and how to show it, 
 
 Percentages are shown the way the game shows them: while you play osu!lazer they are cut off at two decimals (98.769% shows 98.76%, as in osu!lazer), in osu!stable they are rounded. Differences are always rounded.
 
-More items made of judgement counts can be added in `metrics.json` (Settings → tosu overlays → **Edit metrics.json**, stored in `%LocalAppData%\LazerReplayCompare`): a name, a value per judgement, and whether to average it per judgement (an accuracy-like value). It comes with BMS (MAX = 2, 300 = 1), PPacc and PPscore (MAX = 100, 300 = 93.75, 200 = 62.5, 100 = 31.25, 50 = 15.625). Saved changes show up in the pickers and the overlays right away, without a rebuild.
+More items made of judgement counts can be added in `metrics.json` (Settings → tosu overlays → **Edit metrics.json**, stored in `%LocalAppData%\LazerReplayCompare`): a name, a value per judgement, and whether to average it per judgement (an accuracy-like value). An item can also divide by a second sum (`per`), add an amount to both sides so nothing starts at zero (`add`) take a logarithm (`log`, its base) and raise the result to a power (`pow`, keeping its sign). It comes with BMS (MAX = 2, 300 = 1), PPacc and PPscore (MAX = 100, 300 = 93.75, 200 = 62.5, 100 = 31.25, 50 = 15.625). Saved changes show up in the pickers and the overlays right away, without a rebuild.
 
 ## Timeline modes
 

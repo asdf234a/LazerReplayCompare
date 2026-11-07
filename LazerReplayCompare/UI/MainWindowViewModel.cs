@@ -26,6 +26,30 @@ public abstract class ObservableObject : INotifyPropertyChanged
 }
 
 /// <summary>An entry of an overlay picker (an item, or how it is shown).</summary>
+/// <summary>An item in Settings' list: unticked, it is left out of the Main and Sub lists.</summary>
+public sealed class OverlayItemToggle(string key, string name, bool shown, Action changed)
+{
+    private bool shown = shown;
+
+    public string Key { get; } = key;
+    public string Name { get; } = name;
+
+    public bool IsShown
+    {
+        get => shown;
+        set
+        {
+            if (shown == value)
+                return;
+
+            shown = value;
+            changed();
+        }
+    }
+}
+
+public sealed record OverlayItemGroup(string Name, IReadOnlyList<OverlayItemToggle> Items);
+
 public sealed record OverlayOption(string Key, string Name)
 {
     public override string ToString() => Name;
@@ -567,9 +591,18 @@ public sealed class MainWindowViewModel : ObservableObject
     private OverlayOption? selectedSubItem;
     private OverlayOption? selectedSubShow;
     private bool fillingOverlayOptions;
+    private OverlayOption? selectedBaseMode;
+    private int rankTarget = 50;
+    private int baseScore = 999000;
 
     public ObservableCollection<OverlayOption> MainItemOptions { get; } = new();
     public ObservableCollection<OverlayOption> SubItemOptions { get; } = new();
+    public ObservableCollection<OverlayItemGroup> OverlayItemGroups { get; } = new();
+
+    private List<OverlayItem> overlayItems = new();
+
+    /// <summary>The items unticked in Settings.</summary>
+    public IEnumerable<string> HiddenItems => OverlayItemGroups.SelectMany(group => group.Items).Where(item => !item.IsShown).Select(item => item.Key);
 
     public IReadOnlyList<OverlayOption> ShowOptions { get; } =
     [
@@ -608,16 +641,87 @@ public sealed class MainWindowViewModel : ObservableObject
         if (value == null || fillingOverlayOptions || !Set(ref field, value, name))
             return;
 
+        OnPropertyChanged(nameof(ShowScoreBase));
+        OnPropertyChanged(nameof(BaseText));
         SettingsChanged?.Invoke();
     }
 
-    /// <summary>Fills the pickers with <paramref name="items"/> (each can also be Off) and selects <paramref name="display"/>.</summary>
-    public void SetOverlayItems(IReadOnlyList<OverlayItem> items, OverlayDisplay display)
+    /// <summary>What Score log measures from: a fixed score, or a place on the leaderboard.</summary>
+    public IReadOnlyList<OverlayOption> BaseModeOptions { get; } =
+    [
+        new("score", "Score"),
+        new("rank", "Rank"),
+    ];
+
+    public OverlayOption? SelectedBaseMode
+    {
+        get => selectedBaseMode;
+        set => setOverlayOption(ref selectedBaseMode, value);
+    }
+
+    private bool baseIsRank => selectedBaseMode?.Key == "rank";
+
+    /// <summary>The base's score or place. Anything that isn't a number leaves it as it was (999k and 999.5k are fine).</summary>
+    public string BaseText
+    {
+        get => baseIsRank ? rankTarget.ToString(CultureInfo.InvariantCulture) : baseScore.ToString("N0", CultureInfo.InvariantCulture);
+        set
+        {
+            var text = (value ?? string.Empty).Trim().Replace(",", string.Empty).ToLowerInvariant();
+            var thousands = text.EndsWith('k');
+            if (double.TryParse(thousands ? text[..^1] : text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && double.IsFinite(number))
+            {
+                var whole = (int)Math.Round(Math.Clamp(thousands ? number * 1000 : number, 0, 1000000));
+                var changed = baseIsRank ? Math.Clamp(whole, 1, 50) != rankTarget : Math.Clamp(whole, 1, 999999) != baseScore;
+                if (baseIsRank)
+                    rankTarget = Math.Clamp(whole, 1, 50);
+                else
+                    baseScore = Math.Clamp(whole, 1, 999999);
+
+                if (changed)
+                    SettingsChanged?.Invoke();
+            }
+
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowScoreBase => SelectedMainItem?.Key == "score_acc_log" || SelectedSubItem?.Key == "score_acc_log";
+
+    /// <summary>
+    /// Fills Settings' list and the pickers with <paramref name="items"/>, in their groups, and selects
+    /// <paramref name="display"/>. Items in <paramref name="hidden"/> are left out of the pickers.
+    /// </summary>
+    public void SetOverlayItems(IReadOnlyList<OverlayItem> items, OverlayDisplay display, IReadOnlyCollection<string> hidden)
+    {
+        overlayItems = items.OrderBy(item => OverlayItems.Groups.ToList().IndexOf(OverlayItems.GroupOf(item.Key))).ToList();
+        OverlayItemGroups.Clear();
+        foreach (var group in overlayItems.GroupBy(item => OverlayItems.GroupOf(item.Key)))
+        {
+            OverlayItemGroups.Add(new OverlayItemGroup(group.Key, group
+                .Select(item => new OverlayItemToggle(item.Key, item.Name, !hidden.Contains(item.Key), onItemToggled))
+                .ToList()));
+        }
+
+        fillPickers(display);
+    }
+
+    private void onItemToggled()
+    {
+        fillPickers(OverlayDisplay);
+        SettingsChanged?.Invoke();
+    }
+
+    private void fillPickers(OverlayDisplay display)
     {
         fillingOverlayOptions = true;
-        var options = items.Select(item => new OverlayOption(item.Key, item.Name)).Append(new OverlayOption(OverlayItems.Off, "Off")).ToList();
-        foreach (var list in new[] { MainItemOptions, SubItemOptions })
+        var hidden = HiddenItems.ToHashSet();
+        foreach (var (list, chosen) in new[] { (MainItemOptions, display.MainItem), (SubItemOptions, display.SubItem) })
         {
+            // an item in use stays listed, unticked or not
+            var options = overlayItems.Where(item => !hidden.Contains(item.Key) || item.Key == chosen)
+                .Select(item => new OverlayOption(item.Key, item.Name))
+                .Append(new OverlayOption(OverlayItems.Off, "Off"));
             list.Clear();
             foreach (var option in options)
                 list.Add(option);
@@ -627,18 +731,24 @@ public sealed class MainWindowViewModel : ObservableObject
         selectedSubItem = SubItemOptions.FirstOrDefault(o => o.Key == display.SubItem) ?? SubItemOptions[0];
         selectedMainShow = ShowOptions.FirstOrDefault(o => o.Key == display.MainShow) ?? ShowOptions[0];
         selectedSubShow = ShowOptions.FirstOrDefault(o => o.Key == display.SubShow) ?? ShowOptions[1];
+        selectedBaseMode = BaseModeOptions.FirstOrDefault(o => o.Key == display.BaseMode) ?? BaseModeOptions[0];
+        rankTarget = display.RankTarget;
+        baseScore = display.BaseScore;
         fillingOverlayOptions = false;
 
         OnPropertyChanged(nameof(SelectedMainItem));
         OnPropertyChanged(nameof(SelectedMainShow));
         OnPropertyChanged(nameof(SelectedSubItem));
         OnPropertyChanged(nameof(SelectedSubShow));
+        OnPropertyChanged(nameof(SelectedBaseMode));
+        OnPropertyChanged(nameof(BaseText));
+        OnPropertyChanged(nameof(ShowScoreBase));
     }
 
     /// <summary>The pickers' choices.</summary>
     public OverlayDisplay OverlayDisplay => new(
         SelectedMainItem?.Key ?? "score", SelectedMainShow?.Key ?? OverlayShow.Diff,
-        SelectedSubItem?.Key ?? "acc", SelectedSubShow?.Key ?? OverlayShow.Value);
+        SelectedSubItem?.Key ?? "acc", SelectedSubShow?.Key ?? OverlayShow.Value, rankTarget, selectedBaseMode?.Key ?? "score", baseScore);
 
     // --- Timeline mode and theme (radio groups) ---
 
@@ -747,6 +857,30 @@ public sealed class MainWindowViewModel : ObservableObject
 
             OnPropertyChanged(nameof(ShowBackdrop));
             SettingsChanged?.Invoke();
+        }
+    }
+
+    private string osuClientId = string.Empty;
+    private string osuClientSecret = string.Empty;
+
+    /// <summary>The user's osu! OAuth client, for osu!lazer's leaderboards.</summary>
+    public string OsuClientId
+    {
+        get => osuClientId;
+        set
+        {
+            if (Set(ref osuClientId, value ?? string.Empty))
+                SettingsChanged?.Invoke();
+        }
+    }
+
+    public string OsuClientSecret
+    {
+        get => osuClientSecret;
+        set
+        {
+            if (Set(ref osuClientSecret, value ?? string.Empty))
+                SettingsChanged?.Invoke();
         }
     }
 
