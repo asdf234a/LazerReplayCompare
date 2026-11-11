@@ -78,6 +78,14 @@
   </ItemGroup>
 
   <!--
+    osumania_map_analyser (MIT, see analyser\LICENSE) and the page that runs it for the dan engine: copied as a
+    folder next to the exe on build and publish (never into the single file; a headless browser loads it over HTTP).
+  -->
+  <ItemGroup>
+    <None Include="..\analyser\**\*" Link="analyser\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+  <!--
     Keep the heap close to the live data: the GC compacts its older generation sooner instead of letting dead
     objects from replay decodes and timeline builds pile up (see IdleCollector).
   -->
