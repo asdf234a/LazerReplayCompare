@@ -1,0 +1,132 @@
+@font-face {
+    src: url("../../lazerReplayCompareShared/Pretendard-SemiBold.ttf");
+    font-family: "Pretendard";
+    font-weight: 600;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    user-select: none;
+    background: transparent;
+    font-family: "Pretendard", "Segoe UI", Arial, sans-serif;
+    font-size: 21px;
+    font-weight: 600;
+    color: #fff;
+}
+
+/* Board */
+
+.board {
+    --row-height: 2.3rem;
+    --rows: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 15.5rem;
+    height: calc(var(--row-height) * var(--rows) + 0.5rem);
+    background: rgba(0, 0, 0, 0.72);
+    border-radius: 12px;
+    opacity: 0;
+    overflow: hidden;
+    transition: opacity 150ms ease, height 180ms ease;
+    font-variant-numeric: tabular-nums;
+    backdrop-filter: blur(4px);
+}
+
+.board.visible {
+    opacity: 1;
+}
+
+/* Rows */
+
+.row {
+    position: absolute;
+    top: 0.25rem;
+    left: 0.25rem;
+    right: 0.25rem;
+    height: var(--row-height);
+    display: grid;
+    grid-template-columns: 1.9rem minmax(0, 1fr) auto;
+    grid-template-rows: 1fr 1fr;
+    align-items: center;
+    column-gap: 0.35rem;
+    padding: 0.2rem 0.5rem 0.2rem 0.35rem;
+    border-radius: 8px;
+    line-height: 1;
+    transition: transform 220ms ease;
+}
+
+.place {
+    grid-row: 1 / 3;
+    color: #999;
+    font-size: 0.72rem;
+    text-align: right;
+}
+
+.name {
+    overflow: hidden;
+    color: #ddd;
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.value {
+    font-size: 0.78rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.note {
+    overflow: hidden;
+    color: #777;
+    font-size: 0.56rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.diff {
+    font-size: 0.62rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* The live play: the accent the app gives the comparison target */
+
+.row.player {
+    z-index: 1;
+    background: rgba(255, 102, 170, 0.22);
+    box-shadow: inset 3px 0 0 #ff66aa;
+}
+
+.row.player .place,
+.row.player .name {
+    color: #fff;
+}
+
+.row.player .note {
+    color: #ff9cc8;
+}
+
+.row.target .note {
+    color: #ff9cc8;
+}
+
+/* Colors */
+
+.positive {
+    color: #77ff9a;
+}
+
+.negative {
+    color: #ff6f7f;
+}
+
+.neutral {
+    color: #999;
+}

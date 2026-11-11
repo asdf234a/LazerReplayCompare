@@ -1,6 +1,6 @@
 // An animated number for the Main and Sub overlays: counts to its new value and colours the sign of a difference.
 
-import { formatItem, hasDecimals, shownValue } from './metrics.js';
+import { formatItem, hasDecimals, isSigned, shownValue } from './metrics.js';
 
 export function createCounter(element) {
     let shown = false;
@@ -24,7 +24,8 @@ export function createCounter(element) {
          */
         show(itemKey, value, signed) {
             const target = scaled(itemKey, shownValue(itemKey, value, signed));
-            const tone = !signed ? 'neutral' : target > 0 ? 'positive' : target < 0 ? 'negative' : 'neutral';
+            // an item that is a difference itself (Next rival) is coloured like one
+            const tone = !signed && !isSigned(itemKey) ? 'neutral' : target > 0 ? 'positive' : target < 0 ? 'negative' : 'neutral';
             element.className = `counter visible ${tone}`;
 
             const id = ++animation;
