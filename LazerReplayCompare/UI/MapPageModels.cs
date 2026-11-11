@@ -33,6 +33,9 @@ public sealed class MapCardViewModel : ObservableObject
         var row = new MapRow(map, difficulty, record?.Best, record?.Plays ?? 0, record?.LastPlayedTicks ?? 0, numberKind);
         NumberText = row.NumberText;
         NumberBrush = row.NumberBrush;
+        NumberBadge = row.NumberBadge;
+        NumberBadgeText = row.NumberBadgeText;
+        (StatusBrush, StatusTextBrush) = DifficultyColors.ForStatus(map.Status);
         NumberName = numberKind switch
         {
             LibraryViewModel.NumberDan => "Dan level",
@@ -108,6 +111,12 @@ public sealed class MapCardViewModel : ObservableObject
     public string Artist { get; }
     public string NumberText { get; } = "–";
     public IBrush NumberBrush { get; } = DifficultyColors.Neutral;
+    public IBrush NumberBadge { get; } = DifficultyColors.Badge(double.NaN);
+    public IBrush NumberBadgeText { get; } = DifficultyColors.Neutral;
+
+    /// <summary>The status's own colour (ranked lime, loved pink, qualified blue, pending yellow …).</summary>
+    public IBrush StatusBrush { get; } = DifficultyColors.ForStatus(null).Background;
+    public IBrush StatusTextBrush { get; } = DifficultyColors.ForStatus(null).Text;
     public string NumberName { get; } = "Sunny";
 
     /// <summary>The game's rate and OD mods the difficulty is shown with ("with 1.2× · OD 9"), or "".</summary>

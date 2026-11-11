@@ -94,7 +94,16 @@
 
     <StackPanel Grid.Row="1">
       <!-- Quick filters: by plays, by best rank, by kind -->
-      <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Margin="0,8,0,0">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,8,0,0">
+      <Button Grid.Column="1" Click="GoToNowPlaying" MinHeight="28" Padding="10,0" FontSize="12" MaxWidth="300" IsVisible="{Binding HasNowPlaying}"
+              ToolTip.Tip="Opens the map the game is on">
+        <StackPanel Orientation="Horizontal" Spacing="7">
+          <Path Width="9" Height="10" Stretch="Uniform" Fill="{DynamicResource TargetAccentBrush}" Data="M0,0 L9,5 L0,10 Z" VerticalAlignment="Center" />
+          <TextBlock Classes="muted" FontSize="12" Text="Now playing" VerticalAlignment="Center" />
+          <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding NowPlayingText}" TextTrimming="CharacterEllipsis" MaxWidth="180" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <TextBlock Classes="muted" FontSize="12" Text="Plays" VerticalAlignment="Center" Margin="4,0,2,0" />
           <ItemsControl Classes="quick" ItemsSource="{Binding PlayFilters}">
@@ -124,6 +133,7 @@
           <Button Content="Clear" Click="ClearQuickFilters" MinHeight="28" Padding="10,0" FontSize="12" Margin="8,0,0,0" IsVisible="{Binding HasQuickFilters}" />
         </StackPanel>
       </ScrollViewer>
+      </Grid>
       <TextBlock Margin="4,8,4,0" FontSize="13" Foreground="{DynamicResource TargetLabelBrush}" Text="{Binding FilterNote}" IsVisible="{Binding HasFilterNote}" />
     </StackPanel>
 
@@ -192,7 +202,9 @@
                     <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TextBrush}" IsVisible="{Binding IsNowPlaying}" />
                     <Grid Classes="mapCells" ColumnDefinitions="132,*,48,62,48,58,64,28,126,56,30" Margin="20,0,14,0">
                       <StackPanel VerticalAlignment="Center">
-                        <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="24" FontWeight="Bold" Foreground="{Binding NumberBrush}" LineHeight="28" />
+                        <Border Background="{Binding NumberBadge}" CornerRadius="8" Padding="8,0" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,2">
+                          <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="19" FontWeight="Bold" Foreground="{Binding NumberBadgeText}" LineHeight="25" />
+                        </Border>
                         <TextBlock Text="{Binding DanText}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                       </StackPanel>
                       <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3" Margin="0,0,16,0">

@@ -31,6 +31,36 @@ public static class DifficultyColors
     /// <summary>A star rating as text: along the spectrum, and yellow from 6.5 stars as in the game.</summary>
     public static IBrush ForStars(double stars) => double.IsFinite(stars) && stars >= HighStars ? highText : brush(stars);
 
+    /// <summary>Where a Sunny rating and a dan level are read on osu!'s star spectrum.</summary>
+    public const double SunnyScale = 0.85, DanScale = 0.55;
+
+    private static readonly IBrush noBadge = new SolidColorBrush(Color.Parse("#22FFFFFF")).ToImmutable();
+
+    // osu!'s colours of a beatmap's status
+    private static readonly Dictionary<string, Color> statuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ranked"] = Color.Parse("#B3FF66"),
+        ["approved"] = Color.Parse("#B3FF66"),
+        ["qualified"] = Color.Parse("#66CCFF"),
+        ["loved"] = Color.Parse("#FF66AB"),
+        ["pending"] = Color.Parse("#FFD966"),
+        ["wip"] = Color.Parse("#FF9966"),
+        ["graveyard"] = Color.Parse("#9AA3B2"),
+    };
+
+    /// <summary>A status's pill: its colour seen through, and the colour itself for the text.</summary>
+    public static (IBrush Background, IBrush Text) ForStatus(string? status)
+    {
+        var color = statuses.GetValueOrDefault(status ?? string.Empty, Color.Parse("#9AA3B2"));
+        return (new SolidColorBrush(Color.FromArgb(0x38, color.R, color.G, color.B)).ToImmutable(), new SolidColorBrush(color).ToImmutable());
+    }
+
+    /// <summary>The box behind a number read at <paramref name="stars"/> on the spectrum (NaN: no number).</summary>
+    public static IBrush Badge(double stars) => double.IsFinite(stars) ? StarsBadge(stars) : noBadge;
+
+    /// <summary>The text in that box: dark, yellow from 6.5 stars as in the game.</summary>
+    public static IBrush BadgeText(double stars) => double.IsFinite(stars) ? StarsBadgeText(stars) : Neutral;
+
     /// <summary>The badge behind a star rating: the spectrum as it is, down to black.</summary>
     public static IBrush StarsBadge(double stars)
     {

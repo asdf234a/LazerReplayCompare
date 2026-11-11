@@ -34,6 +34,13 @@ public sealed partial class MainWindow
         libraryModel = new LibraryViewModel(library);
         viewModel.Library = libraryModel;
         libraryPage = this.FindControl<LibraryView>("LibraryPage")!;
+        libraryPage.NowPlayingChosen += () =>
+        {
+            // straight to the map the game is on; Back returns to the library
+            backToLiveMap();
+            closeLibrary();
+            mapOpenedFromLibrary = true;
+        };
         libraryPage.MapChosen += row =>
         {
             BrowseTo(row.Map);
@@ -316,6 +323,8 @@ public sealed partial class MainWindow
         }
     }
 
+    private void ClearLibraryFilters(object? sender, RoutedEventArgs e) => libraryModel.ClearOtherFilters();
+
     private void RailMapTapped(object? sender, TappedEventArgs e)
     {
         if (e.Source is StyledElement { DataContext: MapRow row })
@@ -336,6 +345,8 @@ public sealed partial class MainWindow
         var previous = liveSnapshot;
         Volatile.Write(ref liveSnapshot, snapshot);
         libraryModel.NowPlayingMd5 = snapshot.BeatmapChecksum;
+        libraryModel.NowPlayingText = string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum) ? string.Empty
+            : string.Join(" ", new[] { snapshot.BeatmapTitle, string.IsNullOrWhiteSpace(snapshot.BeatmapVersion) ? string.Empty : $"[{snapshot.BeatmapVersion}]" }.Where(part => part.Length > 0));
 
         // other rate or OD mods in the game: the shown map's difficulty follows
         if (Environment.GetEnvironmentVariable("LRC_DEBUG_MODS") is not { Length: > 0 }
@@ -421,9 +432,11 @@ public sealed partial class MainWindow
     private void rollNumber()
     {
         var label = this.FindControl<TextBlock>("MapNumber")!;
+        var box = this.FindControl<Border>("MapNumberBox")!;
         var card = viewModel.MapCard;
         string text = card?.NumberText ?? "–";
-        var brush = card?.NumberBrush ?? DifficultyColors.Neutral;
+        var boxBrush = card?.NumberBadge ?? DifficultyColors.Badge(double.NaN);
+        var textBrush = card?.NumberBadgeText ?? DifficultyColors.Neutral;
         string mark = text.StartsWith('*') ? "*" : string.Empty;
 
         bool number = double.TryParse(text.TrimStart('*'), NumberStyles.Float, CultureInfo.InvariantCulture, out var target);
@@ -432,18 +445,23 @@ public sealed partial class MainWindow
         {
             Motion.Run(label, "roll", 1, _ => { });   // (stops one that is rolling)
             label.Text = text;
-            label.Foreground = brush;
+            label.Foreground = textBrush;
+            box.Background = boxBrush;
             shownNumber = number ? target : double.NaN;
             return;
         }
 
-        var toColor = (brush as Avalonia.Media.ISolidColorBrush)?.Color ?? Avalonia.Media.Colors.White;
-        var fromColor = (label.Foreground as Avalonia.Media.ISolidColorBrush)?.Color ?? toColor;
+        static Avalonia.Media.Color colorOf(Avalonia.Media.IBrush? brush, Avalonia.Media.Color fallback) => (brush as Avalonia.Media.ISolidColorBrush)?.Color ?? fallback;
+        var toBox = colorOf(boxBrush, Avalonia.Media.Colors.Gray);
+        var fromBox = colorOf(box.Background, toBox);
+        var toText = colorOf(textBrush, Avalonia.Media.Colors.Black);
+        var fromText = colorOf(label.Foreground, toText);
         Motion.Run(label, "roll", 420, t =>
         {
             shownNumber = from + (target - from) * t;
             label.Text = t >= 1 ? text : mark + shownNumber.ToString("0.00", CultureInfo.InvariantCulture);
-            label.Foreground = t >= 1 ? brush : new Avalonia.Media.SolidColorBrush(Motion.Mix(fromColor, toColor, t));
+            label.Foreground = t >= 1 ? textBrush : new Avalonia.Media.SolidColorBrush(Motion.Mix(fromText, toText, t));
+            box.Background = t >= 1 ? boxBrush : new Avalonia.Media.SolidColorBrush(Motion.Mix(fromBox, toBox, t));
         });
     }
 

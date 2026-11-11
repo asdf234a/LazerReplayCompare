@@ -261,8 +261,18 @@
             </Grid>
             <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource RowDividerBrush}" />
             <TextBox DockPanel.Dock="Top" Margin="10,10,10,6" FontSize="13" Text="{Binding Library.SearchText, Mode=TwoWay}" PlaceholderText="Search maps" />
-            <ComboBox DockPanel.Dock="Top" Margin="10,0,10,6" HorizontalAlignment="Stretch" ItemsSource="{Binding Library.GroupByOptions}" SelectedItem="{Binding Library.SelectedGroupBy, Mode=TwoWay}"
-                      ToolTip.Tip="What the maps are grouped by (the same choice as in the full library)" />
+            <!-- What is listed: grouped by, which keys; and what else narrows it (picked in the full library), to undo here -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="6" Margin="10,0,10,6">
+              <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding Library.GroupByOptions}" SelectedItem="{Binding Library.SelectedGroupBy, Mode=TwoWay}"
+                        ToolTip.Tip="What the maps are grouped by (the same choice as in the full library)" />
+              <ComboBox Grid.Column="1" MinWidth="96" ItemsSource="{Binding Library.KeysOptions}" SelectedItem="{Binding Library.SelectedKeys, Mode=TwoWay}"
+                        ToolTip.Tip="Which key counts are listed" />
+            </Grid>
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="6" Margin="12,0,10,6" IsVisible="{Binding Library.HasOtherFilters}">
+              <TextBlock FontSize="12" Foreground="{DynamicResource TargetLabelBrush}" Text="{Binding Library.OtherFiltersText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                         ToolTip.Tip="{Binding Library.OtherFiltersText}" />
+              <Button Grid.Column="1" Content="Show all" Click="ClearLibraryFilters" MinHeight="24" Padding="8,0" FontSize="12" ToolTip.Tip="Drops the collection and the quick filters picked in the full library" />
+            </Grid>
             <ComboBox DockPanel.Dock="Top" Margin="10,0,10,8" HorizontalAlignment="Stretch" ItemsSource="{Binding Library.Groups}" SelectedItem="{Binding Library.SelectedGroup, Mode=TwoWay}"
                       ToolTip.Tip="The group whose maps are listed">
               <ComboBox.ItemTemplate>
@@ -280,7 +290,9 @@
                   <Grid ColumnDefinitions="80,*,Auto" Height="46" Cursor="Hand" Background="Transparent">
                     <Border Grid.ColumnSpan="3" Width="3" HorizontalAlignment="Left" Background="{DynamicResource TextBrush}" IsVisible="{Binding IsNowPlaying}" />
                     <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
-                      <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="17" FontWeight="Bold" Foreground="{Binding NumberBrush}" LineHeight="20" />
+                      <Border Background="{Binding NumberBadge}" CornerRadius="6" Padding="6,0" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,1">
+                        <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="14" FontWeight="Bold" Foreground="{Binding NumberBadgeText}" LineHeight="18" />
+                      </Border>
                       <TextBlock Text="{Binding ShortDanText}" FontSize="10.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding DanText}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1" Margin="0,0,8,0">
@@ -359,7 +371,9 @@
                 <Grid ColumnDefinitions="Auto,*" Margin="22,16,22,14">
                   <!-- The number the library is led by, and the dan under it -->
                   <StackPanel Width="150" Spacing="2" IsVisible="{Binding MapCard.HasMap}" VerticalAlignment="Top">
-                    <TextBlock x:Name="MapNumber" Classes="mono" Text="–" FontSize="44" FontWeight="Bold" LineHeight="48" />
+                    <Border x:Name="MapNumberBox" CornerRadius="12" Padding="11,1" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,4">
+                      <TextBlock x:Name="MapNumber" Classes="mono" Text="–" FontSize="38" FontWeight="Bold" LineHeight="44" />
+                    </Border>
                     <TextBlock Text="{Binding MapCard.DanText}" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
                     <TextBlock Classes="secondary" Text="{Binding MapCard.LnDanText}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="{Binding MapCard.HasLnDan}"
                                ToolTip.Tip="The LN dan: this map is 20% hold notes or more" />
@@ -372,8 +386,8 @@
 
                   <StackPanel Grid.Column="1" Spacing="4">
                     <WrapPanel ItemSpacing="6" LineSpacing="4">
-                      <Border Classes="statusPill" Background="{DynamicResource GoodBackgroundBrush}" IsVisible="{Binding MapCard.HasStatus}">
-                        <TextBlock Text="{Binding MapCard.StatusLabel}" Foreground="{DynamicResource GoodTextBrush}" />
+                      <Border Classes="statusPill" Background="{Binding MapCard.StatusBrush}" IsVisible="{Binding MapCard.HasStatus}">
+                        <TextBlock Text="{Binding MapCard.StatusLabel}" Foreground="{Binding MapCard.StatusTextBrush}" />
                       </Border>
                       <Border Classes="statusPill" Background="{DynamicResource ChipBrush}" IsVisible="{Binding MapCard.IsNowPlaying}">
                         <TextBlock Text="NOW PLAYING" Foreground="{DynamicResource ChipTextBrush}" />
@@ -551,7 +565,6 @@
               <Button x:Name="LocalTabButton" Classes="tab" Classes.active="{Binding IsLocalTab}" Content="{Binding LocalTabText}" Click="ShowLocalTab" MinHeight="36" />
               <Button x:Name="OnlineTabButton" Grid.Column="1" Classes="tab" Classes.active="{Binding IsOnlineTab}" Content="{Binding OnlineTabText}" Click="ShowOnlineTab" MinHeight="36"
                       ToolTip.Tip="The beatmap's top scores on osu!'s website (asked for once per map). Click one to download its replay and compare against it." />
-              <TextBlock Grid.Column="2" Classes="secondary" FontSize="12" Text="{Binding RankSummary}" VerticalAlignment="Center" Margin="12,0,8,0" TextTrimming="CharacterEllipsis" />
               <WrapPanel x:Name="OverlayPickers" Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Classes="muted" FontSize="12" Text="Overlays" VerticalAlignment="Center" Margin="0,0,8,4" />
                 <Button x:Name="MainPickerButton" MinHeight="28" Padding="9,0" Margin="0,0,6,4" VerticalAlignment="Center" ToolTip.Tip="What the Main overlay shows">

@@ -37,6 +37,11 @@ public sealed partial class LibraryView : UserControl
     /// <summary>A map was chosen (clicked, or Enter on it).</summary>
     public event Action<MapRow>? MapChosen;
 
+    /// <summary>The "Now playing" button: the map the game is on is wanted.</summary>
+    public event Action? NowPlayingChosen;
+
+    private void GoToNowPlaying(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => NowPlayingChosen?.Invoke();
+
     public LibraryView()
     {
         AvaloniaXamlLoader.Load(this);

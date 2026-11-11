@@ -1489,6 +1489,8 @@ public sealed partial class MainWindow : Window
                 backFromMap();
                 e.Handled = true;
             }
+            else if ((e.Key == Key.BrowserForward || (e.Key == Key.Right && e.KeyModifiers == KeyModifiers.Alt)) && forwardOnMap())
+                e.Handled = true;
 
             return;
         }
@@ -1511,6 +1513,16 @@ public sealed partial class MainWindow : Window
 
     private bool railOpen => viewModel.ShowRail && viewModel.IsRailExpanded;
 
+    /// <summary>Forward on the map page: the folded side card opens. False when there is nothing to open.</summary>
+    private bool forwardOnMap()
+    {
+        if (!viewModel.ShowRail || viewModel.IsRailExpanded)
+            return false;
+
+        viewModel.IsRailExpanded = true;
+        return true;
+    }
+
     /// <summary>Back on the map page: the opened side card folds; with it folded, the library opens.</summary>
     private void backFromMap()
     {
@@ -1526,6 +1538,14 @@ public sealed partial class MainWindow : Window
 
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        // the mouse's forward button: the side card opens (what Back folds)
+        if (e.GetCurrentPoint(this).Properties.IsXButton2Pressed)
+        {
+            if (viewModel.ShowCompareList && forwardOnMap())
+                e.Handled = true;
+            return;
+        }
+
         // the mouse's back button
         if (!e.GetCurrentPoint(this).Properties.IsXButton1Pressed)
             return;

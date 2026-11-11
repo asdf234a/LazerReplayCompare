@@ -89,6 +89,16 @@ public sealed class MapRow : ObservableObject
         LastPlayedTicks = lastPlayedTicks;
 
         (Number, NumberText, NumberBrush) = number(map, difficulty, numberKind);
+
+        // the number's box: its place on the spectrum (a dan level standing in as Sunny is read as Sunny)
+        double onSpectrum = numberKind switch
+        {
+            LibraryViewModel.NumberStars => map.Stars >= 0 ? map.Stars : double.NaN,
+            LibraryViewModel.NumberDan when difficulty.DanLevel is { } level => level * DifficultyColors.DanScale,
+            _ => difficulty.Sunny is { } sunny ? sunny * DifficultyColors.SunnyScale : double.NaN,
+        };
+        NumberBadge = DifficultyColors.Badge(onSpectrum);
+        NumberBadgeText = DifficultyColors.BadgeText(onSpectrum);
         Haystack = string.Join('\n', map.Title, map.TitleUnicode, map.Artist, map.ArtistUnicode, map.Version, map.Mapper, map.Tags, map.Source).ToLowerInvariant();
     }
 
@@ -105,6 +115,10 @@ public sealed class MapRow : ObservableObject
     public double Number { get; }
     public string NumberText { get; }
     public IBrush NumberBrush { get; }
+
+    /// <summary>The box the number sits in, and the number's colour on it (as osu! shows a star rating).</summary>
+    public IBrush NumberBadge { get; }
+    public IBrush NumberBadgeText { get; }
 
     public string DanText => Difficulty.Dan ?? string.Empty;
 
@@ -340,6 +354,7 @@ public sealed class LibraryViewModel : ObservableObject
 
         settingQuick = false;
         OnPropertyChanged(nameof(HasQuickFilters));
+        otherFiltersChanged();
         Rebuild();
     }
 
@@ -350,6 +365,7 @@ public sealed class LibraryViewModel : ObservableObject
             filter.IsOn = false;
         settingQuick = false;
         OnPropertyChanged(nameof(HasQuickFilters));
+        otherFiltersChanged();
         Rebuild();
     }
 
@@ -465,8 +481,55 @@ public sealed class LibraryViewModel : ObservableObject
     public LibraryOption? SelectedCollection
     {
         get => selectedCollection;
-        set => setOption(ref selectedCollection, value);
+        set
+        {
+            if (setOption(ref selectedCollection, value))
+                otherFiltersChanged();
+        }
     }
+
+    // --- What narrows the lists besides the search and the keys (the side card says so, and can undo it) ---
+
+    public bool HasOtherFilters => HasQuickFilters || selectedCollection.Key.Length > 0;
+
+    public string OtherFiltersText
+    {
+        get
+        {
+            var parts = quickFilters.Where(f => f.IsOn).Select(f => f.Name).ToList();
+            if (selectedCollection.Key.Length > 0)
+                parts.Insert(0, selectedCollection.Name);
+            return "Only: " + string.Join(", ", parts);
+        }
+    }
+
+    private void otherFiltersChanged()
+    {
+        OnPropertyChanged(nameof(HasOtherFilters));
+        OnPropertyChanged(nameof(OtherFiltersText));
+    }
+
+    public void ClearOtherFilters()
+    {
+        selectedCollection = allMaps;
+        OnPropertyChanged(nameof(SelectedCollection));
+        ClearQuickFilters();
+    }
+
+    private string nowPlayingText = string.Empty;
+
+    /// <summary>The map the game is on, for the library's "go to it" button ("" when there is none).</summary>
+    public string NowPlayingText
+    {
+        get => nowPlayingText;
+        set
+        {
+            if (Set(ref nowPlayingText, value ?? string.Empty))
+                OnPropertyChanged(nameof(HasNowPlaying));
+        }
+    }
+
+    public bool HasNowPlaying => nowPlayingText.Length > 0;
 
     public string NumberKind => selectedNumber.Key;
 
