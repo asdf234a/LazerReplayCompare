@@ -46,6 +46,7 @@ public sealed class ReplayDetailsViewModel : ObservableObject
     private string errorText = string.Empty;
     private ReplayAnalysis? analysis;
     private int highlightColumn = -1;
+    private bool middleLaneLeft;
 
     /// <param name="scoreV1">The score is osu!stable's own ScoreV1 (listed from osu!stable's scores.db).</param>
     /// <param name="notSavedYet">The score comes from a results screen whose play osu!stable has not saved yet.</param>
@@ -59,7 +60,9 @@ public sealed class ReplayDetailsViewModel : ObservableObject
         Subtitle = beatmapSubtitle;
         this.target = target;
         this.isPinned = isPinned;
-        Judgements = MetricDefinition.JudgementNames.Select(key => new JudgementSegment(key, entry.Statistics.GetValueOrDefault(key))).ToList();
+        // (until the main window passes the setting in and listens to MiddleLaneHandChanged, straight from the settings)
+        middleLaneLeft = AppSettingsService.Shared.MiddleLaneLeft;
+        Judgements =MetricDefinition.JudgementNames.Select(key => new JudgementSegment(key, entry.Statistics.GetValueOrDefault(key))).ToList();
     }
 
     public ReplayEntry Entry { get; }
@@ -252,7 +255,71 @@ public sealed class ReplayDetailsViewModel : ObservableObject
 
             foreach (var chip in ColumnChips)
                 chip.IsSelected = chip.Column == value;
+            foreach (var lane in LaneColumns)
+                lane.IsSelected = lane.Column == value;
         }
+    }
+
+    // lanes
+    /// <summary>Raised with "left" or "right" when <see cref="MiddleLaneLeft"/> changes (for the window to keep in the settings).</summary>
+    public event Action<string>? MiddleLaneHandChanged;
+
+    public IReadOnlyList<LaneColumn> LaneColumns { get; private set; } = Array.Empty<LaneColumn>();
+    public bool HasLanes => HasAnalysis && LaneColumns.Count > 0;
+    public string LanesCaption { get; private set; } = string.Empty;
+    public string LeftHandAccuracyText { get; private set; } = string.Empty;
+    public string LeftHandMissText { get; private set; } = string.Empty;
+    public string RightHandAccuracyText { get; private set; } = string.Empty;
+    public string RightHandMissText { get; private set; } = string.Empty;
+
+    /// <summary>An odd key count: the middle lane's hand can be chosen.</summary>
+    public bool HasMiddleLane { get; private set; }
+
+    /// <summary>
+    /// Whether the middle lane of an odd key count counts as the left hand's. Changing it works the hands out again,
+    /// saves the setting and raises <see cref="MiddleLaneHandChanged"/>.
+    /// </summary>
+    public bool MiddleLaneLeft
+    {
+        get => middleLaneLeft;
+        set
+        {
+            if (!Set(ref middleLaneLeft, value))
+                return;
+
+            OnPropertyChanged(nameof(MiddleLaneRight));
+            if (Analysis is { } result)
+            {
+                buildLanes(result);
+                foreach (string name in new[] { nameof(LaneColumns), nameof(HasLanes), nameof(LanesCaption), nameof(LeftHandAccuracyText), nameof(LeftHandMissText),
+                             nameof(RightHandAccuracyText), nameof(RightHandMissText), nameof(HasMiddleLane) })
+                    OnPropertyChanged(name);
+            }
+
+            string hand = value ? "left" : "right";
+            AppSettingsService.Shared.SetMiddleLaneHand(hand);
+            MiddleLaneHandChanged?.Invoke(hand);
+        }
+    }
+
+    public bool MiddleLaneRight => !MiddleLaneLeft;
+
+    private void buildLanes(ReplayAnalysis result)
+    {
+        var stats = LaneStats.From(result, result.Columns, middleLaneLeft);
+
+        // bars from a floor to 100%: 90%, or lower (in steps of 5) when a lane is below it
+        double lowest = stats.Lanes.Select(l => l.Accuracy).OfType<double>().DefaultIfEmpty(100).Min();
+        double floor = Math.Min(90, Math.Floor(lowest / 5) * 5);
+        LaneColumns = stats.Lanes.Select(l => new LaneColumn(l, floor, result.StableJudging) { IsSelected = l.Lane == highlightColumn }).ToList();
+        LanesCaption = $"Accuracy, misses and timing of each lane · bars run from {floor.ToString("0", invariant)}% to 100% · mean in ms";
+        HasMiddleLane = stats.HasMiddleLane;
+
+        string accuracy(HandStat hand) => hand.Accuracy is double value ? ShownAccuracy.Text(value / 100, result.StableJudging) : "—";
+        LeftHandAccuracyText = accuracy(stats.Left);
+        LeftHandMissText = FormattableString.Invariant($"Miss {stats.Left.Misses:N0}");
+        RightHandAccuracyText = accuracy(stats.Right);
+        RightHandMissText = FormattableString.Invariant($"Miss {stats.Right.Misses:N0}");
     }
 
     // long notes
@@ -343,7 +410,8 @@ public sealed class ReplayDetailsViewModel : ObservableObject
         }
 
         highlightColumn = -1;
-        MissText = stats.MissCount == 0 ? "No misses"
+        buildLanes(result);
+        MissText =stats.MissCount == 0 ? "No misses"
             : stats.Misses is { } cluster
                 ? $"{(cluster.Count < stats.MissCount ? $"{cluster.Count} of {stats.MissCount}" : stats.MissCount.ToString(invariant))} misses at {JudgementText.Clock(cluster.From)}–{JudgementText.Clock(cluster.To)}"
                 : stats.MissCount == 1 ? "1 miss" : $"{stats.MissCount} misses";

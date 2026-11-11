@@ -34,6 +34,7 @@ public sealed partial class ReplayDetailsView : UserControl
         ResponsiveLayout.Apply(this.FindControl<Grid>("NavRow")!, value, "*", (0, 0), (1, 0));
         ResponsiveLayout.Apply(this.FindControl<Grid>("SummaryRow")!, value);
         ResponsiveLayout.Apply(this.FindControl<Grid>("StatusRow")!, value);
+        ResponsiveLayout.Apply(this.FindControl<Grid>("LanesHeader")!, value);
         ResponsiveLayout.Apply(this.FindControl<Grid>("TimingRow")!, value);
         ResponsiveLayout.Apply(this.FindControl<Grid>("SongHeader")!, value);
         ResponsiveLayout.Apply(this.FindControl<Grid>("LongNotesRow")!, value);
@@ -64,6 +65,27 @@ public sealed partial class ReplayDetailsView : UserControl
         if (details is { } d && sender is Button { DataContext: ColumnChip chip })
             d.HighlightColumn = chip.Column;
     }
+
+    /// <summary>A lane of the Lanes section: highlights it in Over the song; again, shows every lane.</summary>
+    private void PickLane(object? sender, RoutedEventArgs e)
+    {
+        if (details is { } d && sender is Button { DataContext: LaneColumn lane })
+            d.HighlightColumn = d.HighlightColumn == lane.Column ? -1 : lane.Column;
+    }
+
+    private void MiddleLaneToLeft(object? sender, RoutedEventArgs e)
+    {
+        if (details is { } d)
+            d.MiddleLaneLeft = true;
+    }
+
+    private void MiddleLaneToRight(object? sender, RoutedEventArgs e)
+    {
+        if (details is { } d)
+            d.MiddleLaneLeft = false;
+    }
+
+    private void ShowLanes(object? sender, RoutedEventArgs e) => scrollTo("LanesSection");
 
     private void ShowTiming(object? sender, RoutedEventArgs e) => scrollTo("TimingSection");
 

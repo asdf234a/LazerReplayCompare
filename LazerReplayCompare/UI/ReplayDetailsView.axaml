@@ -58,6 +58,34 @@
       <Setter Property="Padding" Value="12,0" />
       <Setter Property="FontSize" Value="13" />
     </Style>
+    <!-- Lanes: a lane is a button (it picks the highlighted column of Over the song) -->
+    <Style Selector="Button.lane">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="3,6" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
+    </Style>
+    <Style Selector="Button.lane.selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource OptionSelectedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource OptionSelectedBorderBrush}" />
+    </Style>
+    <Style Selector="TextBlock.early">
+      <Setter Property="Foreground" Value="{DynamicResource EarlyBrush}" />
+    </Style>
+    <Style Selector="TextBlock.late">
+      <Setter Property="Foreground" Value="{DynamicResource LateBrush}" />
+    </Style>
+    <Style Selector="Border.handBox">
+      <Setter Property="Background" Value="{DynamicResource OptionBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource OptionBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="12,7" />
+    </Style>
     <Style Selector="Border.infoBox">
       <Setter Property="Background" Value="{DynamicResource InfoBackgroundBrush}" />
       <Setter Property="CornerRadius" Value="10" />
@@ -79,6 +107,7 @@
         </Button>
         <WrapPanel Grid.Column="2" ItemSpacing="6" LineSpacing="6" IsVisible="{Binding HasAnalysis}">
           <TextBlock Classes="muted" FontSize="13" Text="Jump to" VerticalAlignment="Center" Margin="0,0,4,0" />
+          <Button Classes="jump" Content="Lanes" Click="ShowLanes" IsVisible="{Binding HasLanes}" />
           <Button Classes="jump" Content="Timing" Click="ShowTiming" />
           <Button Classes="jump" Content="Over the song" Click="ShowSong" />
           <Button Classes="jump" Content="Long notes" Click="ShowLongNotes" IsVisible="{Binding HasHolds}" />
@@ -173,6 +202,88 @@
           <TextBlock Text="{Binding NoReplayTitle}" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
           <TextBlock Classes="secondary" FontSize="13" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="460"
                      Text="{Binding NoReplayText}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Lanes -->
+      <Border x:Name="LanesSection" Classes="surface" Classes.glass="{Binding $parent[Window].DataContext.ShowBackdrop}" Padding="24" IsVisible="{Binding HasLanes}">
+        <StackPanel Spacing="14">
+          <Grid x:Name="LanesHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12" RowSpacing="10">
+            <StackPanel Spacing="4">
+              <TextBlock Classes="sectionTitle" Text="Lanes" />
+              <TextBlock Classes="caption" Text="{Binding LanesCaption}" />
+            </StackPanel>
+            <!-- each hand: accuracy and misses over its lanes -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+              <Border Classes="handBox" ToolTip.Tip="Left hand: the lanes marked L">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="muted" FontSize="13" FontWeight="Bold" Text="L" VerticalAlignment="Center" />
+                  <StackPanel>
+                    <TextBlock Classes="mono" FontSize="15" FontWeight="SemiBold" Text="{Binding LeftHandAccuracyText}" />
+                    <TextBlock Classes="muted mono" FontSize="12" Text="{Binding LeftHandMissText}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+              <Border Classes="handBox" ToolTip.Tip="Right hand: the lanes marked R">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="muted" FontSize="13" FontWeight="Bold" Text="R" VerticalAlignment="Center" />
+                  <StackPanel>
+                    <TextBlock Classes="mono" FontSize="15" FontWeight="SemiBold" Text="{Binding RightHandAccuracyText}" />
+                    <TextBlock Classes="muted mono" FontSize="12" Text="{Binding RightHandMissText}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+
+          <!-- odd key counts: which hand plays the middle lane -->
+          <WrapPanel ItemSpacing="6" LineSpacing="6" IsVisible="{Binding HasMiddleLane}">
+            <TextBlock Classes="caption" Text="Middle lane" VerticalAlignment="Center" Margin="0,0,4,0" />
+            <Button Classes="columnChip" Classes.selected="{Binding MiddleLaneLeft}" Content="Left hand" Click="MiddleLaneToLeft" />
+            <Button Classes="columnChip" Classes.selected="{Binding MiddleLaneRight}" Content="Right hand" Click="MiddleLaneToRight" />
+          </WrapPanel>
+
+          <ItemsControl ItemsSource="{Binding LaneColumns}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <local:LanePanel MinItemWidth="68" MaxItemWidth="108" Spacing="6" RowSpacing="14" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="local:LaneColumn">
+                <Button Classes="lane" Classes.selected="{Binding IsSelected}" Click="PickLane">
+                  <StackPanel Spacing="6">
+                    <StackPanel Spacing="6" Background="Transparent" ToolTip.Tip="{Binding Tip}">
+                      <StackPanel Spacing="1">
+                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                          <TextBlock FontSize="13" FontWeight="Bold" Text="{Binding NumberText}" />
+                          <TextBlock Classes="muted" FontSize="10" FontWeight="SemiBold" Text="{Binding HandText}" VerticalAlignment="Bottom" Margin="0,0,0,1" />
+                        </StackPanel>
+                        <TextBlock Classes="mono" FontSize="12" FontWeight="SemiBold" Text="{Binding AccuracyText}" HorizontalAlignment="Center" />
+                      </StackPanel>
+                      <!-- the bar fills from the bottom; misses in its bottom right corner -->
+                      <Panel Height="120">
+                        <Border Background="{DynamicResource ChartBackgroundBrush}" CornerRadius="5" />
+                        <Border Height="{Binding BarHeight}" VerticalAlignment="Bottom" Background="{DynamicResource TextSecondaryBrush}" CornerRadius="5" />
+                        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,3,3" Padding="4,1" CornerRadius="6"
+                                Background="{DynamicResource JudgementMissBrush}" IsVisible="{Binding HasMisses}">
+                          <TextBlock Classes="mono" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource PrimaryButtonTextBrush}" Text="{Binding MissText}" />
+                        </Border>
+                      </Panel>
+                    </StackPanel>
+                    <local:SegmentBar Height="6" Segments="{Binding Segments}" Title="{Binding Title}" />
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="4" RowSpacing="1">
+                      <TextBlock Classes="muted" FontSize="10" Text="Mean" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Classes="mono" Classes.early="{Binding IsEarly}" Classes.late="{Binding IsLate}" FontSize="11" FontWeight="SemiBold"
+                                 Text="{Binding MeanText}" HorizontalAlignment="Right" />
+                      <TextBlock Grid.Row="1" Classes="muted" FontSize="10" Text="UR" VerticalAlignment="Center" />
+                      <TextBlock Grid.Row="1" Grid.Column="1" Classes="mono" FontSize="11" FontWeight="SemiBold" Text="{Binding UnstableRateText}" HorizontalAlignment="Right" />
+                    </Grid>
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
         </StackPanel>
       </Border>
 
