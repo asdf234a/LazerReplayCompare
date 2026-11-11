@@ -88,9 +88,9 @@
         </Grid>
       </Border>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-        <ComboBox MinWidth="150" ItemsSource="{Binding CollectionOptions}" SelectedItem="{Binding SelectedCollection, Mode=TwoWay}" ToolTip.Tip="Only the maps of a collection" />
-        <ComboBox MinWidth="104" ItemsSource="{Binding KeysOptions}" SelectedItem="{Binding SelectedKeys, Mode=TwoWay}" />
-        <ComboBox MinWidth="104" ItemsSource="{Binding RateOptions}" SelectedItem="{Binding SelectedRate, Mode=TwoWay}" ToolTip.Tip="Best plays at this rate or faster" />
+        <ComboBox Background="{DynamicResource OnImageBrush}" MinWidth="150" ItemsSource="{Binding CollectionOptions}" SelectedItem="{Binding SelectedCollection, Mode=TwoWay}" ToolTip.Tip="Only the maps of a collection" />
+        <ComboBox Background="{DynamicResource OnImageBrush}" MinWidth="104" ItemsSource="{Binding KeysOptions}" SelectedItem="{Binding SelectedKeys, Mode=TwoWay}" />
+        <ComboBox Background="{DynamicResource OnImageBrush}" MinWidth="104" ItemsSource="{Binding RateOptions}" SelectedItem="{Binding SelectedRate, Mode=TwoWay}" ToolTip.Tip="Best plays at this rate or faster" />
       </StackPanel>
     </Grid>
 
@@ -171,8 +171,6 @@
           <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="12" Margin="20,12,20,10">
             <TextBlock Text="{Binding GroupTitle}" FontSize="17" FontWeight="Bold" />
             <TextBlock Grid.Column="1" Classes="secondary" FontSize="12" Text="{Binding GroupCountText}" VerticalAlignment="Bottom" Margin="0,0,0,2" />
-            <Button Grid.Column="2" Content="Clear sort" Click="ClearSortClicked" MinHeight="24" Padding="8,0" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding IsSorted}"
-                    ToolTip.Tip="Back to the list's own order (by the number, easiest first). Clicking a sorted column a third time does the same." />
             <TextBlock Grid.Column="3" Classes="muted" FontSize="12" Text="{Binding StatusText}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,2" TextTrimming="CharacterEllipsis" />
           </Grid>
 
