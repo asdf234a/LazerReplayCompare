@@ -2,6 +2,19 @@ namespace LazerReplayCompare;
 
 public sealed class AppSettingsService
 {
+    private static AppSettingsService? shared;
+
+    public AppSettingsService()
+    {
+        shared ??= this;
+    }
+
+    /// <summary>
+    /// The app's settings: the first service made (the main window's), so that whoever writes through here and the
+    /// window share one <see cref="AppSettings"/> and can't save over each other. Made on first use otherwise.
+    /// </summary>
+    public static AppSettingsService Shared => shared ??= new AppSettingsService();
+
     public AppSettings Current { get; } = AppSettings.Load();
 
     public void Save()
@@ -89,6 +102,20 @@ public sealed class AppSettingsService
             return;
 
         Current.Zoom = zoom;
+        Save();
+    }
+
+    /// <summary>Whether the middle lane of an odd key count is the left hand's (the default; anything but "right").</summary>
+    public bool MiddleLaneLeft => !string.Equals(Current.MiddleLaneHand, "right", StringComparison.OrdinalIgnoreCase);
+
+    /// <param name="hand">"left" or "right" (anything else is "left").</param>
+    public void SetMiddleLaneHand(string hand)
+    {
+        hand = string.Equals(hand, "right", StringComparison.OrdinalIgnoreCase) ? "right" : "left";
+        if (Current.MiddleLaneHand == hand)
+            return;
+
+        Current.MiddleLaneHand = hand;
         Save();
     }
 

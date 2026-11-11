@@ -50,6 +50,9 @@ public sealed class AppSettings
     /// <summary>Zoom of the pages (1 = 100%).</summary>
     public double Zoom { get; set; } = 1;
 
+    /// <summary>The hand the middle lane of an odd key count belongs to in a replay's Lanes section: "left" or "right".</summary>
+    public string MiddleLaneHand { get; set; } = "left";
+
     private static string SettingsPath => AppPaths.Settings;
 
     public static AppSettings Load()
