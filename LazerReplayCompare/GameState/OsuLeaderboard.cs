@@ -42,7 +42,7 @@ public sealed class OsuLeaderboard : IDisposable
         this.getCredentials = getCredentials;
         this.site = site;
         this.utcNow = utcNow ?? (() => DateTime.UtcNow);
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("LazerReplayCompare");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd($"LazerReplayCompare/{typeof(OsuLeaderboard).Assembly.GetName().Version?.ToString(3) ?? "3"}");
     }
 
     /// <summary>The beatmap's top scores, best first; nothing without a client, or while they can't be had.</summary>
@@ -109,6 +109,8 @@ public sealed class OsuLeaderboard : IDisposable
                 }
 
                 await requestTokenAsync(now);
+                if (token == null)
+                    return false;
             }
 
             if (!takeRequest(now))
@@ -123,6 +125,9 @@ public sealed class OsuLeaderboard : IDisposable
             request.Headers.Add("x-api-version", "20220705");
 
             using var response = await http.SendAsync(request);
+            if (tooMany(response, now))
+                return false;
+
             if (!response.IsSuccessStatusCode)
             {
                 LastError = (int)response.StatusCode == 404 ? "osu! has no replay of this score" : $"osu! answered {(int)response.StatusCode}";
@@ -213,6 +218,8 @@ public sealed class OsuLeaderboard : IDisposable
                 return null;
 
             await requestTokenAsync(now);
+            if (token == null)
+                return null;
         }
 
         if (!takeRequest(now))
@@ -224,6 +231,9 @@ public sealed class OsuLeaderboard : IDisposable
         request.Headers.Add("x-api-version", "20220705");
 
         using var response = await http.SendAsync(request);
+        if (tooMany(response, now))
+            return null;   // not the beatmap's failure: everything waits
+
         response.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
@@ -275,6 +285,12 @@ public sealed class OsuLeaderboard : IDisposable
         });
 
         using var response = await http.PostAsync($"{site}/oauth/token", body);
+        if (tooMany(response, now))
+        {
+            token = null;
+            return;
+        }
+
         response.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         token = document.RootElement.GetProperty("access_token").GetString();
@@ -282,8 +298,31 @@ public sealed class OsuLeaderboard : IDisposable
         tokenExpires = now + TimeSpan.FromSeconds(Math.Max(document.RootElement.GetProperty("expires_in").GetInt32() - 60, 0));
     }
 
+    // osu! said "too many requests" (429): nothing at all is asked until then
+    private DateTime pausedUntil;
+
+    /// <summary>True (and everything waits) when osu! answered that it is asked too much.</summary>
+    private bool tooMany(HttpResponseMessage response, DateTime now)
+    {
+        if ((int)response.StatusCode != 429)
+            return false;
+
+        var wait = response.Headers.RetryAfter?.Delta ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow) ?? TimeSpan.FromMinutes(1);
+        if (wait < TimeSpan.FromMinutes(1))
+            wait = TimeSpan.FromMinutes(1);
+        if (wait > TimeSpan.FromMinutes(30))
+            wait = TimeSpan.FromMinutes(30);
+
+        pausedUntil = now + wait;
+        LastError = "osu! asked to slow down: nothing is asked for a while";
+        return true;
+    }
+
     private bool takeRequest(DateTime now)
     {
+        if (now < pausedUntil)
+            return false;
+
         while (requests.Count > 0 && now - requests.Peek() >= TimeSpan.FromMinutes(1))
             requests.Dequeue();
 

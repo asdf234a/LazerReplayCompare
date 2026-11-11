@@ -521,8 +521,31 @@ public sealed partial class MainWindow
             viewModel.OnlineNote = string.Empty;
             viewModel.NotifyTabsChanged();
             if (viewModel.IsOnlineTab || viewModel.RivalsMode != "local")
-                loadOnline();
+                loadOnlineSoon();
         }
+    }
+
+    private DispatcherTimer? onlineTimer;
+
+    /// <summary>
+    /// Asks for the shown map's ranking once it has stayed shown a moment, so going through song select doesn't ask
+    /// osu! about every map passed on the way.
+    /// </summary>
+    private void loadOnlineSoon()
+    {
+        onlineTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+        if (onlineTimer.Tag == null)
+        {
+            onlineTimer.Tag = this;
+            onlineTimer.Tick += (_, _) =>
+            {
+                onlineTimer.Stop();
+                loadOnline();
+            };
+        }
+
+        onlineTimer.Stop();
+        onlineTimer.Start();
     }
 
     private void updateMapCard()
