@@ -77,8 +77,12 @@
     <AvaloniaResource Include="Assets\Mods\*.png" />
     <!-- UI font (LRC Sans: a Pretendard subset, see LRCSans-NOTICE.txt) and mod icon text (Baloo 2, see Baloo2-OFL.txt). -->
     <AvaloniaResource Include="Assets\Fonts\*.ttf" />
-    <!-- Torus, osu!'s typeface (Regular and Bold); LRC Sans fills in what it has no glyph for (Korean, Japanese …). -->
-    <AvaloniaResource Include="Assets\Fonts\*.otf" />
+    <!--
+      Torus, osu!'s typeface, is not redistributed: it is not in the repository and not in release builds. A build made
+      on a machine that has Torus-Regular.otf and Torus-Bold.otf in LocalFonts (git-ignored) puts them in and uses them
+      (see App.axaml.cs). Pass -p:IncludeLocalFonts=false to leave them out, as the release build does.
+    -->
+    <AvaloniaResource Include="LocalFonts\*.otf" Link="Assets\Fonts\%(Filename)%(Extension)" Condition="'$(IncludeLocalFonts)' != 'false'" />
   </ItemGroup>
 
   <ItemGroup>

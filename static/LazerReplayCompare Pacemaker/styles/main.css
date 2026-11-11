@@ -1,5 +1,8 @@
 /* The pacemaker: you among your rivals at this point of the song. One dark panel of rows; yours is marked. */
 
+/* Pretendard comes with the overlays. Torus (osu!'s typeface) does not: it is used when its two files are put into
+   lazerReplayCompareShared yourself (Torus-Regular.otf, Torus-Bold.otf). */
+@font-face { font-family: 'Pretendard'; src: url('../../lazerReplayCompareShared/Pretendard-SemiBold.ttf') format('truetype'); font-weight: 400 700; }
 @font-face { font-family: 'Torus'; src: url('../../lazerReplayCompareShared/Torus-Regular.otf') format('opentype'); font-weight: 400; }
 @font-face { font-family: 'Torus'; src: url('../../lazerReplayCompareShared/Torus-Bold.otf') format('opentype'); font-weight: 600 700; }
 

@@ -205,7 +205,7 @@
                     <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TextBrush}" IsVisible="{Binding IsNowPlaying}" />
                     <Grid Classes="mapCells" ColumnDefinitions="132,*,48,62,48,58,64,28,126,56,30" Margin="20,0,14,0">
                       <StackPanel VerticalAlignment="Center">
-                        <Border Background="{Binding NumberBadge}" CornerRadius="8" Padding="8,0,8,3" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,2">
+                        <Border Background="{Binding NumberBadge}" CornerRadius="8" Padding="{DynamicResource NumberBoxPaddingMedium}" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,2">
                           <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="19" FontWeight="Bold" Foreground="{Binding NumberBadgeText}" />
                         </Border>
                         <TextBlock Text="{Binding DanText}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />

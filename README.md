@@ -136,6 +136,8 @@ dotnet publish LazerReplayCompare -c Release -r win-x64 --self-contained false -
 
 By default it looks for osu!lazer in `%LocalAppData%\osulazer\current`. Pass `-p:OsuLazerCurrentPath=<folder>` to use another one. The publish folder holds the exe, `analyser` and `static`.
 
+The app's typeface is LRC Sans. Torus, osu!'s typeface, is not part of this repository or of the releases. If you have its files, put `Torus-Regular.otf` and `Torus-Bold.otf` into `LazerReplayCompare/LocalFonts` before building and the build uses it (`-p:IncludeLocalFonts=false` leaves it out); for the Pacemaker overlay, put the same two files into tosu's `static/lazerReplayCompareShared`.
+
 ## Third-party notices
 
 LazerReplayCompare includes or is built from the work listed here. Each part stays under its own licence.
@@ -170,9 +172,8 @@ These are compiled into `LazerReplayCompare.exe`.
 
 | What | Licence |
 |---|---|
-| [Pretendard](https://github.com/orioncactus/pretendard), a subset of it included as "LRC Sans" | SIL Open Font License 1.1, Copyright (c) 2021 Kil Hyung-jin. See `LazerReplayCompare/Assets/Fonts/LRCSans-NOTICE.txt`. |
+| [Pretendard](https://github.com/orioncactus/pretendard), a subset of it included as "LRC Sans" (the app's typeface, and the overlays') | SIL Open Font License 1.1, Copyright (c) 2021 Kil Hyung-jin. See `LazerReplayCompare/Assets/Fonts/LRCSans-NOTICE.txt`. |
 | [Baloo 2](https://github.com/EkType/Baloo2) | SIL Open Font License 1.1. See `LazerReplayCompare/Assets/Fonts/Baloo2-OFL.txt`. |
-| Torus by Paulo Goode, osu!'s typeface | A commercial typeface. It is not open source and is not covered by this repository's terms; it is included as the typeface the game itself uses. |
 | Mod icons from [osu-resources](https://github.com/ppy/osu-resources) | CC BY-NC 4.0, ppy Pty Ltd. See `LazerReplayCompare/Assets/Mods/NOTICE.txt`. |
 
 ### The MIT License

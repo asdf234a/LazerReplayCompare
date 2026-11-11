@@ -5,9 +5,9 @@
   <Style Selector="Window">
     <Setter Property="Background" Value="{DynamicResource PageBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-    <!-- Torus (osu!'s typeface), then LRC Sans (Pretendard, subset: see Assets/Fonts/LRCSans-NOTICE.txt) for the glyphs Torus
-         lacks. Glyphs neither has fall back to system fonts. -->
-    <Setter Property="FontFamily" Value="avares://LazerReplayCompare/Assets/Fonts#Torus, LRC Sans" />
+    <!-- LRC Sans (Pretendard, subset: see Assets/Fonts/LRCSans-NOTICE.txt); a build that has Torus in it puts Torus first
+         (see App.axaml.cs). Glyphs neither has fall back to system fonts. -->
+    <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
     <Setter Property="FontSize" Value="14" />
   </Style>
 
@@ -360,10 +360,10 @@
   <!-- Flyouts: the app's own translucent panel instead of Fluent's opaque one -->
   <!-- (a popup is a window of its own: it doesn't take the main window's typeface by itself) -->
   <Style Selector="PopupRoot">
-    <Setter Property="FontFamily" Value="avares://LazerReplayCompare/Assets/Fonts#Torus, LRC Sans" />
+    <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
   </Style>
   <Style Selector="FlyoutPresenter">
-    <Setter Property="FontFamily" Value="avares://LazerReplayCompare/Assets/Fonts#Torus, LRC Sans" />
+    <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
     <Setter Property="Background" Value="{DynamicResource FlyoutBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource FlyoutBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
