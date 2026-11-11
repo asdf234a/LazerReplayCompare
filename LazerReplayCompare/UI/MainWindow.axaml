@@ -309,7 +309,7 @@
           </Border>
 
           <!-- The map: its card (what it is, how hard it is), then what the overlays show -->
-          <Grid Classes="hero" Classes.overBanner="{Binding ShowBackdrop}" RowDefinitions="Auto,Auto" RowSpacing="14">
+          <Grid Classes="hero" Classes.overBanner="{Binding ShowBackdrop}">
             <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" ClipToBounds="True">
               <StackPanel>
                 <Grid ColumnDefinitions="Auto,*" Margin="22,16,22,14">
@@ -317,8 +317,7 @@
                   <StackPanel Width="150" Spacing="2" IsVisible="{Binding MapCard.HasMap}" VerticalAlignment="Top">
                     <TextBlock Classes="mono" Text="{Binding MapCard.NumberText}" FontSize="44" FontWeight="Bold" Foreground="{Binding MapCard.NumberBrush}" LineHeight="48" />
                     <TextBlock Text="{Binding MapCard.DanText}" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
-                    <ComboBox Margin="0,6,0,0" MinWidth="112" MinHeight="26" FontSize="12" ItemsSource="{Binding Library.NumberOptions}" SelectedItem="{Binding Library.SelectedNumber, Mode=TwoWay}"
-                              ToolTip.Tip="The number shown: the Sunny star rating, the estimators' dan number (a * marks a Sunny rating standing in for it), or osu!'s stars" />
+                    <TextBlock Classes="muted" FontSize="11" Text="{Binding MapCard.NumberName}" ToolTip.Tip="Which number is shown is picked in Settings → Library" />
                   </StackPanel>
 
                   <StackPanel Grid.Column="1" Spacing="4">
@@ -414,52 +413,6 @@
                 </Border>
               </StackPanel>
             </Border>
-            <!-- What the Main and Sub overlays show (the live panel shows both items); Sub wraps under Main when narrow. -->
-            <WrapPanel Grid.Row="1" ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Left">
-              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Classes="secondary" Text="Main" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
-                  <ComboBox MinWidth="118" ItemsSource="{Binding MainItemOptions}" SelectedItem="{Binding SelectedMainItem, Mode=TwoWay}"
-                            ToolTip.Tip="What the Main overlay shows" />
-                  <ComboBox MinWidth="92" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedMainShow, Mode=TwoWay}"
-                            ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
-                </StackPanel>
-              </Border>
-              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Classes="secondary" Text="Sub" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
-                  <ComboBox MinWidth="118" ItemsSource="{Binding SubItemOptions}" SelectedItem="{Binding SelectedSubItem, Mode=TwoWay}"
-                            ToolTip.Tip="What the Sub overlay shows" />
-                  <ComboBox MinWidth="92" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedSubShow, Mode=TwoWay}"
-                            ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
-                </StackPanel>
-              </Border>
-              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12" IsVisible="{Binding ShowScoreBase}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Classes="secondary" Text="Base" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
-                  <ComboBox MinWidth="92" ItemsSource="{Binding BaseModeOptions}" SelectedItem="{Binding SelectedBaseMode, Mode=TwoWay}"
-                            ToolTip.Tip="Where Score log is 0: a fixed score, or a place on the beatmap's leaderboard" />
-                  <TextBox Width="104" Text="{Binding BaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="BaseTextKeyDown"
-                           ToolTip.Tip="A score like 999000 or 999.5k, or a place from 1 to 50. Without that place on the leaderboard, Score log uses the last fixed score." />
-                </StackPanel>
-              </Border>
-              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12" IsVisible="{Binding ShowAccLog}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Classes="secondary" Text="Acc" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
-                  <ComboBox MinWidth="92" ItemsSource="{Binding AccLogKindOptions}" SelectedItem="{Binding SelectedAccLogKind, Mode=TwoWay}"
-                            ToolTip.Tip="Which accuracy Acc log measures" />
-                  <TextBox Width="84" Text="{Binding AccLogBaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="AccLogBaseKeyDown"
-                           ToolTip.Tip="The accuracy where Acc log is 0" />
-                </StackPanel>
-              </Border>
-              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Classes="secondary" Text="Rivals" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
-                  <ComboBox MinWidth="140" ItemsSource="{Binding RivalsOptions}" SelectedItem="{Binding SelectedRivals, Mode=TwoWay}"
-                            ToolTip.Tip="Who the Pacemaker overlay and the Rival items race against: your local replays at this rate, the online ranking (asked for once per map), or both" />
-                </StackPanel>
-              </Border>
-            </WrapPanel>
           </Grid>
 
           <!-- Waiting for connections or a beatmap -->
@@ -542,24 +495,112 @@
               </Grid>
             </Border>
 
-          <!-- Replays: the local ones, or the map's online ranking -->
-          <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4" Margin="4,0" IsVisible="{Binding ShowReplayTabs}">
-            <Button Classes="tab" Classes.active="{Binding IsLocalTab}" Content="{Binding LocalTabText}" Click="ShowLocalTab" MinHeight="34" />
-            <Button Grid.Column="1" Classes="tab" Classes.active="{Binding IsOnlineTab}" Content="{Binding OnlineTabText}" Click="ShowOnlineTab" MinHeight="34"
-                    ToolTip.Tip="The beatmap's top scores on osu!'s website (asked for once per map). Click one to download its replay and compare against it." />
-            <TextBlock Grid.Column="2" Classes="secondary" FontSize="13" Text="{Binding RankSummary}" VerticalAlignment="Center" Margin="14,0,0,0" TextTrimming="CharacterEllipsis" />
-          </Grid>
+          <!-- Replays: the tabs, where the player stands, and what the overlays show, in one row on top of the list -->
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" CornerRadius="12,12,0,0" Padding="6,6,10,0" IsVisible="{Binding ShowReplayTabs}">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="4">
+              <Button Classes="tab" Classes.active="{Binding IsLocalTab}" Content="{Binding LocalTabText}" Click="ShowLocalTab" MinHeight="36" />
+              <Button Grid.Column="1" Classes="tab" Classes.active="{Binding IsOnlineTab}" Content="{Binding OnlineTabText}" Click="ShowOnlineTab" MinHeight="36"
+                      ToolTip.Tip="The beatmap's top scores on osu!'s website (asked for once per map). Click one to download its replay and compare against it." />
+              <TextBlock Grid.Column="2" Classes="secondary" FontSize="12" Text="{Binding RankSummary}" VerticalAlignment="Center" Margin="12,0,8,0" TextTrimming="CharacterEllipsis" />
+              <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,0,4">
+                <TextBlock Classes="muted" FontSize="12" Text="Overlays" VerticalAlignment="Center" Margin="0,0,2,0" />
+                <Button MinHeight="28" Padding="9,0" VerticalAlignment="Center" ToolTip.Tip="What the Main overlay shows">
+                  <StackPanel Orientation="Horizontal" Spacing="7">
+                    <TextBlock Classes="muted" FontSize="12" Text="Main" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedMainItem.Name}" VerticalAlignment="Center" />
+                    <TextBlock Classes="muted" FontSize="12" Text="·" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedMainShow.Name}" VerticalAlignment="Center" />
+                    <Path Width="9" Height="6" Stretch="Uniform" StrokeThickness="1.8" Stroke="{DynamicResource TextSecondaryBrush}" Data="M1,1 L5,5 L9,1" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight">
+                      <StackPanel Spacing="8" MinWidth="230">
+                        <TextBlock Classes="muted" FontSize="12" Text="What the Main overlay shows" />
+                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding MainItemOptions}" SelectedItem="{Binding SelectedMainItem, Mode=TwoWay}" />
+                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedMainShow, Mode=TwoWay}"
+                                  ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowScoreBase}">
+                          <TextBlock Classes="secondary" Text="Base" VerticalAlignment="Center" FontSize="13" Width="34" />
+                          <ComboBox MinWidth="92" ItemsSource="{Binding BaseModeOptions}" SelectedItem="{Binding SelectedBaseMode, Mode=TwoWay}"
+                                    ToolTip.Tip="Where Score log is 0: a fixed score, or a place on the beatmap's leaderboard" />
+                          <TextBox Width="104" Text="{Binding BaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="BaseTextKeyDown"
+                                   ToolTip.Tip="A score like 999000 or 999.5k, or a place from 1 to 50. Without that place on the leaderboard, Score log uses the last fixed score." />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowAccLog}">
+                          <TextBlock Classes="secondary" Text="Acc" VerticalAlignment="Center" FontSize="13" Width="34" />
+                          <ComboBox MinWidth="92" ItemsSource="{Binding AccLogKindOptions}" SelectedItem="{Binding SelectedAccLogKind, Mode=TwoWay}"
+                                    ToolTip.Tip="Which accuracy Acc log measures" />
+                          <TextBox Width="84" Text="{Binding AccLogBaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="AccLogBaseKeyDown"
+                                   ToolTip.Tip="The accuracy where Acc log is 0" />
+                        </StackPanel>
+                      </StackPanel>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+                <Button MinHeight="28" Padding="9,0" VerticalAlignment="Center" ToolTip.Tip="What the Sub overlay shows">
+                  <StackPanel Orientation="Horizontal" Spacing="7">
+                    <TextBlock Classes="muted" FontSize="12" Text="Sub" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedSubItem.Name}" VerticalAlignment="Center" />
+                    <TextBlock Classes="muted" FontSize="12" Text="·" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedSubShow.Name}" VerticalAlignment="Center" />
+                    <Path Width="9" Height="6" Stretch="Uniform" StrokeThickness="1.8" Stroke="{DynamicResource TextSecondaryBrush}" Data="M1,1 L5,5 L9,1" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight">
+                      <StackPanel Spacing="8" MinWidth="230">
+                        <TextBlock Classes="muted" FontSize="12" Text="What the Sub overlay shows" />
+                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SubItemOptions}" SelectedItem="{Binding SelectedSubItem, Mode=TwoWay}" />
+                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedSubShow, Mode=TwoWay}"
+                                  ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowScoreBase}">
+                          <TextBlock Classes="secondary" Text="Base" VerticalAlignment="Center" FontSize="13" Width="34" />
+                          <ComboBox MinWidth="92" ItemsSource="{Binding BaseModeOptions}" SelectedItem="{Binding SelectedBaseMode, Mode=TwoWay}"
+                                    ToolTip.Tip="Where Score log is 0: a fixed score, or a place on the beatmap's leaderboard" />
+                          <TextBox Width="104" Text="{Binding BaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="BaseTextKeyDown"
+                                   ToolTip.Tip="A score like 999000 or 999.5k, or a place from 1 to 50. Without that place on the leaderboard, Score log uses the last fixed score." />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowAccLog}">
+                          <TextBlock Classes="secondary" Text="Acc" VerticalAlignment="Center" FontSize="13" Width="34" />
+                          <ComboBox MinWidth="92" ItemsSource="{Binding AccLogKindOptions}" SelectedItem="{Binding SelectedAccLogKind, Mode=TwoWay}"
+                                    ToolTip.Tip="Which accuracy Acc log measures" />
+                          <TextBox Width="84" Text="{Binding AccLogBaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="AccLogBaseKeyDown"
+                                   ToolTip.Tip="The accuracy where Acc log is 0" />
+                        </StackPanel>
+                      </StackPanel>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+                <Button MinHeight="28" Padding="9,0" VerticalAlignment="Center"
+                        ToolTip.Tip="Who the Pacemaker overlay and the Rival items race against">
+                  <StackPanel Orientation="Horizontal" Spacing="7">
+                    <TextBlock Classes="muted" FontSize="12" Text="Rivals" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedRivals.Name}" VerticalAlignment="Center" />
+                    <Path Width="9" Height="6" Stretch="Uniform" StrokeThickness="1.8" Stroke="{DynamicResource TextSecondaryBrush}" Data="M1,1 L5,5 L9,1" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight">
+                      <StackPanel Spacing="8" MinWidth="250" MaxWidth="300">
+                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                                   Text="Who the Pacemaker overlay and the Rival items race against: your local replays at this rate, the online ranking (asked for once per map), or both." />
+                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding RivalsOptions}" SelectedItem="{Binding SelectedRivals, Mode=TwoWay}" />
+                      </StackPanel>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+              </StackPanel>
+            </Grid>
+          </Border>
 
           <!-- Local replays -->
-          <StackPanel Spacing="10" IsVisible="{Binding IsLocalTab}">
-          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="28" MinHeight="180" IsVisible="{Binding IsLoadingReplays}">
+          <StackPanel Spacing="10" IsVisible="{Binding IsLocalTab}" Margin="0,-18,0,0">
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" CornerRadius="0,0,12,12" Padding="28" MinHeight="180" IsVisible="{Binding IsLoadingReplays}">
             <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
               <!-- (indeterminate only while shown: a hidden bar's animation would keep the window redrawing) -->
               <ProgressBar IsIndeterminate="{Binding IsLoadingReplays}" Width="160" />
               <TextBlock Classes="muted" Text="Loading replays…" HorizontalAlignment="Center" />
             </StackPanel>
           </Border>
-          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="32" MinHeight="220" IsVisible="{Binding ShowNoReplays}">
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" CornerRadius="0,0,12,12" Padding="32" MinHeight="220" IsVisible="{Binding ShowNoReplays}">
             <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
               <Path Width="40" Height="40" Stretch="Uniform" StrokeThickness="1.5" Stroke="{DynamicResource TextMutedBrush}" HorizontalAlignment="Center"
                     Data="M12,3 A9,9 0 1 1 11.99,3 Z M10,9 L15,12 L10,15 Z" />
@@ -569,7 +610,7 @@
               <Button Content="Rescan replays" HorizontalAlignment="Center" Click="RefreshReplays" Margin="0,6,0,0" />
             </StackPanel>
           </Border>
-              <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" ClipToBounds="True" IsVisible="{Binding ShowCompareContent}">
+              <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" CornerRadius="0,0,12,12" ClipToBounds="True" IsVisible="{Binding ShowCompareContent}">
                 <Grid RowDefinitions="Auto,Auto">
                   <Grid x:Name="ReplayHeader" ColumnDefinitions="84,1.1*,1.1*,1.3*,1*,0,0.8*,0.55*,0.65*,0.55*,36" Margin="0,4,0,4">
                     <TextBlock Classes="muted" FontSize="12" Text="#" Width="30" TextAlignment="Center" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0"
@@ -635,8 +676,8 @@
           </StackPanel>
 
           <!-- Online ranking -->
-          <StackPanel Spacing="10" IsVisible="{Binding ShowOnlineList}">
-            <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" ClipToBounds="True">
+          <StackPanel Spacing="10" IsVisible="{Binding ShowOnlineList}" Margin="0,-18,0,0">
+            <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" CornerRadius="0,0,12,12" ClipToBounds="True">
               <StackPanel>
                 <Grid ColumnDefinitions="84,1.2*,1.15*,0.9*,1*,0.8*,0.55*,0.65*,0.55*,36" Margin="0,4,0,4" MinHeight="32">
                   <TextBlock Classes="muted" FontSize="12" Text="#" Width="30" TextAlignment="Center" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0" />
@@ -859,6 +900,12 @@
                            Text="Every mania map of osu!lazer and osu!stable, with its Sunny star rating, its dan (4K, 6K and 7K) and your best rank. Ratings and dans are worked out in the background and pause while you play." />
               </StackPanel>
               <TextBlock Classes="secondary" FontSize="13" TextWrapping="Wrap" Text="{Binding LibraryStatus}" />
+              <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10">
+                <TextBlock Text="Number shown for a map" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1" MinWidth="130" ItemsSource="{Binding Library.NumberOptions}" SelectedItem="{Binding Library.SelectedNumber, Mode=TwoWay}" />
+                <TextBlock Grid.Column="2" Classes="muted" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"
+                           Text="Sunny star rating, the estimators' dan number (a * marks a Sunny rating standing in for it), or osu!'s stars. Each is coloured on its own scale; the dan is always shown under it." />
+              </Grid>
               <CheckBox Content="Show each map's background across its row" IsChecked="{Binding ShowRowBackgrounds, Mode=TwoWay}" />
               <CheckBox Content="Estimate dans with the analyser (a hidden browser in the background)" IsChecked="{Binding UseDanEngine, Mode=TwoWay}"
                         ToolTip.Tip="Off: dans come from the Sunny rating's table only, and maps have no dan number (they show their Sunny rating with a *)" />

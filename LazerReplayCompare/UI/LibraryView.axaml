@@ -61,8 +61,6 @@
       </Border>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
         <ComboBox MinWidth="150" ItemsSource="{Binding CollectionOptions}" SelectedItem="{Binding SelectedCollection, Mode=TwoWay}" ToolTip.Tip="Only the maps of a collection" />
-        <ComboBox MinWidth="112" ItemsSource="{Binding NumberOptions}" SelectedItem="{Binding SelectedNumber, Mode=TwoWay}"
-                  ToolTip.Tip="The number each map is led by: its Sunny star rating, the estimators' dan number (a * marks a Sunny rating standing in for it), or osu!'s stars" />
         <ComboBox MinWidth="104" ItemsSource="{Binding KeysOptions}" SelectedItem="{Binding SelectedKeys, Mode=TwoWay}" />
         <ComboBox MinWidth="104" ItemsSource="{Binding RateOptions}" SelectedItem="{Binding SelectedRate, Mode=TwoWay}" ToolTip.Tip="Best plays at this rate or faster" />
       </StackPanel>
@@ -105,7 +103,7 @@
           </Grid>
 
           <Grid Grid.Row="1" x:Name="MapHeader" Classes="mapCells" ColumnDefinitions="132,*,48,62,48,58,64,28,126,56,30" Margin="20,0,14,4">
-            <Button Classes="sortHeader" HorizontalContentAlignment="Left" Content="{Binding NumberHeader}" Tag="Number" Click="SortClicked" ToolTip.Tip="The dan is under the number" />
+            <Button Classes="sortHeader" HorizontalContentAlignment="Left" Content="{Binding NumberHeader}" Tag="Number" Click="SortClicked" ToolTip.Tip="The dan is under the number. Which number is shown is picked in Settings → Library." />
             <Button Grid.Column="1" Classes="sortHeader" HorizontalContentAlignment="Left" Content="{Binding TitleHeader}" Tag="Title" Click="SortClicked" />
             <Button Grid.Column="2" Classes="sortHeader" Content="{Binding KeysHeader}" Tag="Keys" Click="SortClicked" />
             <Button Grid.Column="3" Classes="sortHeader" Content="{Binding StarsHeader}" Tag="Stars" Click="SortClicked" />
