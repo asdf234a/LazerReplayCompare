@@ -40,22 +40,38 @@ public sealed partial class MainWindow
             mapOpenedFromLibrary = true;   // Back returns to the library
         };
 
-        // pages and maps fade in rather than snap (short, so nothing waits on it)
-        var pages = new (string Property, Control Page)[]
+        // a page arrives from the side it is on: going in (library → map → replay) it rises into place, going back it
+        // comes down; Settings, beside them all, just rises a little
+        var pages = new (string Property, Control Page, int Depth)[]
         {
-            (nameof(MainWindowViewModel.ShowCompareList), this.FindControl<Control>("ComparePage")!),
-            (nameof(MainWindowViewModel.ShowDetailsPage), this.FindControl<Control>("DetailsPanel")!),
-            (nameof(MainWindowViewModel.ShowLibraryPage), this.FindControl<Control>("LibraryPanel")!),
-            (nameof(MainWindowViewModel.IsSettingsPage), this.FindControl<Control>("SettingsPage")!),
+            (nameof(MainWindowViewModel.ShowLibraryPage), this.FindControl<Control>("LibraryPanel")!, 0),
+            (nameof(MainWindowViewModel.ShowCompareList), this.FindControl<Control>("ComparePage")!, 1),
+            (nameof(MainWindowViewModel.ShowDetailsPage), this.FindControl<Control>("DetailsPanel")!, 2),
+            (nameof(MainWindowViewModel.IsSettingsPage), this.FindControl<Control>("SettingsPage")!, -1),
         };
+        int shownDepth = 1;
         viewModel.PropertyChanged += (_, e) =>
         {
-            foreach (var (property, page) in pages)
+            foreach (var (property, page, depth) in pages)
             {
-                if (e.PropertyName == property && page.IsVisible)
-                    fadeIn(page);
+                if (e.PropertyName != property || !page.IsVisible)
+                    continue;
+
+                if (depth < 0 || shownDepth < 0)
+                    Motion.Enter(page, 14, 1, 220);
+                else if (depth > shownDepth)
+                    Motion.Enter(page, 26, 0.98, 260);
+                else if (depth < shownDepth)
+                    Motion.Enter(page, -18, 1.015, 260);
+                shownDepth = depth;
             }
+
+            if (e.PropertyName == nameof(MainWindowViewModel.MapCard))
+                rollNumber();
+            else if (e.PropertyName == nameof(MainWindowViewModel.IsRailExpanded))
+                moveRail();
         };
+        rollNumber();
 
         var settings = settingsService.Current;
         libraryModel.Restore(settings.LibraryGroupBy, settings.LibraryNumber, settings.LibraryKeys, settings.LibraryRate);
@@ -391,27 +407,69 @@ public sealed partial class MainWindow
     private bool mapOpenedFromLibrary;
     private string fadedMap = string.Empty;
 
-    /// <summary>Fades a page or a card in over a moment.</summary>
-    private static async void fadeIn(Control control, double from = 0, int milliseconds = 170)
+    private double shownNumber = double.NaN;
+
+    /// <summary>The map card's big number rolls from the value it showed to the new one, its colour with it.</summary>
+    private void rollNumber()
     {
-        try
+        var label = this.FindControl<TextBlock>("MapNumber")!;
+        var card = viewModel.MapCard;
+        string text = card?.NumberText ?? "–";
+        var brush = card?.NumberBrush ?? DifficultyColors.Neutral;
+        string mark = text.StartsWith('*') ? "*" : string.Empty;
+
+        bool number = double.TryParse(text.TrimStart('*'), NumberStyles.Float, CultureInfo.InvariantCulture, out var target);
+        double from = double.IsNaN(shownNumber) ? 0 : shownNumber;
+        if (!number || !viewModel.ShowCompareList || Math.Abs(from - target) < 0.005)
         {
-            var animation = new Avalonia.Animation.Animation
+            Motion.Run(label, "roll", 1, _ => { });   // (stops one that is rolling)
+            label.Text = text;
+            label.Foreground = brush;
+            shownNumber = number ? target : double.NaN;
+            return;
+        }
+
+        var toColor = (brush as Avalonia.Media.ISolidColorBrush)?.Color ?? Avalonia.Media.Colors.White;
+        var fromColor = (label.Foreground as Avalonia.Media.ISolidColorBrush)?.Color ?? toColor;
+        Motion.Run(label, "roll", 420, t =>
+        {
+            shownNumber = from + (target - from) * t;
+            label.Text = t >= 1 ? text : mark + shownNumber.ToString("0.00", CultureInfo.InvariantCulture);
+            label.Foreground = t >= 1 ? brush : new Avalonia.Media.SolidColorBrush(Motion.Mix(fromColor, toColor, t));
+        });
+    }
+
+    /// <summary>The map card's bars fill from nothing, one after the other.</summary>
+    private void growBars()
+    {
+        int index = 0;
+        foreach (var name in new[] { "ContentStatsList", "SettingStatsList" })
+        {
+            if (this.FindControl<Control>(name) is not { } list)
+                continue;
+
+            foreach (var bar in Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(list).OfType<ProgressBar>())
             {
-                Duration = TimeSpan.FromMilliseconds(milliseconds),
-                Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
-                Children =
-                {
-                    new Avalonia.Animation.KeyFrame { Cue = new Avalonia.Animation.Cue(0), Setters = { new Avalonia.Styling.Setter(Visual.OpacityProperty, from) } },
-                    new Avalonia.Animation.KeyFrame { Cue = new Avalonia.Animation.Cue(1), Setters = { new Avalonia.Styling.Setter(Visual.OpacityProperty, 1.0) } },
-                },
-            };
-            await animation.RunAsync(control);
+                if (bar.DataContext is not MapStat stat)
+                    continue;
+
+                double target = stat.Percent;
+                Motion.Run(bar, "grow", 420, t => bar.SetCurrentValue(Avalonia.Controls.Primitives.RangeBase.ValueProperty, target * t), delay: 40 * index++);
+            }
         }
-        catch (Exception ex)
-        {
-            InternalLogger.Log(ex);
-        }
+    }
+
+    /// <summary>The side card widens or narrows to its other form instead of jumping, what it holds fading in.</summary>
+    private void moveRail()
+    {
+        var rail = this.FindControl<Border>("LibraryRail")!;
+        var shown = this.FindControl<Control>(viewModel.IsRailExpanded ? "RailOpened" : "RailFolded")!;
+        double from = rail.Bounds.Width, to = viewModel.IsRailExpanded ? 304 : 92;
+        if (!rail.IsVisible || from <= 0 || !viewModel.ShowCompareList)
+            return;
+
+        Motion.Run(rail, "width", 260, t => rail.Width = from + (to - from) * t, () => rail.Width = double.NaN);
+        Motion.Run(shown, "fade", 300, t => shown.Opacity = t);
     }
 
     private void OpenInOsu(object? sender, RoutedEventArgs e)
@@ -436,10 +494,13 @@ public sealed partial class MainWindow
         var md5 = currentSnapshot.BeatmapChecksum;
         if (md5 != fadedMap)
         {
-            // another map: its page fades in (from part way, so browsing song select doesn't flicker)
+            // another map: its page settles in (from part way, so browsing song select doesn't flicker) and its bars fill
             fadedMap = md5;
             if (viewModel.ShowCompareList && this.FindControl<Control>("CompareContent") is { } content)
-                fadeIn(content, 0.25, 200);
+            {
+                Motion.Enter(content, 8, 1, 260, 0.3);
+                Dispatcher.UIThread.Post(growBars, DispatcherPriority.Loaded);
+            }
         }
 
         if (!string.IsNullOrEmpty(md5) && library.Maps.Find(md5) == null && !library.Maps.Loading)

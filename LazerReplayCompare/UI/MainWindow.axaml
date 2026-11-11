@@ -190,7 +190,7 @@
       <!-- The library beside the map page: folded, a summary of its groups; opened, the maps of one group -->
       <Border x:Name="LibraryRail" Classes="surface" Classes.glass="{Binding ShowBackdrop}" Margin="14,22,0,14" ClipToBounds="True" IsVisible="{Binding ShowRail}">
         <Panel>
-          <DockPanel Width="92" IsVisible="{Binding !IsRailExpanded}">
+          <DockPanel x:Name="RailFolded" Width="92" HorizontalAlignment="Left" IsVisible="{Binding !IsRailExpanded}">
             <Button DockPanel.Dock="Top" Classes="railGroup" Click="ToggleRail" Height="40" Padding="0" HorizontalContentAlignment="Center" ToolTip.Tip="Open the library beside the map">
               <Path Width="16" Height="14" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" Stroke="{DynamicResource TextBrush}"
                     Data="M5,5 L12,12 L5,19 M13,5 L20,12 L13,19" HorizontalAlignment="Center" />
@@ -215,7 +215,7 @@
             </ScrollViewer>
           </DockPanel>
 
-          <DockPanel Width="304" IsVisible="{Binding IsRailExpanded}">
+          <DockPanel x:Name="RailOpened" Width="304" HorizontalAlignment="Left" IsVisible="{Binding IsRailExpanded}">
             <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Height="40">
               <Button Classes="railGroup" Click="ToggleRail" Width="44" Padding="0" HorizontalContentAlignment="Center" VerticalAlignment="Stretch" ToolTip.Tip="Fold the library">
                 <Path Width="16" Height="14" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" Stroke="{DynamicResource TextBrush}"
@@ -324,7 +324,7 @@
                 <Grid ColumnDefinitions="Auto,*" Margin="22,16,22,14">
                   <!-- The number the library is led by, and the dan under it -->
                   <StackPanel Width="150" Spacing="2" IsVisible="{Binding MapCard.HasMap}" VerticalAlignment="Top">
-                    <TextBlock Classes="mono" Text="{Binding MapCard.NumberText}" FontSize="44" FontWeight="Bold" Foreground="{Binding MapCard.NumberBrush}" LineHeight="48" />
+                    <TextBlock x:Name="MapNumber" Classes="mono" Text="–" FontSize="44" FontWeight="Bold" LineHeight="48" />
                     <TextBlock Text="{Binding MapCard.DanText}" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
                     <TextBlock Classes="secondary" Text="{Binding MapCard.LnDanText}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="{Binding MapCard.HasLnDan}"
                                ToolTip.Tip="The LN dan: this map is 20% hold notes or more" />
@@ -389,7 +389,7 @@
                       <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource InfoTextBrush}" Text="{Binding MapCard.Mapper}" VerticalAlignment="Center" IsVisible="{Binding MapCard.HasMapper}" />
                     </WrapPanel>
                     <Grid ColumnDefinitions="Auto,*,Auto">
-                      <ItemsControl ItemsSource="{Binding MapCard.ContentStats}">
+                      <ItemsControl x:Name="ContentStatsList" ItemsSource="{Binding MapCard.ContentStats}">
                         <ItemsControl.ItemsPanel>
                           <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal" Spacing="22" />
@@ -405,7 +405,7 @@
                           </DataTemplate>
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
-                      <ItemsControl Grid.Column="2" ItemsSource="{Binding MapCard.SettingStats}">
+                      <ItemsControl x:Name="SettingStatsList" Grid.Column="2" ItemsSource="{Binding MapCard.SettingStats}">
                         <ItemsControl.ItemsPanel>
                           <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal" Spacing="22" />

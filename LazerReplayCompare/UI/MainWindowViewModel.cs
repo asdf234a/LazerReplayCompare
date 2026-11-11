@@ -887,8 +887,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
             var oldBlurred = BlurredBackground;
             BlurredBackground = value == null ? null : BackdropImage.CreateBlurred(value);
             OnPropertyChanged(nameof(BlurredBackground));
-            oldBlurred?.Dispose();
-            old?.Dispose();
+
+            // the old pictures are still drawn while the new ones fade in over them
+            Avalonia.Threading.DispatcherTimer.RunOnce(() =>
+            {
+                oldBlurred?.Dispose();
+                old?.Dispose();
+            }, TimeSpan.FromMilliseconds(900));
         }
     }
 

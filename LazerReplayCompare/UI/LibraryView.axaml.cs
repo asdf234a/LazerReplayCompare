@@ -26,6 +26,9 @@ public sealed partial class LibraryView : UserControl
     private readonly Control groupsPane;
     private readonly TextBox searchBox;
     private bool narrow;
+    private LibraryViewModel? watched;
+    private string cascadeKey = string.Empty;
+    private long cascadeUntil;
 
     // rows on screen, whose backgrounds are loaded (two at a time, so fast scrolling doesn't decode a hundred images)
     private readonly HashSet<MapRow> realized = new();
@@ -48,12 +51,40 @@ public sealed partial class LibraryView : UserControl
             if (e.Container is not Control container)
                 return;
 
+            // another group or another search: its first rows arrive one after the other
+            int index = mapList.IndexFromContainer(container);
+            if (Environment.TickCount64 < cascadeUntil && index is >= 0 and < 18)
+                Motion.Enter(container, 12, 1, 220, delay: index * 18);
+            else if (container.Opacity < 1 && Environment.TickCount64 >= cascadeUntil)
+            {
+                container.Opacity = 1;
+                container.RenderTransform = null;
+            }
+
             Dispatcher.UIThread.Post(() =>
             {
                 applyColumns(container);
                 if (container.DataContext is MapRow row)
                     show(row);
             }, DispatcherPriority.Loaded);
+        };
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is not LibraryViewModel model || model == watched)
+                return;
+
+            watched = model;
+            model.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(LibraryViewModel.Rows))
+                    return;
+
+                // (the same list read again in the background is not another list)
+                string key = $"{model.GroupTitle}|{model.Rows.Count}|{(model.Rows.Count > 0 ? model.Rows[0].Md5 : string.Empty)}";
+                if (key != cascadeKey && IsEffectivelyVisible)
+                    cascadeUntil = Environment.TickCount64 + 350;
+                cascadeKey = key;
+            };
         };
         mapList.ContainerClearing += (_, e) =>
         {
