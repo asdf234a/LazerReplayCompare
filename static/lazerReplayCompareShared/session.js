@@ -1,8 +1,9 @@
 // The live play (from tosu) and the replay it is compared against (from LazerReplayCompare), shared by the overlays.
 //
 // Follows tosu's websocket, asks the app which replay to compare against and loads its timeline (a raw one first,
-// then the corrected or scaled one), plus the perfect scores score_acc divides by. Overlays read `state`, look up the
-// replay at the live note with `frameAt`, and redraw from `onUpdate`.
+// then the corrected or scaled one), plus the perfect scores score_acc divides by, and the rivals (the app's /rivals) with
+// their timelines when an overlay asks for them. Overlays read `state`, look up the replay at the live note with
+// `frameAt`, and redraw from `onUpdate`.
 
 import {
     chooseReplayTarget,
@@ -15,6 +16,7 @@ import {
     updateOsuPath,
 } from './overlayState.js';
 import { setClient } from './metrics.js';
+import { toRivals } from './rivals.js';
 
 const TOSU_HOST = window.TOSU_HOST || location.host || '127.0.0.1:24050';
 const LAZER_COMPARE_HOST = window.LAZER_COMPARE_HOST || '127.0.0.1:24052';
@@ -26,9 +28,20 @@ const LAZER_COMPARE_HOST = window.LAZER_COMPARE_HOST || '127.0.0.1:24052';
  * @param {() => string} [options.scaleMetric]     App metric to stretch scaled timelines by (from the shown item).
  * @param {() => boolean} [options.needsPerfect]   Whether perfect scores are needed (score_acc is shown).
  * @param {() => boolean} [options.needsRank]      Whether the leaderboard's scores are needed (Score log from a place, or Live rank, is shown).
+ * @param {() => boolean} [options.needsRivals]    Whether the rivals are needed (a Rivals item, or the Pacemaker, is shown).
+ * @param {() => string} [options.rivalMetric]     App metric the rivals' scaled timelines are stretched by.
  * @param {(data: object) => void} [options.onState]  Called with every /state answer (what to show, custom items).
  */
-export function createSession({ name, onUpdate, scaleMetric = () => 'Score', needsPerfect = () => false, needsRank = () => false, onState = () => {} }) {
+export function createSession({
+    name,
+    onUpdate,
+    scaleMetric = () => 'Score',
+    needsPerfect = () => false,
+    needsRank = () => false,
+    needsRivals = () => false,
+    rivalMetric = () => 'Score',
+    onState = () => {},
+}) {
     const state = {
         client: 'lazer',
         gameState: '',
@@ -68,6 +81,10 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
         // the beatmap's leaderboard, best first, without the play going on; the same without the player's own scores
         rankScores: [],
         rankOthers: [],
+
+        // who the play is raced against (rivals.js), best final score first, and the name the app gives the player
+        rivals: [],
+        rivalsPlayer: '',
     };
 
     let loadedStateKey = '';
@@ -81,6 +98,18 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
     let rankCheckAfter = 0;
     let rankLoaded = false;     // for this play
     const rank_check_delay = 5000;
+    // rivals: asked for once per play and when the app's replay list or target changes; their timelines are kept for
+    // the beatmap, so only new ones are built
+    let plays = 0;
+    let rivalsKey = '';
+    let rivalsLoading = false;
+    let rivalsCheckAfter = 0;
+    const rivals_check_delay = 1000;
+    const rival_timelines_at_once = 2;
+    const rivalTimelines = new Map();   // timeline key → frames
+    const rivalQueue = [];              // timelines waiting to be asked for
+    const rivalQueued = new Set();      // keys waiting or being built
+    let rivalBuilds = 0;
 
     const baseKey = () => `${state.beatmapChecksum}|${state.osuPath}|${state.modsKey}`;
 
@@ -201,6 +230,109 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
         }
     }
 
+    function resetRivals() {
+        state.rivals = [];
+        rivalsKey = '';
+        rivalsCheckAfter = 0;
+        rivalTimelines.clear();
+        rivalQueue.length = 0;
+        rivalQueued.clear();
+    }
+
+    function rivalFrames(data) {
+        return (Array.isArray(data?.frames) ? data.frames : [])
+            .map((frame) => ({ index: Number(frame.index), score: Number(frame.score), accuracy: Number(frame.accuracy || 0) }))
+            .filter((frame) => Number.isFinite(frame.index) && Number.isFinite(frame.score))
+            .sort((a, b) => a.index - b.index);
+    }
+
+    /** Builds the waiting rivals' timelines, a few at a time. A rival is paced evenly until its own is there. */
+    function buildRivalTimelines() {
+        while (rivalBuilds < rival_timelines_at_once && rivalQueue.length > 0) {
+            const job = rivalQueue.shift();
+            rivalBuilds++;
+            fetchTimeline(job.rival, job.rate, job.correction, job.metric)
+                .then((data) => {
+                    const frames = rivalFrames(data);
+                    if (job.base !== baseKey() || frames.length === 0) return;
+                    rivalTimelines.set(job.key, frames);
+                    for (const rival of state.rivals) {
+                        if (rival.timelineKey === job.key) rival.frames = frames;
+                    }
+                    update();
+                })
+                // not kept, so the next play asks again
+                .catch((err) => console.warn(`[${name}] rival timeline:`, err.message || err))
+                .finally(() => {
+                    rivalBuilds--;
+                    rivalQueued.delete(job.key);
+                    buildRivalTimelines();
+                });
+        }
+    }
+
+    /**
+     * Asks the app for the rivals when a play started or its replay list or target changed (`data` is /state's answer),
+     * at most once a second, and queues the timelines of those with a replay file that aren't kept yet.
+     */
+    async function checkRivals(data) {
+        if (!needsRivals() || rivalsLoading || !isPlaying()) return;
+
+        const base = baseKey();
+        const correction = state.correctionMode;
+        const metric = rivalMetric();
+        const key = `${base}|${state.client}|${plays}|${data.replayListVersion || ''}|${data.selectedReplayKey || ''}|${correction}|${metric}`;
+        if (key === rivalsKey || Date.now() < rivalsCheckAfter) return;
+
+        rivalsCheckAfter = Date.now() + rivals_check_delay;
+        rivalsLoading = true;
+        try {
+            const answer = await fetchJson('/rivals');
+            if (base !== baseKey()) return;
+            // the app's list is for the beatmap its game has selected; asked again until it is this one
+            if (answer.beatmapMd5 !== state.beatmapChecksum) {
+                state.rivals = [];
+                return;
+            }
+
+            const rate = parseFloat(state.modsKey.split('|')[1]) || 1;
+            const rivals = toRivals(answer.rivals);
+            for (const rival of rivals) {
+                if (rival.source !== 'replay') continue;
+                rival.timelineKey = `${base}|${state.client}|${rival.filePath}|${correction}|${metric}`;
+                rival.frames = rivalTimelines.get(rival.timelineKey) ?? null;
+                // the compared replay's timeline is loaded already (see rivalList)
+                if (rival.frames || rivalQueued.has(rival.timelineKey) || rival.filePath === state.target?.filePath) continue;
+                rivalQueued.add(rival.timelineKey);
+                rivalQueue.push({ key: rival.timelineKey, base, rival, rate, correction, metric });
+            }
+
+            state.rivals = rivals;
+            state.rivalsPlayer = String(answer.player || '');
+            rivalsKey = key;
+            buildRivalTimelines();
+        } catch (err) {
+            // the app is not running, or is one without /rivals
+            rivalsCheckAfter = Date.now() + retry_delay;
+            console.warn(`[${name}] /rivals:`, err.message || err);
+        } finally {
+            rivalsLoading = false;
+            update();
+        }
+    }
+
+    /** The rivals as the items and the Pacemaker read them: the compared replay with the timeline loaded for it. */
+    function rivalList() {
+        if (state.rivals.length === 0) return state.rivals;
+        const targetPath = state.framesKey === baseKey() && state.frames.length > 0 ? state.target?.filePath : '';
+        return targetPath ? state.rivals.map((rival) => (rival.filePath === targetPath ? { ...rival, frames: state.frames } : rival)) : state.rivals;
+    }
+
+    /** The best possible score of the whole beatmap from a /perfect list, or null. */
+    function perfectTotal(scores) {
+        return Array.isArray(scores) && scores.length > 0 ? scores[scores.length - 1] : null;
+    }
+
     async function load(stateKey, correction) {
         if (state.loading) return;
 
@@ -302,6 +434,9 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
                 return;
             }
 
+            // not waited for: the rivals don't hold back the compared replay
+            checkRivals(data);
+
             const stateKey = `${baseKey()}|${data.timelineKey || data.selectedReplayKey || ''}|${data.replayListVersion || ''}|${scaleMetric()}|${needsPerfect()}`;
             if (stateKey !== loadedStateKey && (stateKey !== failedStateKey || Date.now() >= retryAfter))
                 await load(stateKey, state.correctionMode);
@@ -359,7 +494,12 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
             state.client = data.client;
             setClient(state.client);
         }
-        if (data.state?.name != null) state.gameState = data.state.name;
+        if (data.state?.name != null) {
+            const wasPlaying = isPlaying();
+            state.gameState = data.state.name;
+            // a new play: the rivals are asked for again
+            if (!wasPlaying && isPlaying()) plays++;
+        }
         if (data.profile != null) {
             state.player = data.profile.username || data.profile.name || data.profile.user?.username || data.profile.user?.name || state.player;
         }
@@ -373,6 +513,7 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
             state.rankOthers = [];
             rankCheckAfter = 0;
             rankLoaded = false;
+            resetRivals();
             resetTarget();
         }
 
@@ -446,9 +587,32 @@ export function createSession({ name, onUpdate, scaleMetric = () => 'Score', nee
         isResults,
         baseKey,
         /** The live play as an item source. */
-        liveSource: () => ({ score: state.score, accuracy: state.accuracy, hits: state.hits, perfect: perfectAt(state.perfectLive, state.hitIndex), rankScores: state.rankScores, rankOthers: state.rankOthers }),
+        liveSource: () => ({
+            score: state.score,
+            accuracy: state.accuracy,
+            hits: state.hits,
+            perfect: perfectAt(state.perfectLive, state.hitIndex),
+            rankScores: state.rankScores,
+            rankOthers: state.rankOthers,
+            index: state.hitIndex,
+            perfectTotal: perfectTotal(state.perfectLive),
+            rivals: rivalList(),
+        }),
         /** A replay frame as an item source. */
-        frameSource: (frame) => (frame ? { score: frame.score, accuracy: frame.accuracy, hits: frame.hits, perfect: perfectAt(state.perfectReplay, frame.index), rankScores: state.rankScores, rankOthers: state.rankOthers } : null),
+        frameSource: (frame) => (frame ? {
+            score: frame.score,
+            accuracy: frame.accuracy,
+            hits: frame.hits,
+            perfect: perfectAt(state.perfectReplay, frame.index),
+            rankScores: state.rankScores,
+            rankOthers: state.rankOthers,
+            index: frame.index,
+            perfectTotal: perfectTotal(state.perfectReplay),
+            rivals: rivalList(),
+            self: state.target?.filePath || '',
+        } : null),
+        /** The rivals with their timelines (see rivals.js); empty when there are none or none are needed. */
+        rivals: rivalList,
         /** Re-checks now (after a config change that affects what is loaded). */
         refresh: () => check(),
     };

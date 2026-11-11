@@ -6,7 +6,7 @@ namespace LazerReplayCompare;
 /// Something an overlay can show. Built-in items are worked out by the overlays themselves; custom items (from
 /// metrics.json) are weighted sums of judgement counts, sent to the overlays with their definition.
 /// </summary>
-/// <param name="Format">"integer", "percent", "decimal" (two decimals, no unit) or "rank" (#32).</param>
+/// <param name="Format">"integer", "percent", "decimal" (two decimals, no unit), "rank" (#32) or "flag" (OK / X).</param>
 /// <param name="Weights">Value of one judgement (Perfect, Great, Good, Ok, Meh, Miss), custom items only.</param>
 /// <param name="Average">Divide by the number of judgements (an accuracy-like value).</param>
 /// <param name="Scale">Multiplier applied last.</param>
@@ -65,6 +65,14 @@ public static class OverlayItems
         new("lazer_acc", "Lazer acc", "percent", true),
         // MAX ÷ 300, with no 300 yet as one (so it reads the MAX count until the first 300)
         new("ma_ratio", "MAX : 300", "decimal", true),
+        // Among the rivals (/rivals: the Pacemaker overlay's opponents) at this note, always by score (see rivals.js).
+        // The place; a tie leaves the rival ahead. Nothing with no rivals.
+        new("rival_rank", "Rival rank", "rank", true),
+        // score minus the score of the rival directly above; in first place, the lead over the second (signed)
+        new("rival_gap", "Next rival", "integer", true),
+        // OK while the score so far plus the best possible score of the notes left is above the final score of the rival
+        // directly above (or in first place), X once it isn't
+        new("rival_reach", "Next rival reachable", "flag", true),
     ];
 
     // older metric names (app settings before 1.2)
@@ -167,7 +175,7 @@ public static class OverlayItems
     }
 
     /// <summary>The groups of the item lists, in order.</summary>
-    public static readonly IReadOnlyList<string> Groups = ["Score", "Accuracy", "Judgements", "Ranking", "Custom"];
+    public static readonly IReadOnlyList<string> Groups = ["Score", "Accuracy", "Judgements", "Ranking", "Rivals", "Custom"];
 
     private static readonly Dictionary<string, string> item_groups = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -184,6 +192,9 @@ public static class OverlayItems
         ["bms"] = "Judgements",
         ["miss_count"] = "Judgements",
         ["live_rank"] = "Ranking",
+        ["rival_rank"] = "Rivals",
+        ["rival_gap"] = "Rivals",
+        ["rival_reach"] = "Rivals",
     };
 
     /// <summary>The group an item is listed under; a custom item the app doesn't know goes under Custom.</summary>

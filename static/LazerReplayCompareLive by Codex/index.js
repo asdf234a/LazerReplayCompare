@@ -1,6 +1,6 @@
 // Live play and compared replay side by side: the Main and Sub items picked in the app, and every judgement count.
 
-import { OFF, formatItem, hitValue, itemValue, needsPerfect, resolveItem, scaleKeyOf, setItems, timelineFactor } from '../lazerReplayCompareShared/metrics.js';
+import { OFF, formatItem, hitValue, itemValue, needsPerfect, needsRivals, resolveItem, scaleKeyOf, setItems, timelineFactor } from '../lazerReplayCompareShared/metrics.js';
 import { getReplayModsKey } from '../lazerReplayCompareShared/overlayState.js';
 import { createSession } from '../lazerReplayCompareShared/session.js';
 
@@ -26,6 +26,7 @@ const session = createSession({
     onUpdate: render,
     scaleMetric: () => scaleKeyOf(mainItem()),
     needsPerfect: () => needsPerfect(mainItem()) || needsPerfect(subItem()),
+    needsRivals: () => needsRivals(mainItem()) || needsRivals(subItem()),
     onState: (data) => {
         setItems(data?.items);
         config.main = data?.display?.main?.item ?? config.main;

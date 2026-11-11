@@ -83,11 +83,12 @@ The pages can be zoomed with Ctrl + / Ctrl − / Ctrl 0, Ctrl + mouse wheel, or 
 
 ## Overlays
 
-Copy all four folders from `static` (the three overlays and `lazerReplayCompareShared`) into tosu's `static` folder.
+Copy all five folders from `static` (the four overlays and `lazerReplayCompareShared`) into tosu's `static` folder.
 
 - `LazerReplayCompare Main` shows one large item: by default the score difference to the replay you are compared against.
 - `LazerReplayCompare Sub` shows one smaller item on its own, so it can be placed anywhere: by default your live accuracy.
 - `LazerReplayCompareLive by Codex` shows a detailed live comparison: the Main and Sub items, combo, judgements, the target replay, and whether it was pinned or chosen automatically.
+- `LazerReplayCompare Pacemaker` shows a small live leaderboard: you and your rivals, in order at this point of the song, with each rival's score and how far you are from it (green when you are ahead). A rival with a replay is where that replay was at this note; one without (a leaderboard score) moves at an even pace towards its final score and is marked `est.`. It shows 8 rows at most: the first place and the rows around you. It is hidden when there are no rivals. To change the number of rows, or to compare by accuracy, edit the two settings at the top of its `index.js`, or add `?rows=6&by=accuracy` to its address.
 
 ## What the overlays show
 
@@ -103,7 +104,12 @@ Pick it on the Compare page, next to "now playing": an item and how to show it, 
   | Stable acc | osu!stable's accuracy (MAX and 300 both count fully), from the judgements. Handy while playing osu!lazer. |
   | Lazer acc | osu!lazer's accuracy (MAX worth 305), from the judgements. Handy while playing osu!stable. |
   | MAX : 300 | MAX ÷ 300. With no 300 yet it divides by one, so it shows the MAX count until the first 300. |
+  | Rival rank | Your place among the rivals at this note, by score, shown as `#4`. A tie leaves the rival ahead. Nothing without rivals. |
+  | Next rival | Your score minus the score of the rival directly above you at this note, for example `-1,410`. In first place, your lead over the second, for example `+1,410`. |
+  | Next rival reachable | `OK` while you can still end ahead of the rival directly above you (your score plus the best possible score of the notes left is above its final score), or are first; `X` once you can't. |
   | Off | Hide the overlay. |
+
+  The three rival items are about the same rivals as the Pacemaker overlay. For them, **Live** is your standing, **Replay** is the compared replay's standing among the other rivals, and **Diff** is one minus the other.
 
 - **Show**: **Diff** (you minus the compared replay at the same note; positive means you are ahead), **Live** (your value) or **Replay** (the replay's value at the same note).
 
