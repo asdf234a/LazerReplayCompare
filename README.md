@@ -161,7 +161,11 @@ By default it looks for osu!lazer in `%LocalAppData%\osulazer\current`. Pass `-p
 
 ## Credits
 
+Everything the app includes, with its licence, is listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) (also next to the exe).
+
+- The Sunny star rating, the dan tables and the dan estimators come from [osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) by Leo_Black (MIT); the Sunny algorithm is sunnyxxy's [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth). The estimators build on [Etterna](https://github.com/etternagame/etterna)'s MinaCalc, [Companella](https://github.com/Leinadix/companella), [Daniel](https://github.com/TheBagelOfMan/Daniel) and [YAVSRG](https://github.com/YAVSRG/YAVSRG)'s chart analysis.
+- Replays, beatmaps and scoring are read with osu!lazer's own assemblies ([ppy/osu](https://github.com/ppy/osu), MIT).
 - Mod icon textures come from osu!lazer's resources ([ppy/osu-resources](https://github.com/ppy/osu-resources)). See `LazerReplayCompare/Assets/Mods/NOTICE.txt`.
-- The UI font is a subset of [Pretendard](https://github.com/orioncactus/pretendard), included as "LRC Sans" (SIL Open Font License). See `LazerReplayCompare/Assets/Fonts/LRCSans-NOTICE.txt`.
+- The UI font is Torus, osu!'s typeface, with a subset of [Pretendard](https://github.com/orioncactus/pretendard) included as "LRC Sans" (SIL Open Font License) for the glyphs Torus lacks. See `LazerReplayCompare/Assets/Fonts/LRCSans-NOTICE.txt`.
 - Mod tab text uses [Baloo 2](https://github.com/EkType/Baloo2) (SIL Open Font License).
 - This is a fan-made tool and isn't affiliated with ppy or osu!.

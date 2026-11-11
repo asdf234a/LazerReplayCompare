@@ -93,6 +93,11 @@
     <None Include="..\analyser\**\*" Link="analyser\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
+  <!-- Whose work the app includes and under which licences: next to the published exe. -->
+  <ItemGroup>
+    <None Include="..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
   <!-- The tosu overlays: a "static" folder next to the published exe, to copy into tosu's own static folder. -->
   <ItemGroup>
     <None Include="..\static\**\*" Exclude="..\static\**\preview.html" Link="static\%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
