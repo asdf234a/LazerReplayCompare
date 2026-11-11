@@ -129,6 +129,8 @@ public sealed partial class LibraryView : UserControl
             model.SortBy(key);
     }
 
+    private void ClearSortClicked(object? sender, RoutedEventArgs e) => (DataContext as LibraryViewModel)?.ClearSort();
+
     private void MapTapped(object? sender, TappedEventArgs e)
     {
         if (e.Source is StyledElement { DataContext: MapRow row })

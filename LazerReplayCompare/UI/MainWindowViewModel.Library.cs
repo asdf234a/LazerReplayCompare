@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 namespace LazerReplayCompare;
 
-// The library, the map card, the side card and the replay tabs (3.0).
+// The library, the map card, the side card and the replay tabs (2.0).
 public sealed partial class MainWindowViewModel
 {
     // --- Library page ---

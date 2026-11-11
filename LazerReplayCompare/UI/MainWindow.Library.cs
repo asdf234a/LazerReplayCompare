@@ -378,8 +378,7 @@ public sealed partial class MainWindow
             : string.Join(" ", new[] { snapshot.BeatmapTitle, string.IsNullOrWhiteSpace(snapshot.BeatmapVersion) ? string.Empty : $"[{snapshot.BeatmapVersion}]" }.Where(part => part.Length > 0));
 
         // other rate or OD mods in the game: the shown map's difficulty follows
-        if (Environment.GetEnvironmentVariable("LRC_DEBUG_MODS") is not { Length: > 0 }
-            && (Math.Abs(snapshot.PlaySpeed.Rate - shownMods.Rate) >= 0.005 || snapshot.OdFlag != shownMods.OdFlag))
+        if (!debugMods && (Math.Abs(snapshot.PlaySpeed.Rate - shownMods.Rate) >= 0.005 || snapshot.OdFlag != shownMods.OdFlag))
             Dispatcher.UIThread.Post(updateMapCard);
 
         if (!browsing)
@@ -605,6 +604,12 @@ public sealed partial class MainWindow
 
     private (double Rate, string? OdFlag) shownMods = (1, null);
 
+#if DEBUG
+    private static readonly bool debugMods = Environment.GetEnvironmentVariable("LRC_DEBUG_MODS") is { Length: > 0 };
+#else
+    private const bool debugMods = false;
+#endif
+
     private void updateMapCard()
     {
         var md5 = currentSnapshot.BeatmapChecksum;
@@ -618,13 +623,15 @@ public sealed partial class MainWindow
         // difficulty stands in
         double rate = liveSnapshot.PlaySpeed.Rate;
         string? odFlag = liveSnapshot.OdFlag;
-        if (Environment.GetEnvironmentVariable("LRC_DEBUG_MODS") is { Length: > 0 } debugMods)
+#if DEBUG
+        if (Environment.GetEnvironmentVariable("LRC_DEBUG_MODS") is { Length: > 0 } debugModsText)
         {
             // (for looking at the card without the game: "1.2|9", "1.5|HR", "1.1|")
-            var parts = debugMods.Split('|');
+            var parts = debugModsText.Split('|');
             rate = double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var debugRate) ? debugRate : 1;
             odFlag = parts.Length > 1 && parts[1].Length > 0 ? parts[1] : null;
         }
+#endif
 
         var modded = map == null ? null : library.DifficultyAt(map, rate, odFlag);
         shownMods = (rate, odFlag);
@@ -908,9 +915,16 @@ public sealed partial class MainWindow
     {
         try
         {
+#if !DEBUG
+            await Task.CompletedTask;
+            return;
+#else
             var page = Environment.GetEnvironmentVariable("LRC_DEBUG_PAGE");
             if (string.IsNullOrWhiteSpace(page))
                 return;
+
+            if (page.Contains("light", StringComparison.OrdinalIgnoreCase))
+                ThemeService.Apply(this, "Light");   // (only for this look; nothing is saved)
 
             // the kept library and the records need a moment
             for (int i = 0; i < 40 && (library.Maps.Maps.Count == 0 || library.Player.Length == 0); i++)
@@ -958,6 +972,7 @@ public sealed partial class MainWindow
                         OpenDetails(row.Entry);
                 }
             }
+#endif
         }
         catch (Exception ex)
         {

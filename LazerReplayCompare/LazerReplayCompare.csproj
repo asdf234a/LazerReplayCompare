@@ -8,7 +8,7 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);publish\**</DefaultItemExcludes>
     <OsuLazerCurrentPath Condition="'$(OsuLazerCurrentPath)' == ''">$(LocalAppData)\osulazer\current</OsuLazerCurrentPath>
     <ApplicationIcon>LazerReplayCompare.ico</ApplicationIcon>
-    <Version>3.0.0</Version>
+    <Version>2.0.0</Version>
     <DebugType>none</DebugType>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
@@ -91,6 +91,11 @@
   -->
   <ItemGroup>
     <None Include="..\analyser\**\*" Link="analyser\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+  <!-- The tosu overlays: a "static" folder next to the published exe, to copy into tosu's own static folder. -->
+  <ItemGroup>
+    <None Include="..\static\**\*" Exclude="..\static\**\preview.html" Link="static\%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
   <!--

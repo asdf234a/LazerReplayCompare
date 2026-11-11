@@ -168,14 +168,16 @@
       <!-- Maps -->
       <Border Grid.Column="1" Classes="surface" Classes.glass="{Binding Glass}" CornerRadius="12,12,0,0" ClipToBounds="True">
         <Grid RowDefinitions="Auto,Auto,*">
-          <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="12" Margin="20,12,20,10">
+          <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="12" Margin="20,12,20,10">
             <TextBlock Text="{Binding GroupTitle}" FontSize="17" FontWeight="Bold" />
             <TextBlock Grid.Column="1" Classes="secondary" FontSize="12" Text="{Binding GroupCountText}" VerticalAlignment="Bottom" Margin="0,0,0,2" />
-            <TextBlock Grid.Column="2" Classes="muted" FontSize="12" Text="{Binding StatusText}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,2" TextTrimming="CharacterEllipsis" />
+            <Button Grid.Column="2" Content="Clear sort" Click="ClearSortClicked" MinHeight="24" Padding="8,0" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding IsSorted}"
+                    ToolTip.Tip="Back to the list's own order (by the number, easiest first). Clicking a sorted column a third time does the same." />
+            <TextBlock Grid.Column="3" Classes="muted" FontSize="12" Text="{Binding StatusText}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,2" TextTrimming="CharacterEllipsis" />
           </Grid>
 
           <Grid Grid.Row="1" x:Name="MapHeader" Classes="mapCells" ColumnDefinitions="132,*,48,62,48,58,64,28,126,56,30" Margin="20,0,14,4">
-            <Button Classes="sortHeader" HorizontalContentAlignment="Left" Content="{Binding NumberHeader}" Tag="Number" Click="SortClicked" ToolTip.Tip="The dan is under the number. Which number is shown is picked in Settings → Library." />
+            <Button Classes="sortHeader" HorizontalContentAlignment="Left" Content="{Binding NumberHeader}" Tag="Number" Click="SortClicked" ToolTip.Tip="The dan is under the number. Which number is shown is picked in Settings → Library. Click a column to sort by it, again for the other way, a third time for no sorting." />
             <Button Grid.Column="1" Classes="sortHeader" HorizontalContentAlignment="Left" Content="{Binding TitleHeader}" Tag="Title" Click="SortClicked" />
             <Button Grid.Column="2" Classes="sortHeader" Content="{Binding KeysHeader}" Tag="Keys" Click="SortClicked" />
             <Button Grid.Column="3" Classes="sortHeader" Content="{Binding StarsHeader}" Tag="Stars" Click="SortClicked" />

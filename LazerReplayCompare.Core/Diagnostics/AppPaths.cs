@@ -2,7 +2,7 @@ namespace LazerReplayCompare;
 
 /// <summary>
 /// Where the app keeps everything it writes: one folder, "data", next to the exe, so the app folder can be moved or
-/// copied as a whole. Before 3.0 the files were in %LocalAppData%\LazerReplayCompare; they are copied over once.
+/// copied as a whole. Before 2.0 the files were in %LocalAppData%\LazerReplayCompare; they are copied over once.
 /// When the app's folder can't be written to (Program Files), the old place is used instead.
 /// </summary>
 public static class AppPaths

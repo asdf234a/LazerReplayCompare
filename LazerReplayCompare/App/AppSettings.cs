@@ -44,7 +44,7 @@ public sealed class AppSettings
     public string? SubMetric { get; set; }
     public bool ShowBackground { get; set; } = true;
 
-    // The library (3.0): how it is grouped and what number leads each map
+    // The library (2.0): how it is grouped and what number leads each map
     public string LibraryGroupBy { get; set; } = "dan";
     public string LibraryNumber { get; set; } = "sunny";
     public string LibraryKeys { get; set; } = "0";

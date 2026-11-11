@@ -630,19 +630,48 @@ public sealed class LibraryViewModel : ObservableObject
 
     private LibrarySortKey sortKey = LibrarySortKey.Number;
     private bool sortDescending;
+    private bool sorted;   // a column was picked (otherwise the lists are in their own order: by the number, easiest first)
 
+    /// <summary>
+    /// A column's header was clicked: its natural direction first (the best rank, the most plays, the hardest stars on
+    /// top; names and the rest ascending), then the other way, then no sorting again.
+    /// </summary>
     public void SortBy(LibrarySortKey key)
     {
-        if (sortKey == key)
-            sortDescending = !sortDescending;
-        else
+        bool natural = key is LibrarySortKey.Rank or LibrarySortKey.Plays;
+        if (!sorted || sortKey != key)
         {
+            sorted = true;
             sortKey = key;
-            sortDescending = key is LibrarySortKey.Rank or LibrarySortKey.Plays;
+            sortDescending = natural;
         }
+        else if (sortDescending == natural)
+            sortDescending = !natural;
+        else
+            ClearSort(notify: false);
 
+        notifySort();
+    }
+
+    /// <summary>Back to the lists' own order.</summary>
+    public void ClearSort() => ClearSort(notify: true);
+
+    private void ClearSort(bool notify)
+    {
+        sorted = false;
+        sortKey = LibrarySortKey.Number;
+        sortDescending = false;
+        if (notify)
+            notifySort();
+    }
+
+    public bool IsSorted => sorted;
+
+    private void notifySort()
+    {
         foreach (var name in new[] { nameof(NumberHeader), nameof(TitleHeader), nameof(KeysHeader), nameof(StarsHeader), nameof(OdHeader), nameof(BpmHeader), nameof(LengthHeader), nameof(RankHeader), nameof(PlaysHeader) })
             OnPropertyChanged(name);
+        OnPropertyChanged(nameof(IsSorted));
         showGroup();
     }
 
@@ -656,7 +685,7 @@ public sealed class LibraryViewModel : ObservableObject
     public string RankHeader => header("Best", LibrarySortKey.Rank);
     public string PlaysHeader => header("Plays", LibrarySortKey.Plays);
 
-    private string header(string name, LibrarySortKey key) => sortKey == key ? $"{name} {(sortDescending ? "↓" : "↑")}" : name;
+    private string header(string name, LibrarySortKey key) => sorted && sortKey == key ? $"{name} {(sortDescending ? "↓" : "↑")}" : name;
 
     // --- What is shown ---
 
@@ -972,7 +1001,9 @@ public sealed class LibraryViewModel : ObservableObject
             _ => row => double.IsNaN(row.Number) ? 1000 + (row.Difficulty.Sunny ?? 99) : row.Number,
         };
 
-        var sorted = (sortDescending ? list.OrderByDescending(key) : list.OrderBy(key)).ToList();
+        static double number(MapRow row) => double.IsNaN(row.Number) ? 1000 + (row.Difficulty.Sunny ?? 99) : row.Number;
+        var sorted = (sortDescending ? list.OrderByDescending(key) : list.OrderBy(key))
+                     .ThenBy(number).ThenBy(row => row.Title, StringComparer.OrdinalIgnoreCase).ToList();
 
         // the same maps showing the same things: the list on screen stays as it is (its place, its loaded backgrounds)
         if (sorted.Count == rows.Count && sorted.Count > 0)
