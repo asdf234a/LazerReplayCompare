@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
@@ -20,7 +20,7 @@ public sealed partial class MainWindow : Window
     private const int ApiPort = 24052;
     private const string TosuHost = "127.0.0.1:24050";
 
-    private readonly LazerReplayStore lazerReplays = new(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LazerReplayCompare"));
+    private readonly LazerReplayStore lazerReplays = new(AppPaths.Root);
     private readonly StableReplayFinder stableReplayFinder = new();
     private readonly TosuClient tosuClient = new();
     private readonly ReplayTimelineBuilder timelineBuilder = new();
@@ -272,7 +272,7 @@ public sealed partial class MainWindow : Window
         ThemeService.Apply(this, viewModel.Theme);
 
         // custom overlay items: metrics.json next to the settings, watched so new items appear in the pickers at once
-        OverlayItems.CustomPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LazerReplayCompare", "metrics.json");
+        OverlayItems.CustomPath = AppPaths.Metrics;
         viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay, settingsService.Current.HiddenItems);
         watchCustomItems();
         lastTimelineSettings = (viewModel.CorrectionMode, OverlayItems.ScaleMetric(viewModel.OverlayDisplay.MainItem));

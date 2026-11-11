@@ -27,7 +27,7 @@ public static class ReplayFinder
     /// <summary>Every score with a replay file (scores being deleted left out), and every beatmap's files.</summary>
     public static (List<StoredReplay> Replays, Dictionary<string, StoredBeatmap> Beatmaps) ReadDatabase(string realmPath, string filesRoot)
     {
-        var copy = Path.Combine(Path.GetTempPath(), $"{copy_prefix}{Guid.NewGuid():N}.realm");
+        var copy = Path.Combine(AppPaths.Cache, $"{copy_prefix}{Guid.NewGuid():N}.realm");
         File.Copy(realmPath, copy, overwrite: false);
 
         try
@@ -40,7 +40,24 @@ public static class ReplayFinder
         }
     }
 
-    private static (List<StoredReplay>, Dictionary<string, StoredBeatmap>) read(string realmPath, string filesRoot)
+    /// <summary>Every mania difficulty osu!lazer has (hidden and deleted ones left out), and its collections.</summary>
+    public static (List<MapInfo> Maps, List<OsuCollection> Collections) ReadLibrary(string realmPath, string filesRoot)
+    {
+        var copy = Path.Combine(AppPaths.Cache, $"{copy_prefix}{Guid.NewGuid():N}.realm");
+        File.Copy(realmPath, copy, overwrite: false);
+
+        try
+        {
+            using var realm = open(copy);
+            return LazerLibraryReader.Read(realm, filesRoot);
+        }
+        finally
+        {
+            deleteCopy(copy);
+        }
+    }
+
+    private static Realm open(string realmPath)
     {
         var config = new RealmConfiguration(realmPath)
         {
@@ -58,10 +75,16 @@ public static class ReplayFinder
                 typeof(osu.Game.Models.RealmUser),
                 typeof(osu.Game.Models.RealmFile),
                 typeof(osu.Game.Models.RealmNamedFileUsage),
+                typeof(osu.Game.Collections.BeatmapCollection),
             },
         };
 
-        using var realm = Realm.GetInstance(config);
+        return Realm.GetInstance(config);
+    }
+
+    private static (List<StoredReplay>, Dictionary<string, StoredBeatmap>) read(string realmPath, string filesRoot)
+    {
+        using var realm = open(realmPath);
 
         var replays = new List<StoredReplay>();
         foreach (var score in realm.All<ScoreInfo>().AsEnumerable())
@@ -265,7 +288,7 @@ public static class ReplayFinder
     {
         try
         {
-            var leftovers = Directory.EnumerateFileSystemEntries(Path.GetTempPath(), copy_prefix + "*.realm*")
+            var leftovers = Directory.EnumerateFileSystemEntries(AppPaths.Cache, copy_prefix + "*.realm*")
                                      .Select(entry => entry.EndsWith(".realm", StringComparison.OrdinalIgnoreCase)
                                          ? entry
                                          : entry[..(entry.LastIndexOf(".realm", StringComparison.OrdinalIgnoreCase) + ".realm".Length)])

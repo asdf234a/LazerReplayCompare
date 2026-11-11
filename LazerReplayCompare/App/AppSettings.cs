@@ -50,10 +50,7 @@ public sealed class AppSettings
     /// <summary>Zoom of the pages (1 = 100%).</summary>
     public double Zoom { get; set; } = 1;
 
-    private static string SettingsPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "LazerReplayCompare",
-        "settings.json");
+    private static string SettingsPath => AppPaths.Settings;
 
     public static AppSettings Load()
     {
