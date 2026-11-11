@@ -26,6 +26,9 @@ public static class ThemeService
         ["ButtonBrush"] = ("#14FFFFFF", "#0D000000"),
         ["ButtonHoverBrush"] = ("#24FFFFFF", "#1A000000"),
         ["ButtonBorderBrush"] = ("#14FFFFFF", "#14000000"),
+        // a control that sits straight on the page's picture, with no card under it: dark (light) enough of its own to be read
+        ["OnImageBrush"] = ("#A612151B", "#CCFFFFFF"),
+        ["OnImageHoverBrush"] = ("#C71E2330", "#E6FFFFFF"),
         // a picked choice: the accent, seen through
         ["PickedBrush"] = ("#40FF66AA", "#33D63C82"),
         ["PickedHoverBrush"] = ("#55FF66AA", "#47D63C82"),

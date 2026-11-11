@@ -52,17 +52,19 @@
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Background" Value="{DynamicResource ButtonBrush}" />
+      <Setter Property="Background" Value="{DynamicResource OnImageBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="ToggleButton.quick:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+      <Setter Property="Background" Value="{DynamicResource OnImageHoverBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
     <Style Selector="ToggleButton.quick:checked /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource PickedBrush}" />
+      <Setter Property="Background" Value="{DynamicResource TargetBadgeBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource TargetAccentBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="ItemsControl.quick">
       <Setter Property="ItemsPanel">
@@ -96,6 +98,7 @@
       <!-- Quick filters: by plays, by best rank, by kind -->
       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,8,0,0">
       <Button Grid.Column="1" Click="GoToNowPlaying" MinHeight="28" Padding="10,0" FontSize="12" MaxWidth="300" IsVisible="{Binding HasNowPlaying}"
+              Background="{DynamicResource OnImageBrush}"
               ToolTip.Tip="Shows the map the game is on in the list (its group is picked; filters that hide it are dropped)">
         <StackPanel Orientation="Horizontal" Spacing="7">
           <Path Width="9" Height="10" Stretch="Uniform" Fill="{DynamicResource TargetAccentBrush}" Data="M0,0 L9,5 L0,10 Z" VerticalAlignment="Center" />
@@ -105,7 +108,7 @@
       </Button>
       <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <TextBlock Classes="muted" FontSize="12" Text="Plays" VerticalAlignment="Center" Margin="4,0,2,0" />
+          <TextBlock Classes="secondary" FontSize="12" FontWeight="SemiBold" Text="Plays" VerticalAlignment="Center" Margin="4,0,2,0" />
           <ItemsControl Classes="quick" ItemsSource="{Binding PlayFilters}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="local:QuickFilter">
@@ -113,7 +116,7 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <TextBlock Classes="muted" FontSize="12" Text="Best" VerticalAlignment="Center" Margin="12,0,2,0" />
+          <TextBlock Classes="secondary" FontSize="12" FontWeight="SemiBold" Text="Best" VerticalAlignment="Center" Margin="12,0,2,0" />
           <ItemsControl Classes="quick" ItemsSource="{Binding RankFilters}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="local:QuickFilter">
@@ -122,7 +125,7 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <TextBlock Classes="muted" FontSize="12" Text="Notes" VerticalAlignment="Center" Margin="12,0,2,0" />
+          <TextBlock Classes="secondary" FontSize="12" FontWeight="SemiBold" Text="Notes" VerticalAlignment="Center" Margin="12,0,2,0" />
           <ItemsControl Classes="quick" ItemsSource="{Binding KindFilters}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="local:QuickFilter">
@@ -130,7 +133,7 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <Button Content="Clear" Click="ClearQuickFilters" MinHeight="28" Padding="10,0" FontSize="12" Margin="8,0,0,0" IsVisible="{Binding HasQuickFilters}" />
+          <Button Content="Clear" Click="ClearQuickFilters" MinHeight="28" Padding="10,0" FontSize="12" Margin="8,0,0,0" IsVisible="{Binding HasQuickFilters}" Background="{DynamicResource OnImageBrush}" />
         </StackPanel>
       </ScrollViewer>
       </Grid>
