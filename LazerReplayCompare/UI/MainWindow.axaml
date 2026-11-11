@@ -329,6 +329,8 @@
                     <TextBlock Classes="secondary" Text="{Binding MapCard.LnDanText}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="{Binding MapCard.HasLnDan}"
                                ToolTip.Tip="The LN dan: this map is 20% hold notes or more" />
                     <TextBlock Classes="muted" FontSize="11" Text="{Binding MapCard.NumberName}" ToolTip.Tip="Which number is shown is picked in Settings → Library" />
+                    <TextBlock FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource TargetLabelBrush}" Text="{Binding MapCard.ModsText}" TextWrapping="Wrap" IsVisible="{Binding MapCard.HasMods}"
+                               ToolTip.Tip="The difficulty with the rate and OD mods selected in the game" />
                     <Button Content="Open in osu!" Click="OpenInOsu" MinHeight="26" Padding="10,0" FontSize="12" Margin="0,8,0,0" HorizontalAlignment="Left"
                             IsVisible="{Binding MapCard.CanOpenInOsu}" ToolTip.Tip="Opens this beatmap in the game (osu://b/…)" />
                   </StackPanel>

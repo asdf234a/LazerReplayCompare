@@ -88,6 +88,7 @@ public sealed partial class MainWindow
 
         // maps, ratings and records come in from background threads: the lists follow a moment later, all at once
         library.Changed += () => Dispatcher.UIThread.Post(scheduleLibraryRefresh);
+        library.ModdedChanged += () => Dispatcher.UIThread.Post(updateMapCard);
         library.Sunny.Busy = () => isPlaying(Volatile.Read(ref liveSnapshot));
         // progress only moves the numbers in the top bar; the lists are made again when new ratings are in
         library.Sunny.Progress += scheduleWorkStatus;
@@ -273,6 +274,8 @@ public sealed partial class MainWindow
                 applyBackgroundSpeed();
                 var engine = danEngine;
                 library.DanLookup = md5 => engine.Get(md5) is { } estimate ? new DanLookupResult(estimate.Rc, estimate.Ln, estimate.Numeric) : null;
+                library.DanAtRate = async (map, rate, odFlag) =>
+                    engine.Unavailable == null && await engine.AtRateAsync(map, rate, odFlag) is { } estimate ? new DanLookupResult(estimate.Rc, estimate.Ln, estimate.Numeric) : null;
             }
 
             if (danEngine.Unavailable == null)
@@ -333,6 +336,11 @@ public sealed partial class MainWindow
         var previous = liveSnapshot;
         Volatile.Write(ref liveSnapshot, snapshot);
         libraryModel.NowPlayingMd5 = snapshot.BeatmapChecksum;
+
+        // other rate or OD mods in the game: the shown map's difficulty follows
+        if (Environment.GetEnvironmentVariable("LRC_DEBUG_MODS") is not { Length: > 0 }
+            && (Math.Abs(snapshot.PlaySpeed.Rate - shownMods.Rate) >= 0.005 || snapshot.OdFlag != shownMods.OdFlag))
+            Dispatcher.UIThread.Post(updateMapCard);
 
         if (!browsing)
             return true;
@@ -548,6 +556,8 @@ public sealed partial class MainWindow
         onlineTimer.Start();
     }
 
+    private (double Rate, string? OdFlag) shownMods = (1, null);
+
     private void updateMapCard()
     {
         var md5 = currentSnapshot.BeatmapChecksum;
@@ -557,15 +567,33 @@ public sealed partial class MainWindow
         var live = string.IsNullOrWhiteSpace(liveSnapshot.BeatmapChecksum) ? "nothing yet"
             : string.Join(" ", new[] { liveSnapshot.BeatmapTitle, string.IsNullOrWhiteSpace(liveSnapshot.BeatmapVersion) ? string.Empty : $"[{liveSnapshot.BeatmapVersion}]" }.Where(part => part.Length > 0));
 
+        // the rate and OD mods selected in the game change how hard the map is; until that is worked out the plain
+        // difficulty stands in
+        double rate = liveSnapshot.PlaySpeed.Rate;
+        string? odFlag = liveSnapshot.OdFlag;
+        if (Environment.GetEnvironmentVariable("LRC_DEBUG_MODS") is { Length: > 0 } debugMods)
+        {
+            // (for looking at the card without the game: "1.2|9", "1.5|HR", "1.1|")
+            var parts = debugMods.Split('|');
+            rate = double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var debugRate) ? debugRate : 1;
+            odFlag = parts.Length > 1 && parts[1].Length > 0 ? parts[1] : null;
+        }
+
+        var modded = map == null ? null : library.DifficultyAt(map, rate, odFlag);
+        shownMods = (rate, odFlag);
+
         viewModel.MapCard = new MapCardViewModel(
             map,
-            map == null ? null : library.DifficultyOf(map),
+            map == null ? null : modded ?? library.DifficultyOf(map),
             map == null ? null : library.RecordOf(md5),
             libraryModel.NumberKind,
             viewModel.BeatmapTitle,
             viewModel.BeatmapSubtitle,
             browsing,
-            live);
+            live,
+            rate,
+            odFlag,
+            modsPending: map != null && modded == null);
         libraryModel.ShownMd5 = md5;
     }
 

@@ -17,7 +17,8 @@ public sealed record MapStat(string Name, string Value, double Fraction)
 public sealed class MapCardViewModel : ObservableObject
 {
     /// <param name="map">The library's entry, or null when the library doesn't know the map (the game's own texts are shown).</param>
-    public MapCardViewModel(MapInfo? map, MapDifficulty? difficulty, MapRecord? record, string numberKind, string fallbackTitle, string fallbackSubtitle, bool browsing, string liveMapText)
+    public MapCardViewModel(MapInfo? map, MapDifficulty? difficulty, MapRecord? record, string numberKind, string fallbackTitle, string fallbackSubtitle, bool browsing, string liveMapText,
+        double rate = 1, string? odFlag = null, bool modsPending = false)
     {
         Map = map;
         IsBrowsing = browsing;
@@ -38,13 +39,25 @@ public sealed class MapCardViewModel : ObservableObject
             LibraryViewModel.NumberStars => "Stars",
             _ => "Sunny",
         };
+
+        // the game's rate and OD mods: the difficulty is the one they make
+        bool rated = Math.Abs(rate - 1) >= 0.005;
+        if (rated || odFlag != null)
+        {
+            var parts = new List<string>();
+            if (rated)
+                parts.Add(rate.ToString("0.0#", CultureInfo.InvariantCulture) + "×");
+            if (odFlag != null)
+                parts.Add(odFlag is "HR" or "EZ" ? odFlag : "OD " + odFlag);
+            ModsText = "with " + string.Join(" · ", parts) + (modsPending ? " · working it out…" : string.Empty);
+        }
         DanText = difficulty.Dan ?? (map.Keys is 4 or 6 or 7 ? string.Empty : $"{map.Keys}K has no dans");
         LnDanText = difficulty.Rc != null && difficulty.Ln != null ? difficulty.Ln : string.Empty;
         BeatmapId = map.BeatmapId;
 
         StatusLabel = string.IsNullOrEmpty(map.Status) ? string.Empty : MapStatus.Label(map.Status).ToUpperInvariant();
-        LengthText = MapRow.FormatLength(map.LengthMs);
-        BpmText = map.Bpm > 0 ? $"{Math.Round(map.Bpm):0} BPM" : string.Empty;
+        LengthText = MapRow.FormatLength(map.LengthMs / Math.Max(rate, 0.1));
+        BpmText = map.Bpm > 0 ? $"{Math.Round(map.Bpm * rate):0} BPM" : string.Empty;
         PlaysText = (record?.Plays ?? 0) == 1 ? "1 play" : $"{record?.Plays ?? 0:N0} plays";
         LastPlayedText = record is { LastPlayedTicks: > 0 } ? "last played " + new DateTime(record.LastPlayedTicks, DateTimeKind.Utc).ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : string.Empty;
 
@@ -67,7 +80,9 @@ public sealed class MapCardViewModel : ObservableObject
         SettingStats =
         [
             new MapStat("Keys", map.Keys.ToString(CultureInfo.InvariantCulture), map.Keys / 10.0),
-            new MapStat("Accuracy (OD)", map.Od.ToString("0.#", CultureInfo.InvariantCulture), map.Od / 10.0),
+            double.TryParse(odFlag, NumberStyles.Float, CultureInfo.InvariantCulture, out var setOd)
+                ? new MapStat("Accuracy (OD)", setOd.ToString("0.#", CultureInfo.InvariantCulture), setOd / 10.0)
+                : new MapStat("Accuracy (OD)", map.Od.ToString("0.#", CultureInfo.InvariantCulture) + (odFlag == null ? string.Empty : " " + odFlag), map.Od / 10.0),
             new MapStat("HP drain", map.Hp.ToString("0.#", CultureInfo.InvariantCulture), map.Hp / 10.0),
         ];
 
@@ -94,6 +109,10 @@ public sealed class MapCardViewModel : ObservableObject
     public string NumberText { get; } = "–";
     public IBrush NumberBrush { get; } = DifficultyColors.Neutral;
     public string NumberName { get; } = "Sunny";
+
+    /// <summary>The game's rate and OD mods the difficulty is shown with ("with 1.2× · OD 9"), or "".</summary>
+    public string ModsText { get; } = string.Empty;
+    public bool HasMods => ModsText.Length > 0;
     public string DanText { get; } = string.Empty;
 
     /// <summary>The LN dan of a map of 20 % hold notes or more, shown under the regular one.</summary>

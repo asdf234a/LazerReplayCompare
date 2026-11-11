@@ -129,14 +129,76 @@ public sealed class LibraryService
         => string.IsNullOrWhiteSpace(label) || label.Contains("Unknown", StringComparison.OrdinalIgnoreCase) ? null : label;
 
     public MapDifficulty DifficultyOf(MapInfo map)
+        => difficulty(map, Sunny.Get(map.Md5) ?? early.GetValueOrDefault(map.Md5), DanLookup?.Invoke(map.Md5));
+
+    /// <summary>The dan estimate of a map at another rate and OD (the estimator's; null when there is none).</summary>
+    public Func<MapInfo, double, string?, Task<DanLookupResult?>>? DanAtRate { get; set; }
+
+    /// <summary>A map's rating at another rate or OD is in (only what shows that map needs to follow).</summary>
+    public event Action? ModdedChanged;
+
+    private sealed class Modded
     {
-        var sunny = Sunny.Get(map.Md5) ?? early.GetValueOrDefault(map.Md5);
+        public volatile bool Ready;
+        public SunnyResult? Sunny;
+        public DanLookupResult? Dan;
+    }
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Modded> modded = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// How hard a map is at the rate and OD the game's mods make (<paramref name="odFlag"/>: "HR", "EZ", an OD, or
+    /// null). Worked out in the background the first time: null until it is in (<see cref="ModdedChanged"/> follows).
+    /// </summary>
+    public MapDifficulty? DifficultyAt(MapInfo map, double rate, string? odFlag)
+    {
+        if (Math.Abs(rate - 1) < 0.005 && odFlag == null)
+            return DifficultyOf(map);
+
+        if (!SunnyCache.Rated(map.Keys) || map.ChartPath.Length == 0)
+            return null;
+
+        var key = $"{map.Md5}|{Math.Round(rate, 2).ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture)}|{odFlag}";
+        if (modded.TryGetValue(key, out var found))
+            return found.Ready ? difficulty(map, found.Sunny, found.Dan) : null;
+
+        var entry = new Modded();
+        if (!modded.TryAdd(key, entry))
+            return null;
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                // the Sunny rating first (quick); the estimator's dan follows when there is an estimator
+                entry.Sunny = await Sunny.AtRateAsync(map, rate, odFlag);
+                entry.Ready = true;
+                ModdedChanged?.Invoke();
+
+                if (DanAtRate is { } estimator && await estimator(map, rate, odFlag) is { } dan)
+                {
+                    entry.Dan = dan;
+                    ModdedChanged?.Invoke();
+                }
+            }
+            catch (Exception ex)
+            {
+                InternalLogger.Log(ex);
+                entry.Ready = true;
+                ModdedChanged?.Invoke();
+            }
+        });
+        return null;
+    }
+
+    private static MapDifficulty difficulty(MapInfo map, SunnyResult? sunny, DanLookupResult? estimate)
+    {
         double? star = sunny is { } s && double.IsFinite(s.Star) ? s.Star : null;
         double lnRatio = sunny?.LnRatio ?? (map.Objects > 0 ? (double)map.Holds / map.Objects : 0);
 
         string? rc = null, ln = null;
         double? level = null;
-        if (DanLookup?.Invoke(map.Md5) is { } estimate)
+        if (estimate != null)
         {
             rc = known(estimate.Rc);
             ln = known(estimate.Ln);

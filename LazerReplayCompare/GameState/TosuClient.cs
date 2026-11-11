@@ -1,4 +1,4 @@
-﻿using System.Net.WebSockets;
+using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 
@@ -90,7 +90,8 @@ public sealed record TosuSnapshot(
     string DirectBackgroundPath = "",
     PlaySpeed? Speed = null,
     string GameFolder = "",
-    ResultsScreenScore? Results = null)
+    ResultsScreenScore? Results = null,
+    string? OdFlag = null)
 {
     /// <summary>The game shows a results screen (after a play, or a score opened from the leaderboard).</summary>
     public bool IsResultsScreen => State.Contains("result", StringComparison.OrdinalIgnoreCase);
@@ -136,6 +137,7 @@ public sealed record TosuSnapshot(
             BackgroundFile: GetString(root, "files", "background"),
             DirectBackgroundPath: GetString(root, "directPath", "beatmapBackground"),
             Speed: GetPlaySpeed(root),
+            OdFlag: GetOdFlag(root),
             GameFolder: GetString(root, "folders", "game"),
             Results: GetResults(root));
     }
@@ -187,6 +189,46 @@ public sealed record TosuSnapshot(
     }
 
     private static string FirstNonEmpty(params string[] values) => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? string.Empty;
+
+    /// <summary>
+    /// What the selected mods do to the OD, the way the difficulty ratings take it: "HR", "EZ", an OD set with
+    /// Difficulty Adjust ("9.5"), or null when they leave it alone.
+    /// </summary>
+    private static string? GetOdFlag(JsonElement root)
+    {
+        if (!root.TryGetProperty("play", out var play) || play.ValueKind != JsonValueKind.Object ||
+            !play.TryGetProperty("mods", out var mods) || mods.ValueKind != JsonValueKind.Object)
+            return null;
+
+        string? flag = null;
+        if (mods.TryGetProperty("array", out var array) && array.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var mod in array.EnumerateArray())
+            {
+                if (mod.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                var acronym = GetString(mod, "acronym").ToUpperInvariant();
+                if (acronym == "DA" && mod.TryGetProperty("settings", out var settings) && settings.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var setting in settings.EnumerateObject())
+                    {
+                        if (!setting.Name.Contains("overall", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var value = setting.Value.ValueKind == JsonValueKind.Object && setting.Value.TryGetProperty("value", out var inner) ? inner : setting.Value;
+                        var text = value.ValueKind == JsonValueKind.Number ? value.GetRawText() : value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+                        if (double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var od))
+                            return od.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);   // a set OD says more than HR / EZ
+                    }
+                }
+                else if (acronym is "HR" or "EZ")
+                    flag = acronym;
+            }
+        }
+
+        return flag;
+    }
 
     /// <summary>play.mods → rate/Classic, the way the overlays read it (getCurrentModsKey), and whether the client is osu!stable.</summary>
     private static PlaySpeed GetPlaySpeed(JsonElement root)
