@@ -98,16 +98,15 @@ The pages can be zoomed with Ctrl + / Ctrl − / Ctrl 0, Ctrl + mouse wheel, or 
 
 ## Overlays
 
-Copy all five folders from `static` (the four overlays and `lazerReplayCompareShared`) into tosu's `static` folder.
+Copy all four folders from `static` (the three overlays and `lazerReplayCompareShared`) into tosu's `static` folder.
 
 - `LazerReplayCompare Main` shows one large item: by default the score difference to the replay you are compared against.
 - `LazerReplayCompare Sub` shows one smaller item on its own, so it can be placed anywhere: by default your live accuracy.
-- `LazerReplayCompareLive by Codex` shows a detailed live comparison: the Main and Sub items, combo, judgements, the target replay, and whether it was pinned or chosen automatically.
 - `LazerReplayCompare Pacemaker` shows a small live leaderboard: you and your rivals, in order at this point of the song, with each rival's score and how far you are from it (green when you are ahead). A rival with a replay is where that replay was at this note; one without (a leaderboard score) moves at an even pace towards its final score and is marked `est.`. It shows 8 rows at most: the first place and the rows around you. It is hidden when there are no rivals. To change the number of rows, or to compare by accuracy, edit the two settings at the top of its `index.js`, or add `?rows=6&by=accuracy` to its address.
 
 ## What the overlays show
 
-Pick it on the Compare page, next to "now playing": an item and how to show it, for **Main** and for **Sub**. The overlays follow within a second; the live panel shows both items.
+Pick it on the Compare page, next to "now playing": an item and how to show it, for **Main** and for **Sub**. The overlays follow within a second.
 
 - **Item**:
 

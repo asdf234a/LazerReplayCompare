@@ -146,6 +146,6 @@ public sealed class AppSettingsService
         Current.AccLogKind is "stable" or "pp" ? Current.AccLogKind : "lazer", Math.Clamp(Current.AccLogBase, 0.01, 99.99));
 }
 
-/// <summary>What the Main and Sub overlays show (the live panel shows both items).</summary>
+/// <summary>What the Main and Sub overlays show .</summary>
 public sealed record OverlayDisplay(string MainItem, string MainShow, string SubItem, string SubShow, int RankTarget = 50, string BaseMode = "score", int BaseScore = 999000,
     string AccLogKind = "lazer", double AccLogBase = 95);

@@ -41,8 +41,9 @@ function noteOf(row) {
     if (row.isPlayer) return 'live';
     const rival = row.rival;
     if (rival.source !== 'replay') return 'online · est.';
-    const what = rival.isTarget ? 'target' : shortDate(rival.date) || 'replay';
-    return row.estimated ? `${what} · est.` : what;
+    const parts = [rival.isTarget ? 'target' : 'replay', shortDate(rival.date)];
+    if (row.estimated) parts.push('est.');
+    return parts.filter(Boolean).join(' · ');
 }
 
 function setText(element, text) {
@@ -51,7 +52,9 @@ function setText(element, text) {
 
 function createRow() {
     const element = document.createElement('div');
-    element.innerHTML = '<span class="place"></span><span class="name"></span><span class="value"></span><span class="note"></span><span class="diff"></span>';
+    element.innerHTML = '<span class="place"></span>'
+        + '<span class="who"><span class="name"></span><span class="note"></span></span>'
+        + '<span class="numbers"><span class="value"></span><span class="diff"></span></span>';
     return element;
 }
 
@@ -89,9 +92,13 @@ function render() {
             rowElements.set(key, element);
         }
 
-        const [place, name, value, note, diff] = element.children;
+        const place = element.querySelector('.place');
+        const name = element.querySelector('.name');
+        const note = element.querySelector('.note');
+        const value = element.querySelector('.value');
+        const diff = element.querySelector('.diff');
         const unit = compareBy === 'accuracy' ? 100 : 1;
-        setText(place, `#${row.place}`);
+        setText(place, String(row.place));
         setText(name, row.isPlayer ? state.rivalsPlayer || state.player || 'You' : row.rival.name);
         setText(value, formatItem(item, row.value * unit).text);
         setText(note, noteOf(row));
@@ -107,7 +114,7 @@ function render() {
             setText(diff, formatted.text);
         }
 
-        const className = `row${row.isPlayer ? ' player' : ''}${!row.isPlayer && row.rival.isTarget ? ' target' : ''}`;
+        const className = `row${position === 0 ? ' first' : ''}${row.isPlayer ? ' player' : ''}${!row.isPlayer && row.rival.isTarget ? ' target' : ''}`;
         if (element.className !== className) element.className = className;
         const diffClass = `diff ${tone}`;
         if (diff.className !== diffClass) diff.className = diffClass;
