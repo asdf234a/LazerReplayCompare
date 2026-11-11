@@ -70,9 +70,6 @@ public static class OverlayItems
         new("rival_rank", "Rival rank", "rank", true),
         // score minus the score of the rival directly above; in first place, the lead over the second (signed)
         new("rival_gap", "Next rival", "integer", true),
-        // OK while the score so far plus the best possible score of the notes left is above the final score of the rival
-        // directly above (or in first place), X once it isn't
-        new("rival_reach", "Next rival reachable", "flag", true),
     ];
 
     // older metric names (app settings before 1.2)
@@ -194,7 +191,6 @@ public static class OverlayItems
         ["live_rank"] = "Ranking",
         ["rival_rank"] = "Rivals",
         ["rival_gap"] = "Rivals",
-        ["rival_reach"] = "Rivals",
     };
 
     /// <summary>The group an item is listed under; a custom item the app doesn't know goes under Custom.</summary>

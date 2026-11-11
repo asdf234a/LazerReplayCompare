@@ -865,6 +865,18 @@ public sealed partial class MainWindow
                     BrowseTo(best);
                 if (page.StartsWith("rail", StringComparison.OrdinalIgnoreCase))
                     viewModel.IsRailExpanded = true;
+                if (page.StartsWith("narrow", StringComparison.OrdinalIgnoreCase))
+                {
+                    viewModel.IsRailExpanded = true;
+                    WindowState = Avalonia.Controls.WindowState.Normal;
+                    Width = Math.Max(MinWidth, 700);
+                }
+                if (page.StartsWith("pick", StringComparison.OrdinalIgnoreCase))
+                {
+                    await Task.Delay(2500);
+                    var button = this.FindControl<Button>("MainPickerButton")!;
+                    button.Flyout?.ShowAt(button);
+                }
                 if (page.StartsWith("online", StringComparison.OrdinalIgnoreCase))
                     ShowOnlineTab(this, new RoutedEventArgs());
                 if (page.StartsWith("detail", StringComparison.OrdinalIgnoreCase))

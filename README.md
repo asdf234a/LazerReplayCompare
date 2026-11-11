@@ -9,7 +9,7 @@ LazerReplayCompare races your osu!mania play, in osu!lazer or osu!stable, agains
 - **Map card.** The map page starts with what the map is and how hard it is: the number and dan, status, title and artist, length, BPM and your plays, then the difficulty name and stars and the note counts, keys, OD and HP.
 - **Library beside the map.** A card on the left of the map page: folded, each group with how its maps are graded; opened, the maps of one group.
 - **Online ranking.** The replay list has two tabs: your local replays (with their place by score) and the map's online top 50. Click an online score to download its replay and compare against it: only the one you click is downloaded, once, and it is then listed with your local replays. Needs the osu! API client from Settings.
-- **Pacemaker overlay and rival items.** `LazerReplayCompare Pacemaker` shows a small live leaderboard of your local replays at this rate, the online ranking, or both (picked next to Main and Sub). New items: Rival rank, Next rival and Next rival reachable.
+- **Pacemaker overlay and rival items.** `LazerReplayCompare Pacemaker` shows a small live leaderboard of your local replays at this rate, the online ranking, or both (picked next to Main and Sub). New items: Rival rank and Next rival.
 - **Lanes.** A replay's details show each lane's accuracy, misses, judgements, mean error and unstable rate as vertical columns, and each hand's accuracy; with an odd key count the middle lane goes to the hand you pick.
 - **Grades in colour.** SS, S, A, B, C and D each have their colour, in the replay list, the library and the online ranking.
 - **One data folder.** Settings, the library, ratings, records and downloaded replays are kept in `data` next to the exe (copied once from `%LocalAppData%\LazerReplayCompare`), so the app's folder can be moved as a whole. If that folder can't be written to, the old place is used.
@@ -120,7 +120,6 @@ Pick it on the Compare page, next to "now playing": an item and how to show it, 
   | MAX : 300 | MAX ÷ 300. With no 300 yet it divides by one, so it shows the MAX count until the first 300. |
   | Rival rank | Your place among the rivals at this note, by score, shown as `#4`. A tie leaves the rival ahead. Nothing without rivals. |
   | Next rival | Your score minus the score of the rival directly above you at this note, for example `-1,410`. In first place, your lead over the second, for example `+1,410`. |
-  | Next rival reachable | `OK` while you can still end ahead of the rival directly above you (your score plus the best possible score of the notes left is above its final score), or are first; `X` once you can't. |
   | Off | Hide the overlay. |
 
   The three rival items are about the same rivals as the Pacemaker overlay. For them, **Live** is your standing, **Replay** is the compared replay's standing among the other rivals, and **Diff** is one minus the other.

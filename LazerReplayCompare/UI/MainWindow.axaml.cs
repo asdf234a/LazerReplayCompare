@@ -173,6 +173,35 @@ public sealed partial class MainWindow : Window
         };
         this.FindControl<StackPanel>("CompareContent")!.SizeChanged += (_, e) => setNarrowPage(e.NewSize.Width < ResponsiveLayout.NarrowWidth);
 
+        // The overlay pickers sit right of the tabs; in a row too narrow for both they go under the tabs (and wrap there)
+        // instead of being cut off.
+        var tabRow = this.FindControl<Grid>("ReplayTabRow")!;
+        var pickers = this.FindControl<WrapPanel>("OverlayPickers")!;
+        var localTab = this.FindControl<Button>("LocalTabButton")!;
+        var onlineTab = this.FindControl<Button>("OnlineTabButton")!;
+        double pickersWidth = 0;
+        void placePickers()
+        {
+            // (their width side by side: measured while they are, kept while they are under the tabs)
+            if (Grid.GetRow(pickers) == 0 && pickers.Bounds.Width > pickersWidth)
+                pickersWidth = pickers.Bounds.Width;
+
+            double tabs = localTab.Bounds.Width + onlineTab.Bounds.Width + 28;
+            bool under = tabRow.Bounds.Width > 0 && pickersWidth > 0 && tabRow.Bounds.Width < tabs + pickersWidth;
+            if (under == (Grid.GetRow(pickers) == 1))
+                return;
+
+            Grid.SetRow(pickers, under ? 1 : 0);
+            Grid.SetColumn(pickers, under ? 0 : 3);
+            Grid.SetColumnSpan(pickers, under ? 4 : 1);
+            pickers.Margin = under ? new Thickness(8, 4, 0, 2) : default;
+        }
+
+        tabRow.SizeChanged += (_, _) => placePickers();
+        pickers.SizeChanged += (_, _) => placePickers();
+        localTab.SizeChanged += (_, _) => placePickers();
+        onlineTab.SizeChanged += (_, _) => placePickers();
+
         lazerReplays.Changed += OnLazerReplaysChanged;
         ApplySavedSettings();
         viewModel.SettingsChanged += OnSettingsChanged;

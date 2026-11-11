@@ -1,7 +1,7 @@
 // Items the overlays can show, and how their values are worked out.
 //
 // Built in: score, score_acc, score_acc_log, live_rank, acc, acc_log, stable_acc, lazer_acc, ma_ratio, and the Rivals items
-// (rival_rank, rival_gap, rival_reach). Which item each overlay shows, and any custom items (made of judgement counts, from
+// (rival_rank, rival_gap). Which item each overlay shows, and any custom items (made of judgement counts, from
 // the app's metrics.json), come from LazerReplayCompare's /state.
 
 import { rivalStanding } from './rivals.js';
@@ -203,19 +203,6 @@ const BUILT_IN = {
         perfect: true,
         rivals: true,
         value: (s) => rivalStanding(s)?.gap ?? null,
-    },
-    // 1 (OK) while the score so far plus the best possible score of the notes left is above the final score of the rival
-    // directly above, or in first place; 0 (X) once it isn't
-    rival_reach: {
-        name: 'Next rival reachable',
-        format: 'flag',
-        scaleKey: 'Score',
-        perfect: true,
-        rivals: true,
-        value: (s) => {
-            const reachable = rivalStanding(s)?.reachable;
-            return reachable == null ? null : reachable ? 1 : 0;
-        },
     },
 };
 

@@ -51,6 +51,35 @@
     <Style Selector="ListBox.plainList ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="Transparent" />
     </Style>
+    <!-- A picker's choices: one click picks (the overlay pickers' flyouts) -->
+    <Style Selector="ListBox.pick">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.pick ListBoxItem">
+      <Setter Property="Padding" Value="10,0" />
+      <Setter Property="Margin" Value="0,0,4,4" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="ListBox.pick ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+    </Style>
+    <Style Selector="ListBox.pick ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource RowHoverBrush}" />
+    </Style>
+    <Style Selector="ListBox.pick ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ChartBackgroundBrush}" />
+    </Style>
+    <Style Selector="ListBox.pick.items ListBoxItem">
+      <Setter Property="Width" Value="136" />
+    </Style>
     <Style Selector="Button.railGroup">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
@@ -512,14 +541,14 @@
 
           <!-- Replays: the tabs, where the player stands, and what the overlays show, in one row on top of the list -->
           <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" CornerRadius="12,12,0,0" Padding="6,6,10,0" IsVisible="{Binding ShowReplayTabs}">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="4">
-              <Button Classes="tab" Classes.active="{Binding IsLocalTab}" Content="{Binding LocalTabText}" Click="ShowLocalTab" MinHeight="36" />
-              <Button Grid.Column="1" Classes="tab" Classes.active="{Binding IsOnlineTab}" Content="{Binding OnlineTabText}" Click="ShowOnlineTab" MinHeight="36"
+            <Grid x:Name="ReplayTabRow" ColumnDefinitions="Auto,Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="4">
+              <Button x:Name="LocalTabButton" Classes="tab" Classes.active="{Binding IsLocalTab}" Content="{Binding LocalTabText}" Click="ShowLocalTab" MinHeight="36" />
+              <Button x:Name="OnlineTabButton" Grid.Column="1" Classes="tab" Classes.active="{Binding IsOnlineTab}" Content="{Binding OnlineTabText}" Click="ShowOnlineTab" MinHeight="36"
                       ToolTip.Tip="The beatmap's top scores on osu!'s website (asked for once per map). Click one to download its replay and compare against it." />
               <TextBlock Grid.Column="2" Classes="secondary" FontSize="12" Text="{Binding RankSummary}" VerticalAlignment="Center" Margin="12,0,8,0" TextTrimming="CharacterEllipsis" />
-              <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,0,4">
-                <TextBlock Classes="muted" FontSize="12" Text="Overlays" VerticalAlignment="Center" Margin="0,0,2,0" />
-                <Button MinHeight="28" Padding="9,0" VerticalAlignment="Center" ToolTip.Tip="What the Main overlay shows">
+              <WrapPanel x:Name="OverlayPickers" Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Classes="muted" FontSize="12" Text="Overlays" VerticalAlignment="Center" Margin="0,0,8,4" />
+                <Button x:Name="MainPickerButton" MinHeight="28" Padding="9,0" Margin="0,0,6,4" VerticalAlignment="Center" ToolTip.Tip="What the Main overlay shows">
                   <StackPanel Orientation="Horizontal" Spacing="7">
                     <TextBlock Classes="muted" FontSize="12" Text="Main" VerticalAlignment="Center" />
                     <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedMainItem.Name}" VerticalAlignment="Center" />
@@ -529,11 +558,26 @@
                   </StackPanel>
                   <Button.Flyout>
                     <Flyout Placement="BottomEdgeAlignedRight">
-                      <StackPanel Spacing="8" MinWidth="230">
-                        <TextBlock Classes="muted" FontSize="12" Text="What the Main overlay shows" />
-                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding MainItemOptions}" SelectedItem="{Binding SelectedMainItem, Mode=TwoWay}" />
-                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedMainShow, Mode=TwoWay}"
-                                  ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
+                      <StackPanel Spacing="8" Width="284">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock FontSize="13" FontWeight="Bold" Text="Main overlay" VerticalAlignment="Center" />
+                          <!-- Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value -->
+                          <ListBox Grid.Column="1" Classes="pick" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedMainShow, Mode=TwoWay}"
+                                   ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value">
+                            <ListBox.ItemsPanel>
+                              <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                              </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                          </ListBox>
+                        </Grid>
+                        <ListBox Classes="pick items" MaxHeight="330" ItemsSource="{Binding MainItemOptions}" SelectedItem="{Binding SelectedMainItem, Mode=TwoWay}">
+                          <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                          </ListBox.ItemsPanel>
+                        </ListBox>
                         <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowScoreBase}">
                           <TextBlock Classes="secondary" Text="Base" VerticalAlignment="Center" FontSize="13" Width="34" />
                           <ComboBox MinWidth="92" ItemsSource="{Binding BaseModeOptions}" SelectedItem="{Binding SelectedBaseMode, Mode=TwoWay}"
@@ -552,7 +596,7 @@
                     </Flyout>
                   </Button.Flyout>
                 </Button>
-                <Button MinHeight="28" Padding="9,0" VerticalAlignment="Center" ToolTip.Tip="What the Sub overlay shows">
+                <Button MinHeight="28" Padding="9,0" Margin="0,0,6,4" VerticalAlignment="Center" ToolTip.Tip="What the Sub overlay shows">
                   <StackPanel Orientation="Horizontal" Spacing="7">
                     <TextBlock Classes="muted" FontSize="12" Text="Sub" VerticalAlignment="Center" />
                     <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedSubItem.Name}" VerticalAlignment="Center" />
@@ -562,11 +606,26 @@
                   </StackPanel>
                   <Button.Flyout>
                     <Flyout Placement="BottomEdgeAlignedRight">
-                      <StackPanel Spacing="8" MinWidth="230">
-                        <TextBlock Classes="muted" FontSize="12" Text="What the Sub overlay shows" />
-                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SubItemOptions}" SelectedItem="{Binding SelectedSubItem, Mode=TwoWay}" />
-                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedSubShow, Mode=TwoWay}"
-                                  ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
+                      <StackPanel Spacing="8" Width="284">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock FontSize="13" FontWeight="Bold" Text="Sub overlay" VerticalAlignment="Center" />
+                          <!-- Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value -->
+                          <ListBox Grid.Column="1" Classes="pick" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedSubShow, Mode=TwoWay}"
+                                   ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value">
+                            <ListBox.ItemsPanel>
+                              <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                              </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                          </ListBox>
+                        </Grid>
+                        <ListBox Classes="pick items" MaxHeight="330" ItemsSource="{Binding SubItemOptions}" SelectedItem="{Binding SelectedSubItem, Mode=TwoWay}">
+                          <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                          </ListBox.ItemsPanel>
+                        </ListBox>
                         <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowScoreBase}">
                           <TextBlock Classes="secondary" Text="Base" VerticalAlignment="Center" FontSize="13" Width="34" />
                           <ComboBox MinWidth="92" ItemsSource="{Binding BaseModeOptions}" SelectedItem="{Binding SelectedBaseMode, Mode=TwoWay}"
@@ -585,7 +644,7 @@
                     </Flyout>
                   </Button.Flyout>
                 </Button>
-                <Button MinHeight="28" Padding="9,0" VerticalAlignment="Center"
+                <Button MinHeight="28" Padding="9,0" Margin="0,0,0,4" VerticalAlignment="Center"
                         ToolTip.Tip="Who the Pacemaker overlay and the Rival items race against">
                   <StackPanel Orientation="Horizontal" Spacing="7">
                     <TextBlock Classes="muted" FontSize="12" Text="Rivals" VerticalAlignment="Center" />
@@ -597,12 +656,12 @@
                       <StackPanel Spacing="8" MinWidth="250" MaxWidth="300">
                         <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
                                    Text="Who the Pacemaker overlay and the Rival items race against: your local replays at this rate, the online ranking (asked for once per map), or both." />
-                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding RivalsOptions}" SelectedItem="{Binding SelectedRivals, Mode=TwoWay}" />
+                        <ListBox Classes="pick" ItemsSource="{Binding RivalsOptions}" SelectedItem="{Binding SelectedRivals, Mode=TwoWay}" />
                       </StackPanel>
                     </Flyout>
                   </Button.Flyout>
                 </Button>
-              </StackPanel>
+              </WrapPanel>
             </Grid>
           </Border>
 
