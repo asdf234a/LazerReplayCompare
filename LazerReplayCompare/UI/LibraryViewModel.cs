@@ -88,15 +88,15 @@ public sealed class MapRow : ObservableObject
         Plays = plays;
         LastPlayedTicks = lastPlayedTicks;
 
-        (Number, NumberText, NumberBrush) = number(map, difficulty, numberKind);
+        (Number, NumberText, _) = number(map, difficulty, numberKind);
 
-        // the number's box: its place on the spectrum (a dan level standing in as Sunny is read as Sunny)
-        double onSpectrum = numberKind switch
-        {
-            LibraryViewModel.NumberStars => map.Stars >= 0 ? map.Stars : double.NaN,
-            LibraryViewModel.NumberDan when difficulty.DanLevel is { } level => level * DifficultyColors.DanScale,
-            _ => difficulty.Sunny is { } sunny ? sunny * DifficultyColors.SunnyScale : double.NaN,
-        };
+        // The colour is the map's, whichever number is shown: its Sunny rating's place on the spectrum, so the same map
+        // has the same colour as Sunny, as a dan level and as stars. Without a Sunny rating the shown number's own.
+        double onSpectrum = difficulty.Sunny is { } sunny ? sunny * DifficultyColors.SunnyScale
+            : numberKind == LibraryViewModel.NumberDan && difficulty.DanLevel is { } level ? level * DifficultyColors.DanScale
+            : map.Stars >= 0 ? map.Stars
+            : double.NaN;
+        NumberBrush = double.IsFinite(onSpectrum) ? DifficultyColors.ForStars(onSpectrum) : DifficultyColors.Neutral;
         NumberBadge = DifficultyColors.Badge(onSpectrum);
         NumberBadgeText = DifficultyColors.BadgeText(onSpectrum);
         Haystack = string.Join('\n', map.Title, map.TitleUnicode, map.Artist, map.ArtistUnicode, map.Version, map.Mapper, map.Tags, map.Source).ToLowerInvariant();
