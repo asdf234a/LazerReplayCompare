@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -8,7 +8,7 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);publish\**</DefaultItemExcludes>
     <OsuLazerCurrentPath Condition="'$(OsuLazerCurrentPath)' == ''">$(LocalAppData)\osulazer\current</OsuLazerCurrentPath>
     <ApplicationIcon>LazerReplayCompare.ico</ApplicationIcon>
-    <Version>1.4.0</Version>
+    <Version>3.0.0</Version>
     <DebugType>none</DebugType>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
@@ -71,6 +71,8 @@
     <AvaloniaResource Include="Assets\Mods\*.png" />
     <!-- UI font (LRC Sans: a Pretendard subset, see LRCSans-NOTICE.txt) and mod icon text (Baloo 2, see Baloo2-OFL.txt). -->
     <AvaloniaResource Include="Assets\Fonts\*.ttf" />
+    <!-- Torus, osu!'s typeface (Regular and Bold); LRC Sans fills in what it has no glyph for (Korean, Japanese …). -->
+    <AvaloniaResource Include="Assets\Fonts\*.otf" />
   </ItemGroup>
 
   <ItemGroup>

@@ -75,7 +75,12 @@ public sealed partial class MainWindow
         }
 
         if (!libraryRefresh.IsEnabled)
+        {
+            // while thousands of maps are being rated, the lists are made again only every few seconds
+            bool working = library.Sunny.Status.Running || danEngine?.Status.Running == true;
+            libraryRefresh.Interval = TimeSpan.FromSeconds(working ? 5 : 0.5);
             libraryRefresh.Start();
+        }
     }
 
     private void refreshLibraryNow()
@@ -221,6 +226,7 @@ public sealed partial class MainWindow
         }
 
         browsing = false;
+        viewModel.IsBrowsingMap = false;
         closeLibrary();
         return true;
     }
@@ -238,6 +244,7 @@ public sealed partial class MainWindow
         }
 
         browsing = true;
+        viewModel.IsBrowsingMap = true;
         showSnapshot(snapshotOf(map));
     }
 
@@ -249,6 +256,7 @@ public sealed partial class MainWindow
             return;
 
         browsing = false;
+        viewModel.IsBrowsingMap = false;
         showSnapshot(liveSnapshot);
     }
 
@@ -305,6 +313,8 @@ public sealed partial class MainWindow
     {
         var md5 = currentSnapshot.BeatmapChecksum;
         var map = string.IsNullOrEmpty(md5) ? null : library.Maps.Find(md5);
+        if (map != null)
+            library.EnsureRated(map);   // the shown map doesn't wait for its turn among thousands
         var live = string.IsNullOrWhiteSpace(liveSnapshot.BeatmapChecksum) ? "nothing yet"
             : string.Join(" ", new[] { liveSnapshot.BeatmapTitle, string.IsNullOrWhiteSpace(liveSnapshot.BeatmapVersion) ? string.Empty : $"[{liveSnapshot.BeatmapVersion}]" }.Where(part => part.Length > 0));
 
@@ -557,6 +567,51 @@ public sealed partial class MainWindow
         }
 
         return new RivalSet(md5, mode, library.Player, rivals.OrderByDescending(rival => rival.Score).Take(max_rivals).ToList());
+    }
+
+    /// <summary>
+    /// For looking at a page without the game: LRC_DEBUG_PAGE=library opens the library, =map shows the most played map,
+    /// =online its online ranking, =settings the settings. Nothing happens without the variable.
+    /// </summary>
+    private async void openDebugPage()
+    {
+        try
+        {
+            var page = Environment.GetEnvironmentVariable("LRC_DEBUG_PAGE");
+            if (string.IsNullOrWhiteSpace(page))
+                return;
+
+            // the kept library and the records need a moment
+            for (int i = 0; i < 40 && (library.Maps.Maps.Count == 0 || library.Player.Length == 0); i++)
+                await Task.Delay(500);
+            await Task.Delay(1500);
+            refreshLibraryNow();
+
+            if (page.StartsWith("lib", StringComparison.OrdinalIgnoreCase))
+                openLibrary();
+            else if (page.StartsWith("set", StringComparison.OrdinalIgnoreCase))
+                viewModel.IsSettingsPage = true;
+            else
+            {
+                var best = library.Maps.Maps.Values.OrderByDescending(map => library.RecordOf(map.Md5)?.Plays ?? 0).FirstOrDefault();
+                if (best != null)
+                    BrowseTo(best);
+                if (page.StartsWith("rail", StringComparison.OrdinalIgnoreCase))
+                    viewModel.IsRailExpanded = true;
+                if (page.StartsWith("online", StringComparison.OrdinalIgnoreCase))
+                    ShowOnlineTab(this, new RoutedEventArgs());
+                if (page.StartsWith("detail", StringComparison.OrdinalIgnoreCase))
+                {
+                    await Task.Delay(2500);
+                    if (viewModel.ReplayRows.FirstOrDefault(row => row.HasReplay) is { } row)
+                        OpenDetails(row.Entry);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
     }
 
     private void OpenDataFolder(object? sender, RoutedEventArgs e)

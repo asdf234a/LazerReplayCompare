@@ -458,6 +458,7 @@ public sealed class LibraryViewModel : ObservableObject
                 return;
 
             markCurrentGroup();
+            SelectShownGroup();   // the side card follows the shown map
         }
     }
 
@@ -565,7 +566,10 @@ public sealed class LibraryViewModel : ObservableObject
             Groups.Add(item);
         markCurrentGroup();
 
-        selectedGroup = Groups.FirstOrDefault(g => g.Name == previous) ?? Groups.FirstOrDefault(g => g.IsCurrent) ?? Groups.FirstOrDefault();
+        selectedGroup = Groups.FirstOrDefault(g => g.Name == previous) ?? Groups.FirstOrDefault(g => g.IsCurrent)
+                        // otherwise the first group that is a real one (not "no dan", "Not rated" …)
+                        ?? Groups.FirstOrDefault(g => !g.Name.Contains("no dan", StringComparison.OrdinalIgnoreCase) && !g.Name.StartsWith("No", StringComparison.Ordinal))
+                        ?? Groups.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedGroup));
         showGroup();
     }
@@ -639,7 +643,7 @@ public sealed class LibraryViewModel : ObservableObject
     {
         var difficulty = row.Difficulty;
         if (difficulty.DanGroup == null)
-            return (manyKeys && row.Map.Keys > 0 ? $"{row.Map.Keys}K · no dan" : "No dan", row.Map.Keys * 1000 + 999);
+            return (manyKeys && row.Map.Keys > 0 ? $"{row.Map.Keys}K · no dan" : "No dan", row.Map.Keys > 0 ? row.Map.Keys * 1000 + 999 : 99999);
 
         var order = Dans.DanOrder(row.Map.Keys, difficulty.DanIsLn, extended: true);
         int index = Array.IndexOf(order, difficulty.DanGroup);

@@ -259,10 +259,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public bool HasReplays => ReplayRows.Count > 0;
     public string ReplayCountText => ReplayRows.Count == 1 ? "1 saved" : $"{ReplayRows.Count} saved";
-    public bool ShowCompareContent => AllConnected && HasReplays;
-    public bool ShowDisconnectedPlaceholder => !AllConnected;
-    public bool ShowNoReplays => AllConnected && HasBeatmap && !IsLoadingReplays && !HasReplays;
-    public bool ShowNoBeatmap => AllConnected && !HasBeatmap;
+    public bool ShowCompareContent => CanShowMap && HasReplays;
+    public bool ShowDisconnectedPlaceholder => !CanShowMap;
+    public bool ShowNoReplays => CanShowMap && HasBeatmap && !IsLoadingReplays && !HasReplays;
+    public bool ShowNoBeatmap => CanShowMap && !HasBeatmap;
 
     public void NotifyReplaysChanged() => replaysChanged();
 

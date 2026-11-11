@@ -88,8 +88,24 @@ public sealed partial class MainWindowViewModel
 
     public bool IsLocalTab => !IsOnlineTab;
 
-    /// <summary>The tabs show once there is a map and everything is connected (the same condition as the replay list).</summary>
-    public bool ShowReplayTabs => AllConnected && HasBeatmap;
+    private bool isBrowsingMap;
+
+    /// <summary>The page shows a map picked in the library (its replays are listed without tosu, too).</summary>
+    public bool IsBrowsingMap
+    {
+        get => isBrowsingMap;
+        set
+        {
+            if (Set(ref isBrowsingMap, value))
+                connectionsChanged();
+        }
+    }
+
+    /// <summary>The map's replays can be shown: everything is connected, or the map was picked in the library.</summary>
+    public bool CanShowMap => AllConnected || (IsBrowsingMap && GameFolderFound);
+
+    /// <summary>The tabs show once there is a map whose replays can be shown.</summary>
+    public bool ShowReplayTabs => CanShowMap && HasBeatmap;
 
     public ObservableCollection<OnlineScoreRow> OnlineRows { get; } = new();
 

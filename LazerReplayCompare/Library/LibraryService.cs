@@ -44,6 +44,25 @@ public sealed class LibraryService
 
     public MapRecord? RecordOf(string md5) => Volatile.Read(ref records).GetValueOrDefault(md5);
 
+    // ratings worked out ahead of the background run, for maps that are looked at
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SunnyResult?> early = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Rates a map now when the background run hasn't reached it yet (once; <see cref="Changed"/> follows).</summary>
+    public void EnsureRated(MapInfo map)
+    {
+        if (!SunnyCache.Rated(map.Keys) || map.ChartPath.Length == 0 || Sunny.Get(map.Md5) != null || !early.TryAdd(map.Md5, null))
+            return;
+
+        Sunny.AtRateAsync(map, 1.0).ContinueWith(task =>
+        {
+            if (task.Status == TaskStatus.RanToCompletion && task.Result != null)
+            {
+                early[map.Md5] = task.Result;
+                Changed?.Invoke();
+            }
+        });
+    }
+
     /// <summary>Works the records out again from every local score, in the background (one run at a time).</summary>
     public void UpdateRecords(Func<List<(IReadOnlyList<string> Md5s, ReplayEntry Entry)>> scores)
     {
@@ -78,9 +97,13 @@ public sealed class LibraryService
         });
     }
 
+    /// <summary>A dan label that says something ("Unknown" and empty ones don't).</summary>
+    private static string? known(string? label)
+        => string.IsNullOrWhiteSpace(label) || label.Contains("Unknown", StringComparison.OrdinalIgnoreCase) ? null : label;
+
     public MapDifficulty DifficultyOf(MapInfo map)
     {
-        var sunny = Sunny.Get(map.Md5);
+        var sunny = Sunny.Get(map.Md5) ?? early.GetValueOrDefault(map.Md5);
         double? star = sunny is { } s && double.IsFinite(s.Star) ? s.Star : null;
         double lnRatio = sunny?.LnRatio ?? (map.Objects > 0 ? (double)map.Holds / map.Objects : 0);
 
@@ -88,13 +111,16 @@ public sealed class LibraryService
         double? level = null;
         if (DanLookup?.Invoke(map.Md5) is { } estimate)
         {
-            rc = estimate.Rc;
-            ln = estimate.Ln;
-            level = estimate.Numeric;
+            rc = known(estimate.Rc);
+            ln = known(estimate.Ln);
+            level = estimate.Numeric is { } number && double.IsFinite(number) ? number : null;
         }
 
         if (rc == null && ln == null && star is { } value)
             (rc, ln) = Dans.Split(value, lnRatio, map.Keys, extended: true);
+
+        rc = known(rc);
+        ln = known(ln);
 
         // a map of mostly holds shows its LN dan, the rest their RC dan
         bool useLn = ln != null && lnRatio >= 0.15;

@@ -128,7 +128,7 @@
                         <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
                           <GradientStop Offset="0" Color="{DynamicResource BannerScrim100Color}" />
                           <GradientStop Offset="0.38" Color="{DynamicResource BannerScrim92Color}" />
-                          <GradientStop Offset="1" Color="{DynamicResource BannerScrim35Color}" />
+                          <GradientStop Offset="1" Color="{DynamicResource BannerScrim55Color}" />
                         </LinearGradientBrush>
                       </Border.Background>
                     </Border>

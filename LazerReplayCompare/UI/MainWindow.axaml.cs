@@ -193,6 +193,7 @@ public sealed partial class MainWindow : Window
         try
         {
             await startServices();
+            openDebugPage();
         }
         catch (Exception ex)
         {
@@ -1600,7 +1601,7 @@ public sealed partial class MainWindow : Window
 
     // The replay list's columns (header and rows): pin, player, date, mods, score, vs target, accuracy, miss, combo,
     // rank, chevron. A narrow page drops date, vs target and combo.
-    private const string replay_columns = "84,1.2*,0.9*,1.5*,1*,0,0.8*,0.55*,0.65*,0.55*,36";
+    private const string replay_columns = "84,1.1*,1.1*,1.3*,1*,0,0.8*,0.55*,0.65*,0.55*,36";
     private const string narrow_replay_columns = "84,1.5*,0,1.4*,1*,0,0.9*,0.6*,0,0.6*,36";
     private static readonly int[] narrow_hidden_columns = [2, 5, 8];
 

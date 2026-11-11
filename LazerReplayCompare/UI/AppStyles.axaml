@@ -5,8 +5,9 @@
   <Style Selector="Window">
     <Setter Property="Background" Value="{DynamicResource PageBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-    <!-- LRC Sans: Pretendard, subset (see Assets/Fonts/LRCSans-NOTICE.txt). Missing glyphs fall back to system fonts. -->
-    <Setter Property="FontFamily" Value="avares://LazerReplayCompare/Assets/Fonts#LRC Sans" />
+    <!-- Torus (osu!'s typeface), then LRC Sans (Pretendard, subset: see Assets/Fonts/LRCSans-NOTICE.txt) for the glyphs Torus
+         lacks. Glyphs neither has fall back to system fonts. -->
+    <Setter Property="FontFamily" Value="avares://LazerReplayCompare/Assets/Fonts#Torus, LRC Sans" />
     <Setter Property="FontSize" Value="14" />
   </Style>
 

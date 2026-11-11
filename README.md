@@ -2,6 +2,21 @@
 
 LazerReplayCompare races your osu!mania play, in osu!lazer or osu!stable, against your own saved replays. While you play, a tosu overlay shows, note by note, whether you are ahead of or behind the replay you are comparing against.
 
+## What's new in 3.0.0 (draft)
+
+- **Library.** Every mania map of osu!lazer and osu!stable in one list (the Maps tab again, or Ctrl F): its Sunny star rating, its dan (4K, 6K and 7K), keys, stars, OD, BPM, length and your best rank. Group it by dan, Sunny SR, osu! stars, collection, best rank or when you last played; search with words and filters like `sunny>5 rank<s od>=8 length<2:30`. Click a map to open its page without selecting it in the game; a play that starts takes the page back to the game's map.
+- **Sunny SR and dans.** The Sunny star rating is worked out for every map in the background (it pauses while you play). Dans come from the analyser's estimators ([osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser), run in a hidden Edge or Chrome), with the Sunny table standing in until a map's estimate is in. The number each map is led by can be Sunny, the estimators' dan number (a `*` marks a Sunny rating standing in for it) or osu!'s stars.
+- **Map card.** The map page starts with what the map is and how hard it is: the number and dan, status, title and artist, length, BPM and your plays, then the difficulty name and stars and the note counts, keys, OD and HP.
+- **Library beside the map.** A card on the left of the map page: folded, each group with how its maps are graded; opened, the maps of one group.
+- **Online ranking.** The replay list has two tabs: your local replays (with their place by score) and the map's online top 50. Click an online score to download its replay and compare against it: only the one you click is downloaded, once, and it is then listed with your local replays. Needs the osu! API client from Settings.
+- **Pacemaker overlay and rival items.** `LazerReplayCompare Pacemaker` shows a small live leaderboard of your local replays at this rate, the online ranking, or both (picked next to Main and Sub). New items: Rival rank, Next rival and Next rival reachable.
+- **Lanes.** A replay's details show each lane's accuracy, misses, judgements, mean error and unstable rate as vertical columns, and each hand's accuracy; with an odd key count the middle lane goes to the hand you pick.
+- **Grades in colour.** SS, S, A, B, C and D each have their colour, in the replay list, the library and the online ranking.
+- **One data folder.** Settings, the library, ratings, records and downloaded replays are kept in `data` next to the exe (copied once from `%LocalAppData%\LazerReplayCompare`), so the app's folder can be moved as a whole. If that folder can't be written to, the old place is used.
+- **Torus.** The app uses osu!'s typeface; glyphs it lacks (Korean, Japanese) come from the previous font.
+
+**Updating:** unzip the whole folder (the exe, `analyser` and `static`) and keep it together. Copy the overlay folders into tosu's `static` folder again.
+
 ## What's new in 1.4.0
 
 - **Score log.** A new overlay item: how far you are from a base, on a scale where +10 means half the score lost. The base is a fixed score (999,000 by default) or a place on the beatmap's leaderboard, picked on the Compare page.
@@ -130,7 +145,7 @@ The first timeline for a replay can take a moment to build. Until it is ready, t
 ## Notes
 
 - The app is for osu!lazer **mania** replays. Mirror is handled by flipping the columns.
-- Settings are stored in `%LocalAppData%\LazerReplayCompare\settings.json`, custom overlay items in `metrics.json` next to it.
+- Settings are stored in `data\settings.json` next to the exe, custom overlay items in `metrics.json` next to it (before 3.0: `%LocalAppData%\LazerReplayCompare`, copied over on the first start).
 - osu!lazer's replays are listed from the app's own copy of the list (`lazer-replays.json` and `lazer-beatmaps.json` next to the settings). It is filled from osu!lazer's database once when the app starts (read from a temporary copy, so the game's own file is never opened) and then kept up to date by watching osu!lazer's `files` folder: a replay you play, import or download shows up within a moment, and one osu!lazer deletes disappears. After a large import the database is read again once the import is over; **Rescan replays** reads it again any time.
 
 ## Building from source

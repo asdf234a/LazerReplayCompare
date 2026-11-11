@@ -17,7 +17,7 @@ public sealed partial class LibraryView : UserControl
     private const string map_columns = "132,*,48,62,48,58,64,28,126,56,30";
     private const string narrow_map_columns = "120,*,44,58,44,0,0,16,118,0,26";
     private static readonly int[] narrow_hidden_columns = [5, 6, 9];
-    private const double narrow_list_width = 860;
+    private const double narrow_list_width = 1000;
     private const double no_groups_width = 760;
 
     private readonly ListBox mapList;
