@@ -628,9 +628,19 @@ public sealed class SegmentBar : ChartControl
     public static readonly StyledProperty<string?> TitleProperty =
         AvaloniaProperty.Register<SegmentBar, string?>(nameof(Title));
 
+    public static readonly StyledProperty<bool> VerticalProperty =
+        AvaloniaProperty.Register<SegmentBar, bool>(nameof(Vertical));
+
     static SegmentBar()
     {
-        AffectsRender<SegmentBar>(SegmentsProperty);
+        AffectsRender<SegmentBar>(SegmentsProperty, VerticalProperty);
+    }
+
+    /// <summary>Upright, the first part on top (a lane's judgements: MAX on top, the worse ones settling at the bottom).</summary>
+    public bool Vertical
+    {
+        get => GetValue(VerticalProperty);
+        set => SetValue(VerticalProperty, value);
     }
 
     public IReadOnlyList<BarSegment>? Segments
@@ -653,6 +663,19 @@ public sealed class SegmentBar : ChartControl
         if (total <= 0)
             yield break;
 
+        if (Vertical)
+        {
+            double room = Bounds.Height - 2 * (segments.Count - 1), y = 0;
+            foreach (var segment in segments)
+            {
+                double height = Math.Max(2, segment.Value / total * room);
+                yield return (segment, new Rect(0, y, Bounds.Width, height));
+                y += height + 2;
+            }
+
+            yield break;
+        }
+
         double available = Bounds.Width - 2 * (segments.Count - 1), x = 0;
         foreach (var segment in segments)
         {
@@ -665,7 +688,7 @@ public sealed class SegmentBar : ChartControl
     public override void Render(DrawingContext context)
     {
         FillHitArea(context);
-        using (context.PushClip(new RoundedRect(new Rect(Bounds.Size), Bounds.Height / 2)))
+        using (context.PushClip(new RoundedRect(new Rect(Bounds.Size), Vertical ? 5 : Bounds.Height / 2)))
         {
             foreach (var (segment, rect) in layout())
                 context.FillRectangle(Brush(segment.BrushKey), rect);
@@ -676,7 +699,7 @@ public sealed class SegmentBar : ChartControl
     {
         foreach (var (segment, rect) in layout())
         {
-            if (point.X >= rect.Left && point.X <= rect.Right + 2)
+            if (Vertical ? point.Y >= rect.Top && point.Y <= rect.Bottom + 2 : point.X >= rect.Left && point.X <= rect.Right + 2)
                 return new HoverInfo(Title ?? segment.Label, new[] { new HoverRow(segment.Label, segment.ValueText, segment.BrushKey) });
         }
 

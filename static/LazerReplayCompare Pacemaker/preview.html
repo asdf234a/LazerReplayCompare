@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Pacemaker preview</title>
+    <link rel="stylesheet" href="styles/main.css" />
+    <style>body { background: #2b3a55 linear-gradient(135deg, #2b3a55, #6b4a6b); padding: 24px; overflow: auto; }</style>
+</head>
+<body>
+    <!-- What the overlay looks like mid-song, with made-up rivals (the overlay itself is index.html). -->
+    <main id="board" class="board visible" style="--rows: 6"></main>
+    <script>
+        const rows = [
+            ['1', 'Kirameki', 'replay · 2026-10-30', '512,880', '-11,240'],
+            ['2', 'Tsubame', 'online · est.', '504,100', '-2,460'],
+            ['3', 'Iridium', 'target · 2026-11-11', '503,050', '-1,410'],
+            ['4', 'You', 'live', '501,640', '', 'player'],
+            ['5', 'Iridium', 'replay · 2024-11-02', '489,310', '+12,330'],
+            ['6', 'Iridium', 'replay · 2024-09-28', '471,022', '+30,618'],
+        ];
+        const board = document.getElementById('board');
+        rows.forEach(([place, name, note, value, diff, kind], i) => {
+            const row = document.createElement('div');
+            row.className = `row${i === 0 ? ' first' : ''}${kind ? ' ' + kind : ''}`;
+            row.style.transform = `translateY(calc(var(--row-height) * ${i}))`;
+            const tone = diff.startsWith('+') ? 'positive' : diff ? 'negative' : 'neutral';
+            row.innerHTML = `<span class="place">${place}</span><span class="who"><span class="name">${name}</span><span class="note">${note}</span></span>`
+                + `<span class="numbers"><span class="value">${value}</span><span class="diff ${tone}">${diff}</span></span>`;
+            board.appendChild(row);
+        });
+    </script>
+</body>
+</html>

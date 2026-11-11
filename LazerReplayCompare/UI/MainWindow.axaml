@@ -34,12 +34,84 @@
     <Style Selector="ListBoxItem:pointerover Path.rowChevron">
       <Setter Property="Opacity" Value="1" />
     </Style>
+    <!-- The library card beside the map page -->
+    <Style Selector="ListBox.plainList">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.plainList ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="ListBox.plainList ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource RowHoverBrush}" />
+    </Style>
+    <Style Selector="ListBox.plainList ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <!-- A picker's choices: one click picks (the overlay pickers' flyouts) -->
+    <Style Selector="ListBox.pick">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.pick ListBoxItem">
+      <Setter Property="Padding" Value="10,0" />
+      <Setter Property="Margin" Value="0,0,4,4" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="ListBox.pick ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ButtonBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="ListBox.pick ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="ListBox.pick ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource PickedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="ListBox.pick ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource PickedHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="ListBox.pick.items ListBoxItem">
+      <Setter Property="Width" Value="136" />
+    </Style>
+    <Style Selector="Button.railGroup">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.railGroup.current /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource OptionSelectedBrush}" />
+    </Style>
+    <Style Selector="Border.statusPill">
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="8,1" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.statusPill TextBlock">
+      <Setter Property="FontSize" Value="10.5" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
   </Window.Styles>
 
   <Grid>
     <!-- Beatmap background: a blurred copy behind the whole page (the translucent cards sit on it) ... -->
     <Panel IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
-      <local:FocalImage Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="HighQuality" />
+      <local:FocalImage Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="MediumQuality" />
       <Border>
         <Border.Background>
           <SolidColorBrush Color="{DynamicResource BannerScrim80Color}" />
@@ -49,7 +121,7 @@
            the copy under it, so its colours carry on into the page below; it fades out with the banner (down, and as the
            page scrolls) and towards the window's edges (see layoutBanner). -->
       <Panel x:Name="BannerSides" IsVisible="False">
-        <local:FocalImage x:Name="BannerSidesImage" Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="HighQuality" />
+        <local:FocalImage x:Name="BannerSidesImage" Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="MediumQuality" />
       </Panel>
     </Panel>
 
@@ -99,12 +171,19 @@
         </StackPanel>
 
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-          <Button Classes="tab" Classes.active="{Binding IsComparePage}" Content="Compare" Click="ShowComparePage" VerticalAlignment="Stretch" VerticalContentAlignment="Center" />
+          <Button Classes="tab" Classes.active="{Binding IsComparePage}" Content="Maps" Click="ShowComparePage" ToolTip.Tip="The map page; again for the whole library (Ctrl F searches it)" VerticalAlignment="Stretch" VerticalContentAlignment="Center" />
           <Button Classes="tab" Classes.active="{Binding IsSettingsPage}" Content="Settings" Click="ShowSettingsPage" VerticalAlignment="Stretch" VerticalContentAlignment="Center" />
         </StackPanel>
 
         <!-- Connection state and compact mode, in the bar (so the page never scrolls under them) -->
         <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <!-- Background work on the library (rating maps, estimating dans), while it runs -->
+          <Border Classes="chip" Padding="10,4" VerticalAlignment="Center" IsVisible="{Binding ShowWork}" ToolTip.Tip="{Binding WorkDetails}">
+            <StackPanel Spacing="3">
+              <TextBlock Classes="mono" FontSize="12" Text="{Binding WorkText}" />
+              <ProgressBar Height="2" MinHeight="2" MinWidth="0" Maximum="100" Value="{Binding WorkPercent}" Foreground="{DynamicResource TargetAccentBrush}" />
+            </StackPanel>
+          </Border>
           <Border Classes="pill" Classes.ok="{Binding AllConnected}" Padding="10,4" VerticalAlignment="Center"
                   ToolTip.Tip="{Binding ConnectionDetails}">
             <StackPanel Orientation="Horizontal" Spacing="7">
@@ -142,7 +221,107 @@
     <LayoutTransformControl x:Name="PageZoom">
     <Grid>
       <!-- ===================== Compare ===================== -->
-      <ScrollViewer x:Name="CompareScroll" IsVisible="{Binding ShowCompareList}" HorizontalScrollBarVisibility="Disabled">
+      <Grid x:Name="ComparePage" IsVisible="{Binding ShowCompareList}" ColumnDefinitions="Auto,*">
+      <!-- The library beside the map page: folded, a summary of its groups; opened, the maps of one group -->
+      <Border x:Name="LibraryRail" Classes="surface" Classes.glass="{Binding ShowBackdrop}" Margin="14,22,0,14" ClipToBounds="True" IsVisible="{Binding ShowRail}">
+        <Panel>
+          <DockPanel x:Name="RailFolded" Width="92" HorizontalAlignment="Left" IsVisible="{Binding !IsRailExpanded}">
+            <Button DockPanel.Dock="Top" Classes="railGroup" Click="ToggleRail" Height="40" Padding="0" HorizontalContentAlignment="Center" ToolTip.Tip="Open the library beside the map">
+              <Path Width="16" Height="14" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" Stroke="{DynamicResource TextBrush}"
+                    Data="M5,5 L12,12 L5,19 M13,5 L20,12 L13,19" HorizontalAlignment="Center" />
+            </Button>
+            <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource RowDividerBrush}" />
+            <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl ItemsSource="{Binding Library.Groups}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="local:LibraryGroup">
+                    <Button Classes="railGroup" Classes.current="{Binding IsCurrent}" Click="RailGroupClicked" ToolTip.Tip="{Binding Name}">
+                      <StackPanel Spacing="5">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                          <TextBlock Classes="muted" FontSize="10" Text="{Binding RailKind}" VerticalAlignment="Bottom" TextTrimming="CharacterEllipsis" />
+                          <Border Grid.Column="1" Background="{Binding RailBadge}" CornerRadius="6" Padding="6,0,6,1" MinWidth="26" BorderBrush="#30FFFFFF" BorderThickness="1">
+                            <TextBlock Text="{Binding RailShort}" FontSize="{Binding RailFontSize}" FontWeight="Bold" Foreground="{Binding RailBadgeText}" TextWrapping="Wrap" MaxWidth="60" TextAlignment="Center" />
+                          </Border>
+                        </Grid>
+                        <local:RankBar Height="4" Counts="{Binding RankCounts}" />
+                      </StackPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+
+          <DockPanel x:Name="RailOpened" Width="304" HorizontalAlignment="Left" IsVisible="{Binding IsRailExpanded}">
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Height="40">
+              <Button Classes="railGroup" Click="ToggleRail" Width="44" Padding="0" HorizontalContentAlignment="Center" VerticalAlignment="Stretch" ToolTip.Tip="Fold the library">
+                <Path Width="16" Height="14" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" Stroke="{DynamicResource TextBrush}"
+                      Data="M12,5 L5,12 L12,19 M20,5 L13,12 L20,19" HorizontalAlignment="Center" />
+              </Button>
+              <TextBlock Grid.Column="1" Text="Library" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" Margin="2,0,0,0" />
+              <Button Grid.Column="2" Content="Full library" Click="OpenLibrary" MinHeight="26" Padding="10,0" FontSize="12" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip.Tip="The whole library (Ctrl F searches it)" />
+            </Grid>
+            <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource RowDividerBrush}" />
+            <TextBox DockPanel.Dock="Top" Margin="10,10,10,6" FontSize="13" Text="{Binding Library.SearchText, Mode=TwoWay}" PlaceholderText="Search maps" />
+            <!-- What is listed: grouped by, which keys; and what else narrows it (picked in the full library), to undo here -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="6" Margin="10,0,10,6">
+              <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding Library.GroupByOptions}" SelectedItem="{Binding Library.SelectedGroupBy, Mode=TwoWay}"
+                        ToolTip.Tip="What the maps are grouped by (the same choice as in the full library)" />
+              <ComboBox Grid.Column="1" MinWidth="96" ItemsSource="{Binding Library.KeysOptions}" SelectedItem="{Binding Library.SelectedKeys, Mode=TwoWay}"
+                        ToolTip.Tip="Which key counts are listed" />
+            </Grid>
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="6" Margin="12,0,10,6" IsVisible="{Binding Library.HasOtherFilters}">
+              <TextBlock FontSize="12" Foreground="{DynamicResource TargetLabelBrush}" Text="{Binding Library.OtherFiltersText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                         ToolTip.Tip="{Binding Library.OtherFiltersText}" />
+              <Button Grid.Column="1" Content="Show all" Click="ClearLibraryFilters" MinHeight="24" Padding="8,0" FontSize="12" ToolTip.Tip="Drops the collection and the quick filters picked in the full library" />
+            </Grid>
+            <ComboBox DockPanel.Dock="Top" Margin="10,0,10,8" HorizontalAlignment="Stretch" ItemsSource="{Binding Library.Groups}" SelectedItem="{Binding Library.SelectedGroup, Mode=TwoWay}"
+                      ToolTip.Tip="The group whose maps are listed">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="local:LibraryGroup">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Classes="muted" FontSize="12" Text="{Binding CountText}" VerticalAlignment="Center" />
+                  </Grid>
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ListBox x:Name="RailList" Classes="plainList" ItemsSource="{Binding Library.Rows}" Tapped="RailMapTapped">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="local:MapRow">
+                  <Grid ColumnDefinitions="80,*,Auto" Height="46" Cursor="Hand" Background="Transparent" ClipToBounds="True">
+                    <!-- The map's background across the row: dark under the number and title, showing towards the right. -->
+                    <Image Grid.ColumnSpan="3" Source="{Binding RailBackground}" Stretch="UniformToFill" IsVisible="{Binding RailBackground, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <Border Grid.ColumnSpan="3" IsVisible="{Binding RailBackground, Converter={x:Static ObjectConverters.IsNotNull}}">
+                      <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                          <GradientStop Offset="0" Color="{DynamicResource BannerScrim100Color}" />
+                          <GradientStop Offset="0.45" Color="{DynamicResource BannerScrim92Color}" />
+                          <GradientStop Offset="1" Color="{DynamicResource BannerScrim55Color}" />
+                        </LinearGradientBrush>
+                      </Border.Background>
+                    </Border>
+                    <Border Grid.ColumnSpan="3" Height="1" VerticalAlignment="Top" Background="{DynamicResource RowDividerBrush}" />
+                    <Border Grid.ColumnSpan="3" Width="3" HorizontalAlignment="Left" Background="{DynamicResource TextBrush}" IsVisible="{Binding IsNowPlaying}" />
+                    <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
+                      <Border Background="{Binding NumberBadge}" CornerRadius="6" Padding="6,0,6,2" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,1">
+                        <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="14" FontWeight="Bold" Foreground="{Binding NumberBadgeText}" />
+                      </Border>
+                      <TextBlock Text="{Binding ShortDanText}" FontSize="10.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding DanText}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1" Margin="0,0,8,0">
+                      <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Classes="muted" FontSize="11" Text="{Binding ShortSub}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" Text="{Binding RankText}" Width="26" FontSize="16" FontWeight="Bold" Foreground="{Binding RankBrush}" TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </DockPanel>
+        </Panel>
+      </Border>
+      <ScrollViewer Grid.Column="1" x:Name="CompareScroll" HorizontalScrollBarVisibility="Disabled">
         <!-- Content fades out under the top bar instead of being cut off (only once scrolled; see code-behind). -->
         <ScrollViewer.OpacityMask>
           <LinearGradientBrush StartPoint="0,0" EndPoint="0,28">
@@ -199,83 +378,131 @@
             </Grid>
           </Border>
 
-          <!-- Now playing (the whole width, so a long title isn't cut short by the pickers) + overlay metrics under it -->
-          <Grid Classes="hero" Classes.overBanner="{Binding ShowBackdrop}" RowDefinitions="Auto,Auto" RowSpacing="14">
-            <StackPanel Spacing="4">
-              <TextBlock Classes="overline" Text="NOW PLAYING" />
-              <TextBlock Text="{Binding BeatmapTitle}" FontSize="28" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
-              <TextBlock Classes="secondary" Text="{Binding BeatmapSubtitle}" TextTrimming="CharacterEllipsis" />
-              <TextBlock Classes="muted" FontSize="12" Text="{Binding StatusText}" IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-            </StackPanel>
-            <!-- What the Main and Sub overlays show (the live panel shows both items); Sub wraps under Main when narrow. -->
-            <WrapPanel Grid.Row="1" ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Left">
-              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Classes="secondary" Text="Main" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
-                  <ComboBox MinWidth="118" ItemsSource="{Binding MainItemOptions}" SelectedItem="{Binding SelectedMainItem, Mode=TwoWay}"
-                            ToolTip.Tip="What the Main overlay shows" />
-                  <ComboBox MinWidth="92" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedMainShow, Mode=TwoWay}"
-                            ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
-                </StackPanel>
-              </Border>
-              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Classes="secondary" Text="Sub" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
-                  <ComboBox MinWidth="118" ItemsSource="{Binding SubItemOptions}" SelectedItem="{Binding SelectedSubItem, Mode=TwoWay}"
-                            ToolTip.Tip="What the Sub overlay shows" />
-                  <ComboBox MinWidth="92" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedSubShow, Mode=TwoWay}"
-                            ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value" />
-                </StackPanel>
-              </Border>
-              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12" IsVisible="{Binding ShowScoreBase}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Classes="secondary" Text="Base" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
-                  <ComboBox MinWidth="92" ItemsSource="{Binding BaseModeOptions}" SelectedItem="{Binding SelectedBaseMode, Mode=TwoWay}"
-                            ToolTip.Tip="Where Score log is 0: a fixed score, or a place on the beatmap's leaderboard" />
-                  <TextBox Width="104" Text="{Binding BaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="BaseTextKeyDown"
-                           ToolTip.Tip="A score like 999000 or 999.5k, or a place from 1 to 50. Without that place on the leaderboard, Score log uses the last fixed score." />
-                </StackPanel>
-              </Border>
-              <Border Classes="pickerPanel" Classes.overBanner="{Binding ShowBackdrop}" CornerRadius="12" IsVisible="{Binding ShowAccLog}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Classes="secondary" Text="Acc" VerticalAlignment="Center" FontSize="13" Margin="4,0,0,0" />
-                  <ComboBox MinWidth="92" ItemsSource="{Binding AccLogKindOptions}" SelectedItem="{Binding SelectedAccLogKind, Mode=TwoWay}"
-                            ToolTip.Tip="Which accuracy Acc log measures" />
-                  <TextBox Width="84" Text="{Binding AccLogBaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="AccLogBaseKeyDown"
-                           ToolTip.Tip="The accuracy where Acc log is 0" />
-                </StackPanel>
-              </Border>
-            </WrapPanel>
+          <!-- The map: its card (what it is, how hard it is), then what the overlays show -->
+          <Grid Classes="hero" Classes.overBanner="{Binding ShowBackdrop}">
+            <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" ClipToBounds="True">
+              <StackPanel>
+                <Grid ColumnDefinitions="Auto,*" Margin="22,16,22,14">
+                  <!-- The number the library is led by, and the dan under it -->
+                  <StackPanel Width="150" Spacing="2" IsVisible="{Binding MapCard.HasMap}" VerticalAlignment="Top">
+                    <Border x:Name="MapNumberBox" CornerRadius="12" Padding="11,0,11,5" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,4">
+                      <TextBlock x:Name="MapNumber" Classes="mono" Text="–" FontSize="38" FontWeight="Bold" />
+                    </Border>
+                    <TextBlock Text="{Binding MapCard.DanText}" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
+                    <TextBlock Classes="secondary" Text="{Binding MapCard.LnDanText}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="{Binding MapCard.HasLnDan}"
+                               ToolTip.Tip="The LN dan: this map is 20% hold notes or more" />
+                    <TextBlock Classes="muted" FontSize="11" Text="{Binding MapCard.NumberName}" ToolTip.Tip="Which number is shown is picked in Settings → Library" />
+                    <TextBlock FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource TargetLabelBrush}" Text="{Binding MapCard.ModsText}" TextWrapping="Wrap" IsVisible="{Binding MapCard.HasMods}"
+                               ToolTip.Tip="The difficulty with the rate and OD mods selected in the game" />
+                    <Button Content="Open in osu!" Click="OpenInOsu" MinHeight="26" Padding="10,0" FontSize="12" Margin="0,8,0,0" HorizontalAlignment="Left"
+                            IsVisible="{Binding MapCard.CanOpenInOsu}" ToolTip.Tip="Opens this beatmap in the game (osu://b/…)" />
+                  </StackPanel>
+
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <WrapPanel ItemSpacing="6" LineSpacing="4">
+                      <Border Classes="statusPill" Background="{Binding MapCard.StatusBrush}" IsVisible="{Binding MapCard.HasStatus}">
+                        <TextBlock Text="{Binding MapCard.StatusLabel}" Foreground="{Binding MapCard.StatusTextBrush}" />
+                      </Border>
+                      <Border Classes="statusPill" Background="{DynamicResource ChipBrush}" IsVisible="{Binding MapCard.IsNowPlaying}">
+                        <TextBlock Text="NOW PLAYING" Foreground="{DynamicResource ChipTextBrush}" />
+                      </Border>
+                      <Border Classes="statusPill" Background="{DynamicResource InfoBackgroundBrush}" IsVisible="{Binding MapCard.IsBrowsing}">
+                        <TextBlock Text="BROWSING" Foreground="{DynamicResource InfoTextBrush}" />
+                      </Border>
+                      <TextBlock Classes="secondary" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding MapCard.IsBrowsing}"
+                                 Text="{Binding MapCard.LiveMapText, StringFormat='osu! is on {0}'}" TextTrimming="CharacterEllipsis" MaxWidth="420" />
+                      <Button Content="Back to osu!'s map" Click="BackToLiveMap" MinHeight="24" Padding="10,0" FontSize="12" IsVisible="{Binding MapCard.IsBrowsing}" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding MapCard.Title}" FontSize="28" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding MapCard.Artist}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <WrapPanel ItemSpacing="20" LineSpacing="4" Margin="0,4,0,0" IsVisible="{Binding MapCard.HasMap}">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Path Width="14" Height="14" Stretch="Uniform" StrokeThickness="1.8" Stroke="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                              Data="M12,3 A9,9 0 1 1 11.99,3 Z M12,7.5 L12,12 L15,14" />
+                        <TextBlock Classes="mono" FontSize="14" FontWeight="SemiBold" Text="{Binding MapCard.LengthText}" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Path Width="14" Height="14" Stretch="Uniform" StrokeThickness="1.8" Stroke="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                              Data="M9,3 L15,3 L18,21 L6,21 Z M12,15 L17,6" />
+                        <TextBlock Classes="mono" FontSize="14" FontWeight="SemiBold" Text="{Binding MapCard.BpmText}" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Path Width="13" Height="13" Stretch="Uniform" StrokeThickness="1.8" Stroke="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                              Data="M6,4 L19,12 L6,20 Z" />
+                        <TextBlock Classes="mono" FontSize="14" FontWeight="SemiBold" Text="{Binding MapCard.PlaysText}" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <TextBlock Classes="muted" FontSize="13" Text="{Binding MapCard.LastPlayedText}" VerticalAlignment="Center" />
+                      <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding MapCard.HasBest}">
+                        <TextBlock Classes="muted" FontSize="13" Text="Best" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding MapCard.BestRank}" FontSize="15" FontWeight="Bold" Foreground="{Binding MapCard.BestBrush}" VerticalAlignment="Center" />
+                        <TextBlock Classes="mono" FontSize="13" Text="{Binding MapCard.BestText}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </WrapPanel>
+                    <TextBlock Classes="muted" FontSize="12" Text="{Binding StatusText}" IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  </StackPanel>
+                </Grid>
+
+                <!-- The difficulty line and the numbers: the map's content on the left, its settings on the right -->
+                <Border Background="{DynamicResource OptionBrush}" Padding="22,10,22,14" IsVisible="{Binding MapCard.HasMap}">
+                  <StackPanel Spacing="12">
+                    <WrapPanel ItemSpacing="10" LineSpacing="4">
+                      <Border CornerRadius="11" Padding="9,1" Background="{Binding MapCard.StarsBadgeBrush}" BorderBrush="#30FFFFFF" BorderThickness="1" VerticalAlignment="Center" ToolTip.Tip="osu!'s star rating">
+                        <TextBlock Classes="mono" FontSize="13" FontWeight="Bold" Foreground="{Binding MapCard.StarsBadgeTextBrush}" Text="{Binding MapCard.StarsText, StringFormat='★ {0}'}" />
+                      </Border>
+                      <TextBlock Text="{Binding MapCard.VersionText}" FontSize="15" FontWeight="Bold" Foreground="{Binding MapCard.StarsBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="460" />
+                      <TextBlock Classes="muted" FontSize="14" Text="mapped by" VerticalAlignment="Center" IsVisible="{Binding MapCard.HasMapper}" />
+                      <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource InfoTextBrush}" Text="{Binding MapCard.Mapper}" VerticalAlignment="Center" IsVisible="{Binding MapCard.HasMapper}" />
+                    </WrapPanel>
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <ItemsControl x:Name="ContentStatsList" ItemsSource="{Binding MapCard.ContentStats}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="22" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="local:MapStat">
+                            <StackPanel Width="100" Spacing="4">
+                              <ProgressBar Height="3" MinHeight="3" MinWidth="0" Maximum="100" Value="{Binding Percent}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                              <TextBlock Classes="secondary" FontSize="12" Text="{Binding Name}" />
+                              <TextBlock Classes="mono" FontSize="16" FontWeight="Bold" Text="{Binding Value}" />
+                            </StackPanel>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <ItemsControl x:Name="SettingStatsList" Grid.Column="2" ItemsSource="{Binding MapCard.SettingStats}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="22" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="local:MapStat">
+                            <StackPanel Width="100" Spacing="4">
+                              <ProgressBar Height="3" MinHeight="3" MinWidth="0" Maximum="100" Value="{Binding Percent}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                              <TextBlock Classes="secondary" FontSize="12" Text="{Binding Name}" />
+                              <TextBlock Classes="mono" FontSize="16" FontWeight="Bold" Text="{Binding Value}" />
+                            </StackPanel>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Grid>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Border>
           </Grid>
 
-          <!-- Empty / waiting states -->
+          <!-- Waiting for connections or a beatmap -->
           <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="28" MinHeight="180" IsVisible="{Binding ShowDisconnectedPlaceholder}">
             <TextBlock Classes="muted" Text="Comparison resumes once everything is connected" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="28" MinHeight="180" IsVisible="{Binding ShowNoBeatmap}">
             <TextBlock Classes="muted" Text="{Binding GameName, StringFormat='Select a beatmap in {0} to see its replays'}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
-          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="28" MinHeight="180" IsVisible="{Binding IsLoadingReplays}">
-            <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
-              <!-- (indeterminate only while shown: a hidden bar's animation would keep the window redrawing) -->
-              <ProgressBar IsIndeterminate="{Binding IsLoadingReplays}" Width="160" />
-              <TextBlock Classes="muted" Text="Loading replays…" HorizontalAlignment="Center" />
-            </StackPanel>
-          </Border>
-          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="32" MinHeight="220" IsVisible="{Binding ShowNoReplays}">
-            <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
-              <Path Width="40" Height="40" Stretch="Uniform" StrokeThickness="1.5" Stroke="{DynamicResource TextMutedBrush}" HorizontalAlignment="Center"
-                    Data="M12,3 A9,9 0 1 1 11.99,3 Z M10,9 L15,12 L10,15 Z" />
-              <TextBlock Text="No saved replays for this map yet" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
-              <TextBlock Classes="secondary" MaxWidth="400" TextWrapping="Wrap" TextAlignment="Center" FontSize="13"
-                         Text="{Binding GameName, StringFormat='Finish a play of it in {0} and the score shows up here. The overlay stays hidden until there is something to compare against.'}" />
-              <Button Content="Rescan replays" HorizontalAlignment="Center" Click="RefreshReplays" Margin="0,6,0,0" />
-            </StackPanel>
-          </Border>
 
           <!-- Comparison target -->
-          <StackPanel Spacing="18" IsVisible="{Binding ShowCompareContent}">
-            <Border x:Name="TargetCard" Classes="targetCard" Classes.glass="{Binding ShowBackdrop}" Padding="24,16">
+            <Border x:Name="TargetCard" Classes="targetCard" Classes.glass="{Binding ShowBackdrop}" Padding="24,16" IsVisible="{Binding ShowCompareContent}">
               <Grid RowDefinitions="Auto,Auto">
                 <!-- One slim row: target · score · judgement ring · timeline status -->
                 <Grid x:Name="TargetRow" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="32" RowSpacing="16" IsVisible="{Binding HasTarget}">
@@ -346,20 +573,159 @@
               </Grid>
             </Border>
 
-            <!-- Replays -->
-            <StackPanel Spacing="10">
-              <StackPanel Orientation="Horizontal" Spacing="12" Margin="4,0">
-                <TextBlock Classes="sectionTitle" Text="Replays on this map" />
-                <TextBlock Classes="muted" FontSize="13" Text="{Binding ReplayCountText}" VerticalAlignment="Bottom" />
-              </StackPanel>
-              <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" ClipToBounds="True">
+          <!-- Replays: the tabs, where the player stands, and what the overlays show, in one row on top of the list -->
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" CornerRadius="12,12,0,0" Padding="6,6,10,0" IsVisible="{Binding ShowReplayTabs}">
+            <Grid x:Name="ReplayTabRow" ColumnDefinitions="Auto,Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="4">
+              <Button x:Name="LocalTabButton" Classes="tab" Classes.active="{Binding IsLocalTab}" Content="{Binding LocalTabText}" Click="ShowLocalTab" MinHeight="36" />
+              <Button x:Name="OnlineTabButton" Grid.Column="1" Classes="tab" Classes.active="{Binding IsOnlineTab}" Content="{Binding OnlineTabText}" Click="ShowOnlineTab" MinHeight="36"
+                      ToolTip.Tip="The beatmap's top scores on osu!'s website (asked for once per map). Click one to download its replay and compare against it." />
+              <WrapPanel x:Name="OverlayPickers" Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Classes="muted" FontSize="12" Text="Overlays" VerticalAlignment="Center" Margin="0,0,8,4" />
+                <Button x:Name="MainPickerButton" MinHeight="28" Padding="9,0" Margin="0,0,6,4" VerticalAlignment="Center" ToolTip.Tip="What the Main overlay shows">
+                  <StackPanel Orientation="Horizontal" Spacing="7">
+                    <TextBlock Classes="muted" FontSize="12" Text="Main" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedMainItem.Name}" VerticalAlignment="Center" />
+                    <TextBlock Classes="muted" FontSize="12" Text="·" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedMainShow.Name}" VerticalAlignment="Center" />
+                    <Path Width="9" Height="6" Stretch="Uniform" StrokeThickness="1.8" Stroke="{DynamicResource TextSecondaryBrush}" Data="M1,1 L5,5 L9,1" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight">
+                      <StackPanel Spacing="8" Width="284">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock FontSize="13" FontWeight="Bold" Text="Main overlay" VerticalAlignment="Center" />
+                          <!-- Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value -->
+                          <ListBox Grid.Column="1" Classes="pick" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedMainShow, Mode=TwoWay}"
+                                   ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value">
+                            <ListBox.ItemsPanel>
+                              <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                              </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                          </ListBox>
+                        </Grid>
+                        <ListBox Classes="pick items" MaxHeight="330" ItemsSource="{Binding MainItemOptions}" SelectedItem="{Binding SelectedMainItem, Mode=TwoWay}">
+                          <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                          </ListBox.ItemsPanel>
+                        </ListBox>
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowScoreBase}">
+                          <TextBlock Classes="secondary" Text="Base" VerticalAlignment="Center" FontSize="13" Width="34" />
+                          <ComboBox MinWidth="92" ItemsSource="{Binding BaseModeOptions}" SelectedItem="{Binding SelectedBaseMode, Mode=TwoWay}"
+                                    ToolTip.Tip="Where Score log is 0: a fixed score, or a place on the beatmap's leaderboard" />
+                          <TextBox Width="104" Text="{Binding BaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="BaseTextKeyDown"
+                                   ToolTip.Tip="A score like 999000 or 999.5k, or a place from 1 to 50. Without that place on the leaderboard, Score log uses the last fixed score." />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowAccLog}">
+                          <TextBlock Classes="secondary" Text="Acc" VerticalAlignment="Center" FontSize="13" Width="34" />
+                          <ComboBox MinWidth="92" ItemsSource="{Binding AccLogKindOptions}" SelectedItem="{Binding SelectedAccLogKind, Mode=TwoWay}"
+                                    ToolTip.Tip="Which accuracy Acc log measures" />
+                          <TextBox Width="84" Text="{Binding AccLogBaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="AccLogBaseKeyDown"
+                                   ToolTip.Tip="The accuracy where Acc log is 0" />
+                        </StackPanel>
+                      </StackPanel>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+                <Button MinHeight="28" Padding="9,0" Margin="0,0,6,4" VerticalAlignment="Center" ToolTip.Tip="What the Sub overlay shows">
+                  <StackPanel Orientation="Horizontal" Spacing="7">
+                    <TextBlock Classes="muted" FontSize="12" Text="Sub" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedSubItem.Name}" VerticalAlignment="Center" />
+                    <TextBlock Classes="muted" FontSize="12" Text="·" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedSubShow.Name}" VerticalAlignment="Center" />
+                    <Path Width="9" Height="6" Stretch="Uniform" StrokeThickness="1.8" Stroke="{DynamicResource TextSecondaryBrush}" Data="M1,1 L5,5 L9,1" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight">
+                      <StackPanel Spacing="8" Width="284">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock FontSize="13" FontWeight="Bold" Text="Sub overlay" VerticalAlignment="Center" />
+                          <!-- Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value -->
+                          <ListBox Grid.Column="1" Classes="pick" ItemsSource="{Binding ShowOptions}" SelectedItem="{Binding SelectedSubShow, Mode=TwoWay}"
+                                   ToolTip.Tip="Diff: you minus the replay at the same note · Live: your value · Replay: the replay's value">
+                            <ListBox.ItemsPanel>
+                              <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                              </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                          </ListBox>
+                        </Grid>
+                        <ListBox Classes="pick items" MaxHeight="330" ItemsSource="{Binding SubItemOptions}" SelectedItem="{Binding SelectedSubItem, Mode=TwoWay}">
+                          <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                          </ListBox.ItemsPanel>
+                        </ListBox>
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowScoreBase}">
+                          <TextBlock Classes="secondary" Text="Base" VerticalAlignment="Center" FontSize="13" Width="34" />
+                          <ComboBox MinWidth="92" ItemsSource="{Binding BaseModeOptions}" SelectedItem="{Binding SelectedBaseMode, Mode=TwoWay}"
+                                    ToolTip.Tip="Where Score log is 0: a fixed score, or a place on the beatmap's leaderboard" />
+                          <TextBox Width="104" Text="{Binding BaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="BaseTextKeyDown"
+                                   ToolTip.Tip="A score like 999000 or 999.5k, or a place from 1 to 50. Without that place on the leaderboard, Score log uses the last fixed score." />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowAccLog}">
+                          <TextBlock Classes="secondary" Text="Acc" VerticalAlignment="Center" FontSize="13" Width="34" />
+                          <ComboBox MinWidth="92" ItemsSource="{Binding AccLogKindOptions}" SelectedItem="{Binding SelectedAccLogKind, Mode=TwoWay}"
+                                    ToolTip.Tip="Which accuracy Acc log measures" />
+                          <TextBox Width="84" Text="{Binding AccLogBaseText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" KeyDown="AccLogBaseKeyDown"
+                                   ToolTip.Tip="The accuracy where Acc log is 0" />
+                        </StackPanel>
+                      </StackPanel>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+                <Button MinHeight="28" Padding="9,0" Margin="0,0,0,4" VerticalAlignment="Center"
+                        ToolTip.Tip="Who the Pacemaker overlay and the Rival items race against">
+                  <StackPanel Orientation="Horizontal" Spacing="7">
+                    <TextBlock Classes="muted" FontSize="12" Text="Rivals" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedRivals.Name}" VerticalAlignment="Center" />
+                    <Path Width="9" Height="6" Stretch="Uniform" StrokeThickness="1.8" Stroke="{DynamicResource TextSecondaryBrush}" Data="M1,1 L5,5 L9,1" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight">
+                      <StackPanel Spacing="8" MinWidth="250" MaxWidth="300">
+                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                                   Text="Who the Pacemaker overlay and the Rival items race against: your local replays at this rate, the online ranking (asked for once per map), or both." />
+                        <ListBox Classes="pick" ItemsSource="{Binding RivalsOptions}" SelectedItem="{Binding SelectedRivals, Mode=TwoWay}" />
+                      </StackPanel>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+              </WrapPanel>
+            </Grid>
+          </Border>
+
+          <!-- Local replays -->
+          <StackPanel Spacing="10" IsVisible="{Binding IsLocalTab}" Margin="0,-18,0,0">
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" CornerRadius="0,0,12,12" Padding="28" MinHeight="180" IsVisible="{Binding IsLoadingReplays}">
+            <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <!-- (indeterminate only while shown: a hidden bar's animation would keep the window redrawing) -->
+              <ProgressBar IsIndeterminate="{Binding IsLoadingReplays}" Width="160" />
+              <TextBlock Classes="muted" Text="Loading replays…" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" CornerRadius="0,0,12,12" Padding="32" MinHeight="220" IsVisible="{Binding ShowNoReplays}">
+            <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Path Width="40" Height="40" Stretch="Uniform" StrokeThickness="1.5" Stroke="{DynamicResource TextMutedBrush}" HorizontalAlignment="Center"
+                    Data="M12,3 A9,9 0 1 1 11.99,3 Z M10,9 L15,12 L10,15 Z" />
+              <TextBlock Text="No saved replays for this map yet" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+              <TextBlock Classes="secondary" MaxWidth="400" TextWrapping="Wrap" TextAlignment="Center" FontSize="13"
+                         Text="{Binding GameName, StringFormat='Finish a play of it in {0} and the score shows up here. The overlay stays hidden until there is something to compare against.'}" />
+              <Button Content="Rescan replays" HorizontalAlignment="Center" Click="RefreshReplays" Margin="0,6,0,0" />
+            </StackPanel>
+          </Border>
+              <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" CornerRadius="0,0,12,12" ClipToBounds="True" IsVisible="{Binding ShowCompareContent}">
                 <Grid RowDefinitions="Auto,Auto">
-                  <Grid x:Name="ReplayHeader" ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*,36" Margin="0,4,0,4">
+                  <Grid x:Name="ReplayHeader" ColumnDefinitions="84,1.1*,1.1*,1.3*,1*,0,0.8*,0.55*,0.65*,0.55*,36" Margin="0,4,0,4">
+                    <TextBlock Classes="muted" FontSize="12" Text="#" Width="30" TextAlignment="Center" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0"
+                               ToolTip.Tip="Its place among the replays listed here, by score" />
                     <TextBlock Grid.Column="1" Classes="muted" FontSize="12" Text="Player" VerticalAlignment="Center" Margin="8,0" />
                     <Button Grid.Column="2" Classes="sortHeader" HorizontalContentAlignment="Left" Margin="8,0" Content="{Binding DateHeader}" Tag="Date" Click="SortReplays" />
                     <TextBlock Grid.Column="3" Classes="muted" FontSize="12" Text="Mods" VerticalAlignment="Center" Margin="8,0" />
                     <Button Grid.Column="4" Classes="sortHeader" Margin="8,0" Content="{Binding ScoreHeader}" Tag="Score" Click="SortReplays" />
-                    <TextBlock Grid.Column="5" Classes="muted" FontSize="12" Text="vs target" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                     <Button Grid.Column="6" Classes="sortHeader" Margin="8,0" Content="{Binding AccuracyHeader}" Tag="Accuracy" Click="SortReplays" />
                     <Button Grid.Column="7" Classes="sortHeader" Margin="8,0" Content="{Binding MissHeader}" Tag="Miss" Click="SortReplays" />
                     <Button Grid.Column="8" Classes="sortHeader" Margin="8,0" Content="{Binding ComboHeader}" Tag="Combo" Click="SortReplays" />
@@ -373,9 +739,10 @@
                         <Border Classes="replayRow" Classes.target="{Binding IsTarget}" Cursor="Hand">
                           <Grid>
                             <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TargetAccentBrush}" IsVisible="{Binding IsTarget}" />
-                            <Grid Classes="replayCells" ColumnDefinitions="52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*,36" MinHeight="48">
+                            <Grid Classes="replayCells" ColumnDefinitions="84,1.1*,1.1*,1.3*,1*,0,0.8*,0.55*,0.65*,0.55*,36" MinHeight="48">
+                              <TextBlock Classes="mono muted" Text="{Binding PositionText}" Width="30" TextAlignment="Center" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0" />
                               <ToggleButton Classes="pin" IsChecked="{Binding IsPinned, Mode=TwoWay}" IsEnabled="{Binding HasReplay}" ToolTip.Tip="{Binding PinTooltip}"
-                                            ToolTip.ShowOnDisabled="True" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,0,0,0">
+                                            ToolTip.ShowOnDisabled="True" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0">
                                 <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
                                       Data="M12,17 L12,22 M9,3 L15,3 L14,9 L18,13 L6,13 L10,9 Z" />
                               </ToggleButton>
@@ -399,12 +766,10 @@
                                 <TextBlock Classes="secondary mono" Text="NM" IsVisible="{Binding !HasMods}" />
                               </Panel>
                               <TextBlock Grid.Column="4" Classes="mono" Text="{Binding ScoreText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
-                              <TextBlock Grid.Column="5" Classes="mono muted" Classes.ahead="{Binding IsAheadOfTarget}" Classes.behind="{Binding IsBehindTarget}"
-                                         Text="{Binding VsTargetText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                               <TextBlock Grid.Column="6" Classes="mono" Text="{Binding AccuracyText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                               <TextBlock Grid.Column="7" Classes="mono miss" Classes.fullCombo="{Binding IsFullCombo}" Text="{Binding MissText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                               <TextBlock Grid.Column="8" Classes="mono" Text="{Binding ComboText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
-                              <TextBlock Grid.Column="9" Text="{Binding Rank}" FontWeight="Bold" Foreground="{DynamicResource RankTextBrush}" TextAlignment="Center" VerticalAlignment="Center" Margin="8,0" />
+                              <TextBlock Grid.Column="9" Text="{Binding RankLetter}" FontWeight="Bold" Foreground="{Binding RankBrush}" TextAlignment="Center" VerticalAlignment="Center" Margin="8,0" />
                               <Path Grid.Column="10" Classes="rowChevron" Width="14" Height="14" Stretch="Uniform" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
                                     Stroke="{DynamicResource TextSecondaryBrush}" Data="M9,6 L15,12 L9,18" HorizontalAlignment="Left" VerticalAlignment="Center" />
                             </Grid>
@@ -415,20 +780,87 @@
                   </ListBox>
                 </Grid>
               </Border>
-              <TextBlock Classes="muted" FontSize="13" Margin="4,0" Text="Click a replay to see its details" />
-            </StackPanel>
+          </StackPanel>
+
+          <!-- Online ranking -->
+          <StackPanel Spacing="10" IsVisible="{Binding ShowOnlineList}" Margin="0,-18,0,0">
+            <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" CornerRadius="0,0,12,12" ClipToBounds="True">
+              <StackPanel>
+                <Grid ColumnDefinitions="84,1.2*,1.15*,0.9*,1*,0.8*,0.55*,0.65*,0.55*,36" Margin="0,4,0,4" MinHeight="32">
+                  <TextBlock Classes="muted" FontSize="12" Text="#" Width="30" TextAlignment="Center" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0" />
+                  <TextBlock Grid.Column="1" Classes="muted" FontSize="12" Text="Player" VerticalAlignment="Center" Margin="8,0" />
+                  <TextBlock Grid.Column="2" Classes="muted" FontSize="12" Text="Date" VerticalAlignment="Center" Margin="8,0" />
+                  <TextBlock Grid.Column="3" Classes="muted" FontSize="12" Text="Mods" VerticalAlignment="Center" Margin="8,0" />
+                  <TextBlock Grid.Column="4" Classes="muted" FontSize="12" Text="Score" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                  <TextBlock Grid.Column="5" Classes="muted" FontSize="12" Text="Acc" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                  <TextBlock Grid.Column="6" Classes="muted" FontSize="12" Text="Miss" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                  <TextBlock Grid.Column="7" Classes="muted" FontSize="12" Text="Combo" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                  <TextBlock Grid.Column="8" Classes="muted" FontSize="12" Text="Rank" TextAlignment="Center" VerticalAlignment="Center" Margin="8,0" />
+                </Grid>
+                <TextBlock Classes="secondary" FontSize="13" Margin="20,14,20,18" TextWrapping="Wrap" Text="{Binding OnlineNote}" IsVisible="{Binding ShowOnlineNote}" />
+                <ListBox x:Name="OnlineList" Classes="replayList" ItemsSource="{Binding OnlineRows}" Tapped="OnlineTapped" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="local:OnlineScoreRow">
+                      <Border Classes="replayRow" Classes.target="{Binding IsTarget}" Cursor="Hand" ToolTip.Tip="{Binding Tooltip}">
+                        <Grid>
+                          <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TargetAccentBrush}" IsVisible="{Binding IsTarget}" />
+                          <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TextBrush}" IsVisible="{Binding IsUser}" />
+                          <Grid ColumnDefinitions="84,1.2*,1.15*,0.9*,1*,0.8*,0.55*,0.65*,0.55*,36" MinHeight="44">
+                            <TextBlock Classes="mono muted" Text="{Binding PositionText}" Width="30" TextAlignment="Center" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <!-- a replay to download, or one that is here already -->
+                            <Panel HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0" Width="16" Height="16">
+                              <Path Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" Stroke="{DynamicResource TextMutedBrush}"
+                                    Data="M12,3 L12,15 M7,10 L12,15 L17,10 M5,20 L19,20" IsVisible="{Binding ShowDownload}" />
+                              <Path Stretch="Uniform" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" Stroke="{DynamicResource TargetAccentBrush}"
+                                    Data="M12,17 L12,22 M9,3 L15,3 L14,9 L18,13 L6,13 L10,9 Z" IsVisible="{Binding ShowSaved}" />
+                            </Panel>
+                            <DockPanel Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0">
+                              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" Margin="8,0,0,0" VerticalAlignment="Center">
+                                <Border Classes="targetBadge" IsVisible="{Binding IsTarget}" VerticalAlignment="Center">
+                                  <TextBlock Text="TARGET" />
+                                </Border>
+                                <Border Classes="chip" Padding="6,1" IsVisible="{Binding IsUser}" VerticalAlignment="Center">
+                                  <TextBlock Text="YOU" FontSize="10.5" FontWeight="Bold" />
+                                </Border>
+                                <TextBlock Classes="muted" FontSize="12" Text="downloading…" IsVisible="{Binding IsBusy}" VerticalAlignment="Center" />
+                              </StackPanel>
+                              <TextBlock Text="{Binding Player}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding DateText}" VerticalAlignment="Center" Margin="8,0" />
+                            <TextBlock Grid.Column="3" Classes="secondary mono" Text="{Binding ModsText}" VerticalAlignment="Center" Margin="8,0" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="4" Classes="mono" Text="{Binding ScoreText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                            <TextBlock Grid.Column="5" Classes="mono" Text="{Binding AccuracyText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                            <TextBlock Grid.Column="6" Classes="mono miss" Text="{Binding MissText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                            <TextBlock Grid.Column="7" Classes="mono" Text="{Binding ComboText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                            <TextBlock Grid.Column="8" Text="{Binding RankText}" FontWeight="Bold" Foreground="{Binding RankBrush}" TextAlignment="Center" VerticalAlignment="Center" Margin="8,0" />
+                          </Grid>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </StackPanel>
+            </Border>
+            <TextBlock Classes="muted" FontSize="13" Margin="4,0" TextWrapping="Wrap"
+                       Text="Click a score to download its replay and compare against it. Only the one you click is downloaded, once; it is then listed under Local replays too." />
           </StackPanel>
         </StackPanel>
       </ScrollViewer>
+      </Grid>
 
       <!-- ===================== Replay details ===================== -->
       <!-- (its own DataContext is the page's model, so its visibility is bound on a wrapper) -->
-      <Panel IsVisible="{Binding ShowDetailsPage}">
+      <Panel x:Name="DetailsPanel" IsVisible="{Binding ShowDetailsPage}">
         <local:ReplayDetailsView x:Name="DetailsView" DataContext="{Binding Details}" />
       </Panel>
 
+      <!-- ===================== Library ===================== -->
+      <Panel x:Name="LibraryPanel" IsVisible="{Binding ShowLibraryPage}">
+        <local:LibraryView x:Name="LibraryPage" DataContext="{Binding Library}" />
+      </Panel>
+
       <!-- ===================== Settings ===================== -->
-      <ScrollViewer IsVisible="{Binding IsSettingsPage}" HorizontalScrollBarVisibility="Disabled">
+      <ScrollViewer x:Name="SettingsPage" IsVisible="{Binding IsSettingsPage}" HorizontalScrollBarVisibility="Disabled">
         <StackPanel MaxWidth="820" Margin="28,22,28,32" Spacing="18">
           <TextBlock Text="Settings" FontSize="24" FontWeight="Bold" />
 
@@ -509,7 +941,7 @@
               <StackPanel Spacing="4">
                 <TextBlock Classes="sectionTitle" Text="tosu overlays" />
                 <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
-                           Text="Copy the overlay folders into tosu's static folder, then add them in tosu. What Main and Sub show is picked on the Compare page. Items made of judgement counts can be added in metrics.json. Overlay files changed? Copy them again." />
+                           Text="Copy the overlay folders into tosu's static folder, then add them in tosu. What Main and Sub show is picked on the map page. Items made of judgement counts can be added in metrics.json. Overlay files changed? Copy them again." />
               </StackPanel>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <Button Content="Edit metrics.json" Click="OpenCustomItems" ToolTip.Tip="Custom overlay items (saved changes apply right away)" />
@@ -522,7 +954,7 @@
             <StackPanel Spacing="12">
               <StackPanel Spacing="4">
                 <TextBlock Classes="sectionTitle" Text="Overlay items" />
-                <TextBlock Classes="muted" FontSize="13" Text="What the Main and Sub lists on the Compare page offer. An item in use stays listed." TextWrapping="Wrap" />
+                <TextBlock Classes="muted" FontSize="13" Text="What the Main and Sub lists on the map page offer. An item in use stays listed." TextWrapping="Wrap" />
               </StackPanel>
               <ItemsControl ItemsSource="{Binding OverlayItemGroups}">
                 <ItemsControl.ItemsPanel>
@@ -565,6 +997,47 @@
                 <TextBox Grid.Column="1" Text="{Binding OsuClientSecret, Mode=TwoWay}" PlaceholderText="Client Secret" PasswordChar="•" />
               </Grid>
             </StackPanel>
+          </Border>
+
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">
+            <StackPanel Spacing="10">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="sectionTitle" Text="Library" />
+                <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
+                           Text="Every mania map of osu!lazer and osu!stable, with its Sunny star rating, its dan (4K, 6K and 7K) and your best rank. Ratings and dans are worked out in the background and pause while you play." />
+              </StackPanel>
+              <TextBlock Classes="secondary" FontSize="13" TextWrapping="Wrap" Text="{Binding LibraryStatus}" />
+              <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10">
+                <TextBlock Text="Number shown for a map" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1" MinWidth="130" ItemsSource="{Binding Library.NumberOptions}" SelectedItem="{Binding Library.SelectedNumber, Mode=TwoWay}" />
+                <TextBlock Grid.Column="2" Classes="muted" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"
+                           Text="Sunny star rating, the estimators' dan number (a * marks a Sunny rating standing in for it), or osu!'s stars. Each is coloured on its own scale; the dan is always shown under it." />
+              </Grid>
+              <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10">
+                <TextBlock Text="Background work" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1" MinWidth="230" ItemsSource="{Binding SpeedOptions}" SelectedItem="{Binding SelectedSpeed, Mode=TwoWay}" />
+                <TextBlock Grid.Column="2" Classes="muted" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"
+                           Text="How much of the CPU rating maps and estimating dans may take. Light keeps the computer responsive; it always pauses while you play." />
+              </Grid>
+              <CheckBox Content="Show each map's background across its row" IsChecked="{Binding ShowRowBackgrounds, Mode=TwoWay}" />
+              <CheckBox Content="Estimate dans with the analyser (a hidden browser in the background)" IsChecked="{Binding UseDanEngine, Mode=TwoWay}"
+                        ToolTip.Tip="Off: dans come from the Sunny rating's table only, and maps have no dan number (they show their Sunny rating with a *)" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Read the games' libraries again" Click="RefreshLibrary" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="sectionTitle" Text="Data folder" />
+                <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
+                           Text="Settings, the library, ratings, records and downloaded replays are all kept in one folder next to the app, so the app's folder can be moved or copied as a whole." />
+                <TextBlock Classes="secondary" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace" Text="{Binding DataFolder}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+              <Button Grid.Column="1" Content="Open data folder" Click="OpenDataFolder" VerticalAlignment="Center" />
+            </Grid>
           </Border>
 
           <Border Classes="surface" Classes.glass="{Binding ShowBackdrop}" Padding="22,20">

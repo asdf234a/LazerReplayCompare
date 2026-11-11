@@ -207,6 +207,13 @@ public sealed class ReplayApiServer : IDisposable
                 return;
             }
 
+            if (uri.AbsolutePath == "/rivals")
+            {
+                // the replays and leaderboard scores the pacemaker overlay races against (see RivalSet)
+                Respond(Rivals?.Invoke() ?? new RivalSet(string.Empty, "local", string.Empty, []));
+                return;
+            }
+
             if (uri.AbsolutePath == "/metrics")
             {
                 Respond(new { metrics = MetricRegistry.ToJson() });
@@ -278,6 +285,9 @@ public sealed class ReplayApiServer : IDisposable
 
         return scores;
     }
+
+    /// <summary>What /rivals answers with (set by the window).</summary>
+    public Func<RivalSet>? Rivals { get; set; }
 
     private object BuildState()
     {

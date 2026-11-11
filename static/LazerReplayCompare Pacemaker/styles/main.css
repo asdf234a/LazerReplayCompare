@@ -1,0 +1,126 @@
+/* The pacemaker: you among your rivals at this point of the song. One dark panel of rows; yours is marked. */
+
+@font-face { font-family: 'Torus'; src: url('../../lazerReplayCompareShared/Torus-Regular.otf') format('opentype'); font-weight: 400; }
+@font-face { font-family: 'Torus'; src: url('../../lazerReplayCompareShared/Torus-Bold.otf') format('opentype'); font-weight: 600 700; }
+
+:root {
+    --row-height: 44px;
+    --width: 330px;
+    --text: #E8EAEE;
+    --muted: #B8BFCC;
+    --line: #1F242E;
+    --ahead: #8FEDB6;
+    --behind: #FF8A8A;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    background: transparent;
+    overflow: hidden;
+}
+
+body {
+    font-family: 'Torus', 'Pretendard', system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--text);
+}
+
+.board {
+    position: relative;
+    width: var(--width);
+    height: calc(var(--row-height) * var(--rows, 0));
+    border-radius: 10px;
+    background: rgba(8, 9, 12, 0.82);
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.25s ease, height 0.25s ease;
+}
+
+.board.visible { opacity: 1; }
+
+.row {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--row-height);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-right: 12px;
+    border-top: 1px solid var(--line);
+    font-variant-numeric: tabular-nums;
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease;
+    animation: arrive 0.25s ease both;
+}
+
+.row.first { border-top-color: transparent; }
+
+.row.player {
+    background: #3A1C2C;
+    box-shadow: inset 3px 0 0 #FF66AA;
+    z-index: 1;
+}
+
+.place {
+    width: 34px;
+    flex: none;
+    text-align: center;
+    font-weight: 700;
+    color: var(--muted);
+}
+
+.row.player .place { color: #FF9CC8; }
+
+.who {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.note {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.numbers {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+}
+
+.value {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.diff {
+    min-height: 13px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.diff.positive { color: var(--ahead); }
+.diff.negative { color: var(--behind); }
+
+@keyframes arrive {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

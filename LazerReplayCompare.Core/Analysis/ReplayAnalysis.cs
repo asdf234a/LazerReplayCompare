@@ -61,6 +61,13 @@ public sealed record ReplayAnalysis(
 {
     public static readonly HitResult[] Judgements = [HitResult.Perfect, HitResult.Great, HitResult.Good, HitResult.Ok, HitResult.Meh, HitResult.Miss];
 
+    /// <summary>
+    /// Every counted judgement with its column, at its object's time: the same judgements as <see cref="NoteCounts"/> and
+    /// <see cref="HoldCounts"/> together (one per note; one per hold note for osu!stable, head and release for osu!lazer),
+    /// including those with no press or release time at all. What the per-lane figures are counted from.
+    /// </summary>
+    public IReadOnlyList<ObjectEvent> Judged { get; init; } = [];
+
     /// <summary>What a note pressed <paramref name="error"/> ms off gets.</summary>
     public HitResult NoteResultAt(double error)
     {
@@ -117,6 +124,7 @@ public static class ReplayAnalyzer
         {
             var hitObject = j.Object;
             double time = hitObject.StartTime / rate;
+            collector.Judged.Add(new ObjectEvent(time, hitObject.Column, j.Result));
             if (j.Result == HitResult.Miss)
                 collector.MissTimes.Add(j.Time / rate);
 
@@ -207,6 +215,7 @@ public static class ReplayAnalyzer
 
             int column = ((ManiaHitObject)j.HitObject).Column;
             double time = j.HitObject.StartTime / rate;
+            collector.Judged.Add(new ObjectEvent(time, column, j.Type));
             if (j.Offset is double offset)
                 collector.Samples.Add(new HitSample(time, column, kind, offset / rate, j.Type));
             else if (kind != HitKind.Release)
@@ -228,6 +237,7 @@ public static class ReplayAnalyzer
         public readonly List<ObjectEvent> Unpressed = new();
         public readonly List<ObjectEvent> HeldPastEnd = new();
         public readonly List<double> MissTimes = new();
+        public readonly List<ObjectEvent> Judged = new();
         public readonly Dictionary<HitResult, int> NoteCounts = new();
         public readonly Dictionary<HitResult, int> HoldCounts = new();
         public readonly Dictionary<HitResult, int> HeadCounts = new();
@@ -237,7 +247,10 @@ public static class ReplayAnalyzer
         {
             return new ReplayAnalysis(stable, columns, overallDifficulty, rate, length, windows, lenience,
                 Samples.OrderBy(s => s.Time).ToList(), Unpressed.OrderBy(e => e.Time).ToList(), HeldPastEnd.OrderBy(e => e.Time).ToList(),
-                MissTimes.Order().ToList(), NoteCounts, HoldCounts, notes, holds, hitDifference, HeadCounts, ReleaseCounts);
+                MissTimes.Order().ToList(), NoteCounts, HoldCounts, notes, holds, hitDifference, HeadCounts, ReleaseCounts)
+            {
+                Judged = Judged.OrderBy(e => e.Time).ToList(),
+            };
         }
     }
 }

@@ -44,16 +44,37 @@ public sealed class AppSettings
     public string? SubMetric { get; set; }
     public bool ShowBackground { get; set; } = true;
 
+    // The library (2.0): how it is grouped and what number leads each map
+    public string LibraryGroupBy { get; set; } = "dan";
+    public string LibraryNumber { get; set; } = "sunny";
+    public string LibraryKeys { get; set; } = "0";
+    public string LibraryRate { get; set; } = string.Empty;
+
+    /// <summary>Each map's background across its row in the library.</summary>
+    public bool RowBackgrounds { get; set; } = true;
+
+    /// <summary>The library card beside the map page is open.</summary>
+    public bool RailExpanded { get; set; }
+
+    /// <summary>Who the pacemaker overlay races against: "local", "online" or "both".</summary>
+    public string RivalsMode { get; set; } = "local";
+
+    /// <summary>Estimate dans with the analyser's estimators (a headless browser in the background).</summary>
+    public bool UseDanEngine { get; set; } = true;
+
+    /// <summary>How much of the CPU rating maps and estimating dans may take: "light" (a quarter of the cores), "normal" (half) or "fast" (all).</summary>
+    public string BackgroundSpeed { get; set; } = "light";
+
     /// <summary>Open the details of the replay a results screen shows.</summary>
     public bool OpenDetailsOnResults { get; set; } = true;
 
     /// <summary>Zoom of the pages (1 = 100%).</summary>
     public double Zoom { get; set; } = 1;
 
-    private static string SettingsPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "LazerReplayCompare",
-        "settings.json");
+    /// <summary>The hand the middle lane of an odd key count belongs to in a replay's Lanes section: "left" or "right".</summary>
+    public string MiddleLaneHand { get; set; } = "left";
+
+    private static string SettingsPath => AppPaths.Settings;
 
     public static AppSettings Load()
     {

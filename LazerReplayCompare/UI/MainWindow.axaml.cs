@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
@@ -20,7 +20,7 @@ public sealed partial class MainWindow : Window
     private const int ApiPort = 24052;
     private const string TosuHost = "127.0.0.1:24050";
 
-    private readonly LazerReplayStore lazerReplays = new(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LazerReplayCompare"));
+    private readonly LazerReplayStore lazerReplays = new(AppPaths.Root);
     private readonly StableReplayFinder stableReplayFinder = new();
     private readonly TosuClient tosuClient = new();
     private readonly ReplayTimelineBuilder timelineBuilder = new();
@@ -112,9 +112,12 @@ public sealed partial class MainWindow : Window
         detailsView.ShowFileRequested += entry => ShowReplayFile(entry);
         detailsView.PinRequested += TogglePin;
         pageZoom = this.FindControl<LayoutTransformControl>("PageZoom")!;
+        setUpLibrary();
+        apiServer.Rivals = buildRivals;
 
         // back from a details page, and zoom, from anywhere in the window (before controls handle the input)
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
+        SmoothScroll.Attach(this);   // gliding wheel, and scrolling by holding the wheel button
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerWheelChangedEvent, OnWindowPointerWheel, RoutingStrategies.Tunnel);
         setUpTitleBar(this.FindControl<Border>("TitleBar")!);
@@ -133,6 +136,13 @@ public sealed partial class MainWindow : Window
         {
             // (the scroll offset is in page units; the banner sits outside the zoomed page)
             var offset = scroll.Offset.Y;
+            if (banner.Opacity <= 0 && offset > bannerScroll && bannerScroll > 0)
+            {
+                // scrolled past already and going further: nothing of it is on screen to move or fade
+                bannerScroll = offset;
+                return;
+            }
+
             bannerScroll = offset;
             bannerOffset.Y = -offset * viewModel.Zoom;
             // ... and gradually gives way to the blurred copy as the page scrolls (gone once its sharp part is scrolled past).
@@ -146,7 +156,11 @@ public sealed partial class MainWindow : Window
 
             // Fade the content's top edge under the top bar once there is something scrolled past it.
             if (compareScroll.OpacityMask is LinearGradientBrush { GradientStops: [var top, _] })
-                top.Color = Color.FromArgb((byte)Math.Round(255 * (1 - Math.Clamp(compareScroll.Offset.Y / 28, 0, 1))), 0, 0, 0);
+            {
+                var color = Color.FromArgb((byte)Math.Round(255 * (1 - Math.Clamp(compareScroll.Offset.Y / 28, 0, 1))), 0, 0, 0);
+                if (top.Color != color)
+                    top.Color = color;
+            }
         };
         detailsScroll.ScrollChanged += (_, _) => followScroll(detailsScroll);
         viewModel.PropertyChanged += (_, e) =>
@@ -171,6 +185,35 @@ public sealed partial class MainWindow : Window
         };
         this.FindControl<StackPanel>("CompareContent")!.SizeChanged += (_, e) => setNarrowPage(e.NewSize.Width < ResponsiveLayout.NarrowWidth);
 
+        // The overlay pickers sit right of the tabs; in a row too narrow for both they go under the tabs (and wrap there)
+        // instead of being cut off.
+        var tabRow = this.FindControl<Grid>("ReplayTabRow")!;
+        var pickers = this.FindControl<WrapPanel>("OverlayPickers")!;
+        var localTab = this.FindControl<Button>("LocalTabButton")!;
+        var onlineTab = this.FindControl<Button>("OnlineTabButton")!;
+        double pickersWidth = 0;
+        void placePickers()
+        {
+            // (their width side by side: measured while they are, kept while they are under the tabs)
+            if (Grid.GetRow(pickers) == 0 && pickers.Bounds.Width > pickersWidth)
+                pickersWidth = pickers.Bounds.Width;
+
+            double tabs = localTab.Bounds.Width + onlineTab.Bounds.Width + 28;
+            bool under = tabRow.Bounds.Width > 0 && pickersWidth > 0 && tabRow.Bounds.Width < tabs + pickersWidth;
+            if (under == (Grid.GetRow(pickers) == 1))
+                return;
+
+            Grid.SetRow(pickers, under ? 1 : 0);
+            Grid.SetColumn(pickers, under ? 0 : 3);
+            Grid.SetColumnSpan(pickers, under ? 4 : 1);
+            pickers.Margin = under ? new Thickness(8, 4, 0, 2) : default;
+        }
+
+        tabRow.SizeChanged += (_, _) => placePickers();
+        pickers.SizeChanged += (_, _) => placePickers();
+        localTab.SizeChanged += (_, _) => placePickers();
+        onlineTab.SizeChanged += (_, _) => placePickers();
+
         lazerReplays.Changed += OnLazerReplaysChanged;
         ApplySavedSettings();
         viewModel.SettingsChanged += OnSettingsChanged;
@@ -191,6 +234,7 @@ public sealed partial class MainWindow : Window
         try
         {
             await startServices();
+            openDebugPage();
         }
         catch (Exception ex)
         {
@@ -242,6 +286,7 @@ public sealed partial class MainWindow : Window
         stableReplaysWatcher?.Dispose();
         lazerReplays.Dispose();
         compactWindow?.Close();
+        danEngine?.Dispose();
         tosuClient.Dispose();
         apiServer.Dispose();
         leaderboard.Dispose();
@@ -272,10 +317,18 @@ public sealed partial class MainWindow : Window
         ThemeService.Apply(this, viewModel.Theme);
 
         // custom overlay items: metrics.json next to the settings, watched so new items appear in the pickers at once
-        OverlayItems.CustomPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LazerReplayCompare", "metrics.json");
+        OverlayItems.CustomPath = AppPaths.Metrics;
         viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay, settingsService.Current.HiddenItems);
         watchCustomItems();
         lastTimelineSettings = (viewModel.CorrectionMode, OverlayItems.ScaleMetric(viewModel.OverlayDisplay.MainItem));
+
+        viewModel.IsRailExpanded = current.RailExpanded;
+        viewModel.RestoreRivals(current.RivalsMode);
+        viewModel.ShowRowBackgrounds = current.RowBackgrounds;
+        viewModel.UseDanEngine = current.UseDanEngine;
+        viewModel.RestoreSpeed(current.BackgroundSpeed);
+        applyBackgroundSpeed();
+        startLibrary();
     }
 
     private void OnSettingsChanged()
@@ -288,6 +341,33 @@ public sealed partial class MainWindow : Window
         var display = viewModel.OverlayDisplay;
         settingsService.SetOverlayDisplay(display);
         settingsService.SetHiddenItems(viewModel.HiddenItems);
+
+        // the library's settings
+        var saved = settingsService.Current;
+        bool rivalsChanged = saved.RivalsMode != viewModel.RivalsMode;
+        if (saved.RailExpanded != viewModel.IsRailExpanded || rivalsChanged || saved.RowBackgrounds != viewModel.ShowRowBackgrounds || saved.UseDanEngine != viewModel.UseDanEngine)
+        {
+            saved.RailExpanded = viewModel.IsRailExpanded;
+            saved.RivalsMode = viewModel.RivalsMode;
+            saved.RowBackgrounds = viewModel.ShowRowBackgrounds;
+            saved.UseDanEngine = viewModel.UseDanEngine;
+            settingsService.Save();
+            libraryModel.ShowRowBackgrounds = viewModel.ShowRowBackgrounds;
+            if (rivalsChanged && viewModel.RivalsMode != "local" && viewModel.OnlineRows.Count == 0)
+                loadOnline();
+            if (viewModel.UseDanEngine)
+                startDanEngine();
+        }
+
+        libraryModel.Glass = viewModel.ShowBackdrop;
+        if (saved.BackgroundSpeed != viewModel.BackgroundSpeed)
+        {
+            saved.BackgroundSpeed = viewModel.BackgroundSpeed;
+            settingsService.Save();
+            applyBackgroundSpeed();
+            // a run under way keeps its threads: the ratings start again with the new number (what is done is kept)
+            library.Sunny.Update(library.Maps.Maps);
+        }
 
         ThemeService.Apply(this, viewModel.Theme);
         if (compactWindow != null)
@@ -358,7 +438,7 @@ public sealed partial class MainWindow : Window
 
     /// <summary>The folders the API server may open files in: the osu!lazer and osu!stable folders and tosu's songs folder.</summary>
     private IEnumerable<string?> GetApiAllowedRoots() =>
-        new[] { viewModel.OsuLazerPath, viewModel.OsuStablePath, currentSnapshot.SongsFolder };
+        new[] { viewModel.OsuLazerPath, viewModel.OsuStablePath, currentSnapshot.SongsFolder, liveSnapshot.SongsFolder, AppPaths.Downloads };
 
     private (string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay) GetCurrentReplays()
     {
@@ -432,6 +512,8 @@ public sealed partial class MainWindow : Window
         viewModel.LazerFound = OsuLazerPathResolver.IsOsuLazerRoot(path);
         settingsService.SetOsuLazerPath(path);
         openLazerReplays();
+        if (started)
+            RefreshLibrary(this, new RoutedEventArgs());
     }
 
     /// <summary>Points the kept osu!lazer replay list at the osu!lazer folder (it reads the database once, then watches).</summary>
@@ -446,6 +528,7 @@ public sealed partial class MainWindow : Window
     {
         if (!currentSnapshot.IsStable && (md5 == null || string.Equals(md5, currentSnapshot.BeatmapChecksum, StringComparison.OrdinalIgnoreCase)))
             RefreshReplays();
+        updateRecords();
     });
 
     // --- osu!stable folder ---
@@ -524,6 +607,8 @@ public sealed partial class MainWindow : Window
         viewModel.StableFound = OsuStablePathResolver.IsOsuStableRoot(path);
         settingsService.SetOsuStablePath(path);
         watchStableReplays();
+        if (started)
+            RefreshLibrary(this, new RoutedEventArgs());
     }
 
     /// <summary>Watches osu!stable's Data/r while osu!stable is played, and rescans when a replay is written there.</summary>
@@ -583,6 +668,18 @@ public sealed partial class MainWindow : Window
         Dispatcher.UIThread.Post(() =>
         {
             viewModel.TosuConnected = true;
+            if (!onLiveSnapshot(snapshot))
+                return;   // the page stays on a map picked in the library
+
+            showSnapshot(snapshot);
+            OnResultsScreen(snapshot);
+        });
+    }
+
+    /// <summary>Shows a map on the map page: the one the game has selected, or one picked in the library.</summary>
+    private void showSnapshot(TosuSnapshot snapshot)
+    {
+        {
             var oldChecksum = currentSnapshot.BeatmapChecksum;
             var oldSpeed = currentSnapshot.PlaySpeed;
             var oldStable = currentSnapshot.IsStable;
@@ -619,8 +716,8 @@ public sealed partial class MainWindow : Window
             else if (snapshot.PlaySpeed != oldSpeed)
                 UpdateTarget();   // the auto target depends on the current rate
 
-            OnResultsScreen(snapshot);
-        });
+            onShownMapChanged();
+        }
     }
 
     private const string TosuBackgroundUrl = "http://" + TosuHost + "/files/beatmap/background";
@@ -768,6 +865,10 @@ public sealed partial class MainWindow : Window
                     return;
 
                 var (replays, backgroundPath) = lazerReplays.Find(md5, beatmapPath);
+                // replays downloaded from the online ranking are listed with osu!lazer's own
+                var downloaded = downloadedReplays(md5, beatmapPath);
+                if (downloaded.Count > 0)
+                    replays = replays.Concat(downloaded).OrderByDescending(entry => entry.Score).ToList();
                 // the first reading of the database is still under way: nothing is missing yet
                 bool fillingIn = lazerReplays.IsFillingIn;
                 lock (replayLock)
@@ -898,6 +999,7 @@ public sealed partial class MainWindow : Window
         fillingReplayList = false;
         viewModel.NotifyReplaysChanged();
         UpdateTarget();
+        updateLocalPlaces();
         OpenPendingResults();
     }
 
@@ -994,6 +1096,7 @@ public sealed partial class MainWindow : Window
         viewModel.AutoSpeed = speed;
         viewModel.IsTargetPinned = pinned;
         viewModel.Target = target;
+        markOnlineTarget();
         if (viewModel.Details is { } details && detailsOnCurrentMap)
         {
             details.Target = target;
@@ -1141,9 +1244,17 @@ public sealed partial class MainWindow : Window
 
     private void ShowComparePage(object? sender, RoutedEventArgs e)
     {
-        // Compare again while on it: back to the replay list
+        // Maps again while on it: from a replay's details back to the map, and between the map and the whole library
         if (!viewModel.IsSettingsPage)
-            CloseDetails();
+        {
+            if (viewModel.Details != null && !viewModel.IsLibraryOpen)
+                CloseDetails();
+            else if (viewModel.IsLibraryOpen)
+                closeLibrary();
+            else
+                openLibrary();
+        }
+
         viewModel.IsSettingsPage = false;
     }
 
@@ -1354,10 +1465,45 @@ public sealed partial class MainWindow : Window
                 stepZoom(-1);
             else if (e.Key is Key.D0 or Key.NumPad0)
                 applyZoom(1, save: true);
+            else if (e.Key == Key.F)
+                openLibrary(focusSearch: true);
             else
                 return;
 
             e.Handled = true;
+            return;
+        }
+
+        if (viewModel.ShowLibraryPage)
+        {
+            // back from the library to the map page (Backspace is the search box's while it is typed in)
+            if (e.Key is Key.Escape or Key.BrowserBack || (e.Key == Key.Left && e.KeyModifiers == KeyModifiers.Alt)
+                || (e.Key == Key.Back && FocusManager?.GetFocusedElement() is not TextBox))
+            {
+                mapOpenedFromLibrary = false;
+                closeLibrary();
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        // the map page: Back folds the opened side card first, then goes to the library
+        if (viewModel.ShowCompareList)
+        {
+            var onMap = FocusManager?.GetFocusedElement();
+            bool typing = onMap is TextBox || onMap is ComboBox { IsDropDownOpen: true };
+            bool backKey = e.Key == Key.BrowserBack || (e.Key == Key.Left && e.KeyModifiers == KeyModifiers.Alt) || (!typing && e.Key == Key.Back);
+            // Esc folds the card, and leaves a map that was opened from the library; it doesn't leave the game's own map
+            bool escape = !typing && e.Key == Key.Escape && (railOpen || mapOpenedFromLibrary);
+            if (backKey || escape)
+            {
+                backFromMap();
+                e.Handled = true;
+            }
+            else if ((e.Key == Key.BrowserForward || (e.Key == Key.Right && e.KeyModifiers == KeyModifiers.Alt)) && forwardOnMap())
+                e.Handled = true;
+
             return;
         }
 
@@ -1377,10 +1523,57 @@ public sealed partial class MainWindow : Window
         e.Handled = true;
     }
 
+    private bool railOpen => viewModel.ShowRail && viewModel.IsRailExpanded;
+
+    /// <summary>Forward on the map page: the folded side card opens. False when there is nothing to open.</summary>
+    private bool forwardOnMap()
+    {
+        if (!viewModel.ShowRail || viewModel.IsRailExpanded)
+            return false;
+
+        viewModel.IsRailExpanded = true;
+        return true;
+    }
+
+    /// <summary>Back on the map page: the opened side card folds; with it folded, the library opens.</summary>
+    private void backFromMap()
+    {
+        if (railOpen)
+        {
+            viewModel.IsRailExpanded = false;
+            return;
+        }
+
+        mapOpenedFromLibrary = false;
+        openLibrary();
+    }
+
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        // the mouse's forward button: the side card opens (what Back folds)
+        if (e.GetCurrentPoint(this).Properties.IsXButton2Pressed)
+        {
+            if (viewModel.ShowCompareList && forwardOnMap())
+                e.Handled = true;
+            return;
+        }
+
         // the mouse's back button
-        if (viewModel.ShowDetailsPage && e.GetCurrentPoint(this).Properties.IsXButton1Pressed)
+        if (!e.GetCurrentPoint(this).Properties.IsXButton1Pressed)
+            return;
+
+        if (viewModel.ShowLibraryPage)
+        {
+            mapOpenedFromLibrary = false;
+            closeLibrary();
+            e.Handled = true;
+        }
+        else if (viewModel.ShowCompareList)
+        {
+            backFromMap();
+            e.Handled = true;
+        }
+        else if (viewModel.ShowDetailsPage)
         {
             CloseDetails();
             e.Handled = true;
@@ -1431,7 +1624,15 @@ public sealed partial class MainWindow : Window
             return;
 
         var zoom = viewModel.Zoom;
-        var width = Bounds.Width;
+
+        // The map page's library card is not part of the map: the banner (the map's own picture) begins right of it.
+        double left = 0;
+        if (viewModel.ShowCompareList && viewModel.ShowRail && this.FindControl<Border>("LibraryRail") is { IsVisible: true, Bounds.Width: > 0 } rail)
+            left = (rail.Bounds.Width + rail.Margin.Left + 8) * zoom;
+        // (only the picture moves over: the banner's scrims stay across the window, so nothing ends in an edge there)
+        bannerColumn.Margin = new Thickness(left, 0, 0, 0);
+
+        var width = Math.Max(0, Bounds.Width - left);
         var fade = banner_side_fade * zoom;
         var column = Math.Min(width, page_content_width * zoom + fade);
         bannerColumn.Width = column;
@@ -1445,11 +1646,18 @@ public sealed partial class MainWindow : Window
         bannerSides.IsVisible = side > 1;
         if (side <= 1 || column <= 0)
         {
-            bannerColumn.OpacityMask = null;
+            // edge to edge; beside the library card it still comes in softly rather than with a hard edge
+            bannerColumn.OpacityMask = left <= 0 || column <= 0 ? null : new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative),
+                GradientStops = { new GradientStop(Colors.Transparent, 0), new GradientStop(Colors.Black, Math.Min(110 * zoom / column, 0.3)), new GradientStop(Colors.Black, 1) },
+            };
             return;
         }
 
         var edge = Math.Min(fade / column, 0.25);
+        var leftEdge = left > 0 ? Math.Min(Math.Max(fade, 110 * zoom) / column, 0.3) : edge;
         bannerColumn.OpacityMask = new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
@@ -1457,14 +1665,17 @@ public sealed partial class MainWindow : Window
             GradientStops =
             {
                 new GradientStop(Colors.Transparent, 0),
-                new GradientStop(Colors.Black, edge),
+                new GradientStop(Colors.Black, leftEdge),
                 new GradientStop(Colors.Black, 1 - edge),
                 new GradientStop(Colors.Transparent, 1),
             },
         };
 
         // the blurred sides: full behind the sharp image's fade, gone at the window's edges
-        var inner = (side + fade / 2) / width;
+        // (they span the whole window: beside the library card they come in as gradually as at the window's other edge,
+        // so no edge shows where the banner begins)
+        double all = Math.Max(Bounds.Width, 1);
+        double ramp = Math.Max(side + fade / 2, 90 * zoom);
         bannerSidesImage.OpacityMask = new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
@@ -1472,8 +1683,9 @@ public sealed partial class MainWindow : Window
             GradientStops =
             {
                 new GradientStop(Colors.Transparent, 0),
-                new GradientStop(Colors.Black, inner),
-                new GradientStop(Colors.Black, 1 - inner),
+                new GradientStop(Colors.Transparent, Math.Min(left / all, 0.9)),
+                new GradientStop(Colors.Black, Math.Min((left + ramp) / all, 0.95)),
+                new GradientStop(Colors.Black, Math.Max(1 - (side + fade / 2) / all, 0.96)),
                 new GradientStop(Colors.Transparent, 1),
             },
         };
@@ -1519,8 +1731,8 @@ public sealed partial class MainWindow : Window
 
     // The replay list's columns (header and rows): pin, player, date, mods, score, vs target, accuracy, miss, combo,
     // rank, chevron. A narrow page drops date, vs target and combo.
-    private const string replay_columns = "52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*,36";
-    private const string narrow_replay_columns = "52,1.5*,0,1.4*,1*,0,0.9*,0.6*,0,0.6*,36";
+    private const string replay_columns = "84,1.1*,1.1*,1.3*,1*,0,0.8*,0.55*,0.65*,0.55*,36";
+    private const string narrow_replay_columns = "84,1.5*,0,1.4*,1*,0,0.9*,0.6*,0,0.6*,36";
     private static readonly int[] narrow_hidden_columns = [2, 5, 8];
 
     private void applyReplayColumns(Control control)
@@ -1529,6 +1741,11 @@ public sealed partial class MainWindow : Window
         if (grid == null)
             return;
 
+        // (only when the page's width class changed: see LibraryView.applyColumns)
+        if ((grid.Tag as bool? ?? false) == narrowPage)
+            return;
+
+        grid.Tag = narrowPage;
         grid.ColumnDefinitions = new ColumnDefinitions(narrowPage ? narrow_replay_columns : replay_columns);
         foreach (var cell in grid.Children)
             cell.IsVisible = !narrowPage || !narrow_hidden_columns.Contains(Grid.GetColumn(cell));

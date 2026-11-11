@@ -74,7 +74,7 @@ public enum ReplaySortKey
 }
 
 /// <summary>State shown by <see cref="MainWindow"/> and <see cref="CompactWindow"/>.</summary>
-public sealed class MainWindowViewModel : ObservableObject
+public sealed partial class MainWindowViewModel : ObservableObject
 {
     public ObservableCollection<ReplayRow> ReplayRows { get; } = new();
 
@@ -97,6 +97,7 @@ public sealed class MainWindowViewModel : ObservableObject
             OnPropertyChanged(nameof(ShowBackdrop));
             OnPropertyChanged(nameof(ShowCompareList));
             OnPropertyChanged(nameof(ShowDetailsPage));
+            OnPropertyChanged(nameof(ShowLibraryPage));
         }
     }
 
@@ -118,8 +119,8 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    public bool ShowCompareList => IsComparePage && Details == null;
-    public bool ShowDetailsPage => IsComparePage && Details != null;
+    public bool ShowCompareList => IsComparePage && Details == null && !IsLibraryOpen;
+    public bool ShowDetailsPage => IsComparePage && Details != null && !IsLibraryOpen;
 
     // --- Connections ---
 
@@ -214,6 +215,7 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowDisconnectedPlaceholder));
         OnPropertyChanged(nameof(ShowNoReplays));
         OnPropertyChanged(nameof(ShowNoBeatmap));
+        NotifyTabsChanged();
     }
 
     // --- Beatmap and replays ---
@@ -257,10 +259,10 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool HasReplays => ReplayRows.Count > 0;
     public string ReplayCountText => ReplayRows.Count == 1 ? "1 saved" : $"{ReplayRows.Count} saved";
-    public bool ShowCompareContent => AllConnected && HasReplays;
-    public bool ShowDisconnectedPlaceholder => !AllConnected;
-    public bool ShowNoReplays => AllConnected && HasBeatmap && !IsLoadingReplays && !HasReplays;
-    public bool ShowNoBeatmap => AllConnected && !HasBeatmap;
+    public bool ShowCompareContent => CanShowMap && HasReplays;
+    public bool ShowDisconnectedPlaceholder => !CanShowMap;
+    public bool ShowNoReplays => CanShowMap && HasBeatmap && !IsLoadingReplays && !HasReplays;
+    public bool ShowNoBeatmap => CanShowMap && !HasBeatmap;
 
     public void NotifyReplaysChanged() => replaysChanged();
 
@@ -272,6 +274,7 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowCompareContent));
         OnPropertyChanged(nameof(ShowNoReplays));
         OnPropertyChanged(nameof(ShowNoBeatmap));
+        NotifyTabsChanged();
     }
 
     // --- Sorting ---
@@ -884,8 +887,13 @@ public sealed class MainWindowViewModel : ObservableObject
             var oldBlurred = BlurredBackground;
             BlurredBackground = value == null ? null : BackdropImage.CreateBlurred(value);
             OnPropertyChanged(nameof(BlurredBackground));
-            oldBlurred?.Dispose();
-            old?.Dispose();
+
+            // the old pictures are still drawn while the new ones fade in over them
+            Avalonia.Threading.DispatcherTimer.RunOnce(() =>
+            {
+                oldBlurred?.Dispose();
+                old?.Dispose();
+            }, TimeSpan.FromMilliseconds(900));
         }
     }
 

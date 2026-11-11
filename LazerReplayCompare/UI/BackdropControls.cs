@@ -23,7 +23,9 @@ public sealed class FocalImage : Control
     public static readonly StyledProperty<double> FocalYProperty =
         AvaloniaProperty.Register<FocalImage, double>(nameof(FocalY), 0.28);
 
-    private static readonly Transitions fade = new() { new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(220) } };
+    // the picture before this one, drawn under it while the new one fades in over it
+    private Bitmap? previous;
+    private double shown = 1;
 
     static FocalImage()
     {
@@ -45,35 +47,65 @@ public sealed class FocalImage : Control
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property != SourceProperty || change.NewValue == null)
+        if (change.Property != SourceProperty)
             return;
 
-        Transitions = null;
-        Opacity = 0;
-        Dispatcher.UIThread.Post(() =>
+        // (the window keeps the old bitmap alive a moment longer than this takes)
+        previous = change.NewValue == null ? null : change.OldValue as Bitmap;
+        if (change.NewValue == null)
+            return;
+
+        Motion.Run(this, "fade", 340, t =>
         {
-            Transitions = fade;
-            Opacity = 1;
-        }, DispatcherPriority.Background);
+            shown = t;
+            InvalidateVisual();
+        }, () =>
+        {
+            previous = null;
+            InvalidateVisual();
+        });
     }
 
     public override void Render(DrawingContext context)
     {
-        var source = Source;
-        var bounds = new Rect(Bounds.Size);
-        if (source == null || bounds.Width <= 0 || bounds.Height <= 0)
+        if (previous != null && shown < 1)
+            draw(context, previous);
+
+        if (Source is not { } source)
             return;
 
-        var size = source.Size;
-        var scale = Math.Max(bounds.Width / size.Width, bounds.Height / size.Height);
-        var width = size.Width * scale;
-        var height = size.Height * scale;
-        var x = (bounds.Width - width) / 2;
-        var y = (bounds.Height - height) * Math.Clamp(FocalY, 0, 1);
+        if (shown < 1)
+        {
+            using (context.PushOpacity(shown))
+                draw(context, source);
+        }
+        else
+            draw(context, source);
+    }
 
-        // Only the visible part of the bitmap, so nothing is drawn outside the bounds.
-        var visible = new Rect(-x / scale, -y / scale, bounds.Width / scale, bounds.Height / scale).Intersect(new Rect(size));
-        context.DrawImage(source, visible, bounds);
+    private void draw(DrawingContext context, Bitmap source)
+    {
+        var bounds = new Rect(Bounds.Size);
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+
+        try
+        {
+            var size = source.Size;
+            var scale = Math.Max(bounds.Width / size.Width, bounds.Height / size.Height);
+            var width = size.Width * scale;
+            var height = size.Height * scale;
+            var x = (bounds.Width - width) / 2;
+            var y = (bounds.Height - height) * Math.Clamp(FocalY, 0, 1);
+
+            // Only the visible part of the bitmap, so nothing is drawn outside the bounds.
+            var visible = new Rect(-x / scale, -y / scale, bounds.Width / scale, bounds.Height / scale).Intersect(new Rect(size));
+            context.DrawImage(source, visible, bounds);
+        }
+        catch (ObjectDisposedException)
+        {
+            // a picture that was let go of meanwhile
+        }
     }
 }
 
@@ -238,7 +270,7 @@ public static class BackdropImage
     /// A small, heavily blurred copy of <paramref name="source"/> for the window backdrop. Blurring a ~160 px copy and
     /// letting it scale up keeps this cheap, and nothing is re-blurred while the UI redraws.
     /// </summary>
-    public static Bitmap? CreateBlurred(Bitmap source, int width = 160, int radius = 5, int passes = 3)
+    public static Bitmap? CreateBlurred(Bitmap source, int width = 320, int radius = 10, int passes = 3)
     {
         try
         {

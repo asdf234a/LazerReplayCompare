@@ -2,6 +2,24 @@
 
 LazerReplayCompare races your osu!mania play, in osu!lazer or osu!stable, against your own saved replays. While you play, a tosu overlay shows, note by note, whether you are ahead of or behind the replay you are comparing against.
 
+## What's new in 2.0.0
+
+- **Library.** Every mania map of osu!lazer and osu!stable in one list (the Maps tab again, or Ctrl F): its number in a box coloured by difficulty, its dan (4K, 6K and 7K), keys, stars, OD, BPM, length and your best rank, with the map's background across its row. Group it by dan, LN dan (maps of 20% hold notes or more), Sunny, stars, collection, best rank or when you last played; search by words and filters like `sunny>5 rank<s od>=8`; narrow it with the quick filters under the search box (played or not, best rank, rice or LN); click a column to sort by it, again for the other way, a third time for no sorting. **Now playing** takes the list to the map the game is on.
+- **Sunny SR and dans.** The Sunny star rating is worked out for every map in the background (it pauses while you play, and the top bar shows how far it is). Dans come from the analyser's estimators ([osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser), run in a hidden Edge or Chrome) where there is one, otherwise from the Sunny rating. Settings → Library picks the number that leads each map: Sunny, the dan level (Reform 3 runs from 3.00 to 3.99) or osu!'s stars.
+- **Rate and OD mods.** With a rate mod, HR, EZ or Difficulty Adjust selected in the game, the map card shows the difficulty they make.
+- **Map card.** The map page starts with what the map is and how hard it is: the number and dan, status in its own colour, title and artist, length, BPM and your plays, then stars, `[4K]` and the difficulty's name, LN ratio, OD and HP. **Open in osu!** opens the beatmap in the game.
+- **Library beside the map.** A card on the left of the map page: folded, each group with how its maps are graded; opened, the maps of one group, with its own search, grouping and keys. Back folds it and then goes to the library; Forward opens it.
+- **Online ranking.** The replay list has two tabs: your local replays (with their place by score) and the map's online top 50. Click an online score to download its replay and compare against it: only on your click, one at a time, kept in `data\replays` and never asked for twice.
+- **Pacemaker overlay and rival items.** `LazerReplayCompare Pacemaker` shows a small live leaderboard of your local replays at this rate, the online ranking, or both (picked next to Main and Sub). New items: Rival rank and Next rival. Live rank and the Compare Live overlay are gone (Rival rank and Pacemaker do their work).
+- **Overlay pickers.** Main, Sub and Rivals are picked in the replay list's tab row: one click on an item, the overlay follows.
+- **Lanes.** A replay's details show each lane's judgements, accuracy, misses, mean error and unstable rate as vertical columns, and each hand's accuracy; with an odd key count the middle lane goes to the hand you pick.
+- **Grades in colour.** SS, S, A, B, C and D each have their colour, in the replay list, the library and the online ranking.
+- **Look and movement.** Translucent buttons and flyouts like the cards, pages that arrive from the side they are on, a number that rolls to its new value, gliding wheel scrolling, and scrolling by holding the wheel button and dragging.
+- **One data folder.** Settings, the library, ratings, records and downloaded replays are kept in `data` next to the exe (copied once from `%LocalAppData%\LazerReplayCompare`), so the app's folder can be moved or backed up as a whole.
+- **Torus.** The app uses osu!'s typeface; glyphs it lacks (Korean, Japanese) come from the previous font.
+
+**Updating:** unzip the whole folder (the exe, `analyser` and `static`) and keep it together. Copy the overlay folders into tosu's `static` folder again.
+
 ## What's new in 1.4.0
 
 - **Score log.** A new overlay item: how far you are from a base, on a scale where +10 means half the score lost. The base is a fixed score (999,000 by default) or a place on the beatmap's leaderboard, picked on the Compare page.
@@ -87,11 +105,11 @@ Copy all four folders from `static` (the three overlays and `lazerReplayCompareS
 
 - `LazerReplayCompare Main` shows one large item: by default the score difference to the replay you are compared against.
 - `LazerReplayCompare Sub` shows one smaller item on its own, so it can be placed anywhere: by default your live accuracy.
-- `LazerReplayCompareLive by Codex` shows a detailed live comparison: the Main and Sub items, combo, judgements, the target replay, and whether it was pinned or chosen automatically.
+- `LazerReplayCompare Pacemaker` shows a small live leaderboard: you and your rivals, in order at this point of the song, with each rival's score and how far you are from it (green when you are ahead). A rival with a replay is where that replay was at this note; one without (a leaderboard score) moves at an even pace towards its final score and is marked `est.`. It shows 8 rows at most: the first place and the rows around you. It is hidden when there are no rivals. To change the number of rows, or to compare by accuracy, edit the two settings at the top of its `index.js`, or add `?rows=6&by=accuracy` to its address.
 
 ## What the overlays show
 
-Pick it on the Compare page, next to "now playing": an item and how to show it, for **Main** and for **Sub**. The overlays follow within a second; the live panel shows both items.
+Pick it on the Compare page, next to "now playing": an item and how to show it, for **Main** and for **Sub**. The overlays follow within a second.
 
 - **Item**:
 
@@ -103,13 +121,17 @@ Pick it on the Compare page, next to "now playing": an item and how to show it, 
   | Stable acc | osu!stable's accuracy (MAX and 300 both count fully), from the judgements. Handy while playing osu!lazer. |
   | Lazer acc | osu!lazer's accuracy (MAX worth 305), from the judgements. Handy while playing osu!stable. |
   | MAX : 300 | MAX ÷ 300. With no 300 yet it divides by one, so it shows the MAX count until the first 300. |
+  | Rival rank | Your place among the rivals at this note, by score, shown as `#4`. A tie leaves the rival ahead. Nothing without rivals. |
+  | Next rival | Your score minus the score of the rival directly above you at this note, for example `-1,410`. In first place, your lead over the second, for example `+1,410`. |
   | Off | Hide the overlay. |
+
+  The three rival items are about the same rivals as the Pacemaker overlay. For them, **Live** is your standing, **Replay** is the compared replay's standing among the other rivals, and **Diff** is one minus the other.
 
 - **Show**: **Diff** (you minus the compared replay at the same note; positive means you are ahead), **Live** (your value) or **Replay** (the replay's value at the same note).
 
 Percentages are shown the way the game shows them: while you play osu!lazer they are cut off at two decimals (98.769% shows 98.76%, as in osu!lazer), in osu!stable they are rounded. Differences are always rounded.
 
-More items made of judgement counts can be added in `metrics.json` (Settings → tosu overlays → **Edit metrics.json**, stored in `%LocalAppData%\LazerReplayCompare`): a name, a value per judgement, and whether to average it per judgement (an accuracy-like value). An item can also divide by a second sum (`per`), add an amount to both sides so nothing starts at zero (`add`) take a logarithm (`log`, its base) and raise the result to a power (`pow`, keeping its sign). It comes with BMS (MAX = 2, 300 = 1), PPacc and PPscore (MAX = 100, 300 = 93.75, 200 = 62.5, 100 = 31.25, 50 = 15.625). Saved changes show up in the pickers and the overlays right away, without a rebuild.
+More items made of judgement counts can be added in `metrics.json` (Settings → tosu overlays → **Edit metrics.json**, stored in the `data` folder next to the exe): a name, a value per judgement, and whether to average it per judgement (an accuracy-like value). An item can also divide by a second sum (`per`), add an amount to both sides so nothing starts at zero (`add`) take a logarithm (`log`, its base) and raise the result to a power (`pow`, keeping its sign). It comes with BMS (MAX = 2, 300 = 1), PPacc and PPscore (MAX = 100, 300 = 93.75, 200 = 62.5, 100 = 31.25, 50 = 15.625). Saved changes show up in the pickers and the overlays right away, without a rebuild.
 
 ## Timeline modes
 
@@ -124,7 +146,7 @@ The first timeline for a replay can take a moment to build. Until it is ready, t
 ## Notes
 
 - The app is for osu!lazer **mania** replays. Mirror is handled by flipping the columns.
-- Settings are stored in `%LocalAppData%\LazerReplayCompare\settings.json`, custom overlay items in `metrics.json` next to it.
+- Settings are stored in `data\settings.json` next to the exe, custom overlay items in `metrics.json` next to it (before 2.0: `%LocalAppData%\LazerReplayCompare`, copied over on the first start).
 - osu!lazer's replays are listed from the app's own copy of the list (`lazer-replays.json` and `lazer-beatmaps.json` next to the settings). It is filled from osu!lazer's database once when the app starts (read from a temporary copy, so the game's own file is never opened) and then kept up to date by watching osu!lazer's `files` folder: a replay you play, import or download shows up within a moment, and one osu!lazer deletes disappears. After a large import the database is read again once the import is over; **Rescan replays** reads it again any time.
 
 ## Building from source

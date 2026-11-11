@@ -1,12 +1,12 @@
 // The Main and Sub overlays: one item each, picked in the LazerReplayCompare app (Compare page).
 //
-// item: score | score_acc | acc | stable_acc | lazer_acc | a custom item from the app's metrics.json | off
+// item: score | score_acc | acc | stable_acc | lazer_acc | rival_rank | ... | a custom item from the app's metrics.json | off
 // show: diff   – live minus the compared replay at the same note
 //       value  – the live value
 //       target – the compared replay's value at the same note
 
 import { createCounter } from './counter.js';
-import { OFF, itemValue, needsPerfect, needsRank, resolveItem, scaleKeyOf, setAccBase, setItems, setScoreBase, timelineFactor } from './metrics.js';
+import { OFF, itemValue, needsPerfect, needsRank, needsRivals, resolveItem, scaleKeyOf, setAccBase, setItems, setScoreBase, timelineFactor } from './metrics.js';
 import { createSession } from './session.js';
 
 const SHOW_MODES = ['diff', 'value', 'target'];
@@ -30,6 +30,7 @@ export function startSingleItemOverlay({ name, role, defaults }) {
         scaleMetric: () => scaleKeyOf(currentItem()),
         needsPerfect: () => needsPerfect(currentItem()),
         needsRank: () => needsRank(currentItem()),
+        needsRivals: () => needsRivals(currentItem()),
         onState: (data) => {
             setItems(data?.items);
             setScoreBase(data?.display?.base);

@@ -2,6 +2,19 @@ namespace LazerReplayCompare;
 
 public sealed class AppSettingsService
 {
+    private static AppSettingsService? shared;
+
+    public AppSettingsService()
+    {
+        shared ??= this;
+    }
+
+    /// <summary>
+    /// The app's settings: the first service made (the main window's), so that whoever writes through here and the
+    /// window share one <see cref="AppSettings"/> and can't save over each other. Made on first use otherwise.
+    /// </summary>
+    public static AppSettingsService Shared => shared ??= new AppSettingsService();
+
     public AppSettings Current { get; } = AppSettings.Load();
 
     public void Save()
@@ -92,6 +105,20 @@ public sealed class AppSettingsService
         Save();
     }
 
+    /// <summary>Whether the middle lane of an odd key count is the left hand's (the default; anything but "right").</summary>
+    public bool MiddleLaneLeft => !string.Equals(Current.MiddleLaneHand, "right", StringComparison.OrdinalIgnoreCase);
+
+    /// <param name="hand">"left" or "right" (anything else is "left").</param>
+    public void SetMiddleLaneHand(string hand)
+    {
+        hand = string.Equals(hand, "right", StringComparison.OrdinalIgnoreCase) ? "right" : "left";
+        if (Current.MiddleLaneHand == hand)
+            return;
+
+        Current.MiddleLaneHand = hand;
+        Save();
+    }
+
     public void SetOverlayDisplay(OverlayDisplay display)
     {
         if (Current.MainItem == display.MainItem && Current.MainShow == display.MainShow && Current.SubItem == display.SubItem && Current.SubShow == display.SubShow
@@ -119,6 +146,6 @@ public sealed class AppSettingsService
         Current.AccLogKind is "stable" or "pp" ? Current.AccLogKind : "lazer", Math.Clamp(Current.AccLogBase, 0.01, 99.99));
 }
 
-/// <summary>What the Main and Sub overlays show (the live panel shows both items).</summary>
+/// <summary>What the Main and Sub overlays show .</summary>
 public sealed record OverlayDisplay(string MainItem, string MainShow, string SubItem, string SubShow, int RankTarget = 50, string BaseMode = "score", int BaseScore = 999000,
     string AccLogKind = "lazer", double AccLogBase = 95);

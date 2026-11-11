@@ -1,7 +1,10 @@
 // Items the overlays can show, and how their values are worked out.
 //
-// Built in: score, score_acc, score_acc_log, live_rank, acc, acc_log, stable_acc, lazer_acc, ma_ratio. Which item each overlay shows, and any custom items (made
-// of judgement counts, from the app's metrics.json), come from LazerReplayCompare's /state.
+// Built in: score, score_acc, score_acc_log, acc, acc_log, stable_acc, lazer_acc, ma_ratio, and the Rivals items
+// (rival_rank, rival_gap). Which item each overlay shows, and any custom items (made of judgement counts, from
+// the app's metrics.json), come from LazerReplayCompare's /state.
+
+import { rivalStanding } from './rivals.js';
 
 export const OFF = 'off';
 
@@ -109,7 +112,9 @@ function lostAccuracy(s) {
 /**
  * A source is what an item is evaluated on: the live play or a replay frame, as
  * { score, accuracy (0..1), hits, perfect (score if every judgement so far were MAX, or null), rankScores (the beatmap's
- * leaderboard, best first, or nothing), rankOthers (the same without the player's own scores) }.
+ * leaderboard, best first, or nothing), rankOthers (the same without the player's own scores), and for the Rivals items:
+ * index (judgements so far), perfectTotal (the best possible score of the whole beatmap), rivals (see rivals.js), self
+ * (the replay file a frame belongs to, which is not raced against itself) }.
  * `scaleKey` names the app's metric a scaled timeline is stretched by (see timelineFactor).
  */
 const BUILT_IN = {
@@ -138,22 +143,6 @@ const BUILT_IN = {
             return lost == null ? null : 10 * Math.log2(baseLostShare(s) / lost);
         },
     },
-    // Where the score would land at this pace (Score acc x 1,000,000), among other players: a tie stays behind them. Nothing
-    // below 50th.
-    live_rank: {
-        name: 'Live rank',
-        format: 'rank',
-        scaleKey: 'Score',
-        perfect: true,
-        rank: () => true,
-        value: (s) => {
-            const share = scoreShare(s);
-            if (share == null || !s.rankOthers?.length) return null;
-            const expected = Math.floor(share * 1000000 + 1e-6);
-            const place = s.rankOthers.filter((score) => score >= expected).length + 1;
-            return place <= 50 ? place : null;
-        },
-    },
     acc: { name: 'Acc', format: 'percent', scaleKey: 'Acc', value: (s) => (Number(s.accuracy) || 0) * 100 },
     // 0 at its base accuracy (95% unless picked otherwise), +10 each time the accuracy lost is halved.
     acc_log: {
@@ -177,6 +166,27 @@ const BUILT_IN = {
             const great = hitValue(s.hits, 'Great');
             return max + great > 0 ? max / Math.max(great, 1) : null;
         },
+    },
+    // The Rivals items: the place among the app's rivals (/rivals) at this note, always by score; nothing with no rivals.
+    // A tie leaves the rival ahead. Like Live rank they are worked out for whatever source they are given: Live is the
+    // play's standing, Replay the compared replay's (among the other rivals), Diff one minus the other.
+    rival_rank: {
+        name: 'Rival rank',
+        format: 'rank',
+        scaleKey: 'Score',
+        perfect: true,
+        rivals: true,
+        value: (s) => rivalStanding(s)?.place ?? null,
+    },
+    // score minus the score of the rival directly above (-1,410); in first place, the lead over the second (+1,410)
+    rival_gap: {
+        name: 'Next rival',
+        format: 'integer',
+        signed: true,
+        scaleKey: 'Score',
+        perfect: true,
+        rivals: true,
+        value: (s) => rivalStanding(s)?.gap ?? null,
     },
 };
 
@@ -319,6 +329,16 @@ export function needsRank(key) {
     return Boolean(definition(key)?.rank?.());
 }
 
+/** Whether the item is about the app's rivals (/rivals). */
+export function needsRivals(key) {
+    return Boolean(definition(key)?.rivals);
+}
+
+/** Whether the item's own value carries a sign ("+" when positive, coloured like a difference). */
+export function isSigned(key) {
+    return Boolean(definition(key)?.signed);
+}
+
 /** The app metric a scaled timeline should be stretched by for this item. */
 export function scaleKeyOf(key) {
     return definition(key)?.scaleKey ?? 'Score';
@@ -356,10 +376,18 @@ export function hasDecimals(key) {
 
 /**
  * Formats a display-unit value: { sign, value, suffix, text }. `signed` adds "+" to positive values. Integers are
- * rounded (and signed by the rounded value); percentages and ratios keep two decimals (see shownValue).
+ * rounded (and signed by the rounded value); percentages and ratios keep two decimals (see shownValue); a flag is OK
+ * (1) or X (0), and its difference a whole number.
  */
 export function formatItem(key, value, signed = false) {
     const number = shownValue(key, value, signed);
+
+    if (definition(key)?.format === 'flag' && !signed) {
+        const text = number >= 0.5 ? 'OK' : 'X';
+        return { sign: '', value: text, suffix: '', text };
+    }
+
+    signed = signed || isSigned(key);
 
     if (definition(key)?.format === 'rank' && !signed) {
         const text = `#${Math.round(number)}`;

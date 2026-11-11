@@ -84,6 +84,28 @@ public sealed class StableReplayFinder
         }
     }
 
+    /// <summary>Every osu!mania score in scores.db by beatmap (MD5), for the library's records. Their replays are not looked up.</summary>
+    public List<(IReadOnlyList<string> Md5s, ReplayEntry Entry)> AllScores(string stableRoot)
+    {
+        lock (sync)
+        {
+            var scoresDb = Path.Combine(stableRoot, "scores.db");
+            readScoresDb(scoresDb, string.Empty);
+            var result = new List<(IReadOnlyList<string>, ReplayEntry)>();
+            if (scoresDbCache is not { } cache)
+                return result;
+
+            foreach (var (md5, scores) in cache.Scores)
+            {
+                var md5s = new[] { md5 };
+                foreach (var score in scores)
+                    result.Add((md5s, toEntry(score, $"{scoresDb}#{score.Timestamp}", hasReplay: false)));
+            }
+
+            return result;
+        }
+    }
+
     private static string? find(List<(string Path, StableScore Score)> replays, StableScore score)
     {
         foreach (var (path, replay) in replays)
