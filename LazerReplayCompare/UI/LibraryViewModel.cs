@@ -242,8 +242,10 @@ public sealed class LibraryGroup : ObservableObject
         }
     }
 
-    public double RailFontSize => hasShortForm ? 18 : 11;
-    public IBrush RailBrush => Rows.Count == 0 ? DifficultyColors.Neutral : Rows[Rows.Count / 2].NumberBrush;
+    public double RailFontSize => hasShortForm ? 15 : 10.5;
+    // the label sits in a box coloured as the group's middle map is (text alone is one yellow for every hard group)
+    public IBrush RailBadge => Rows.Count == 0 ? DifficultyColors.Badge(double.NaN) : Rows[Rows.Count / 2].NumberBadge;
+    public IBrush RailBadgeText => Rows.Count == 0 ? DifficultyColors.Neutral : Rows[Rows.Count / 2].NumberBadgeText;
 
     private bool isCurrent;
 

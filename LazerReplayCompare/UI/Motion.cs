@@ -73,4 +73,29 @@ public static class Motion
         static byte part(byte x, byte y, double t) => (byte)Math.Round(x + (y - x) * t);
         return Color.FromArgb(part(a.A, b.A, t), part(a.R, b.R, t), part(a.G, b.G, t), part(a.B, b.B, t));
     }
+
+    /// <summary>
+    /// Scrolls a list so the row at <paramref name="index"/> is in its middle. The rows are all one height, so the place
+    /// is worked out from the index (a row far away has no container to ask yet); it is set once the list has laid out
+    /// its new rows, and once more a moment later in case it was still settling.
+    /// </summary>
+    public static void CentreRow(ListBox list, int index, double fallbackRowHeight)
+    {
+        if (index < 0)
+            return;
+
+        void place()
+        {
+            if (list.Scroll is not ScrollViewer scroll || scroll.Viewport.Height <= 0)
+                return;
+
+            double height = list.GetRealizedContainers().FirstOrDefault()?.Bounds.Height is > 0 and var h ? h : fallbackRowHeight;
+            double wanted = index * height - (scroll.Viewport.Height - height) / 2;
+            double most = Math.Max(0, Math.Max(scroll.Extent.Height, list.ItemCount * height) - scroll.Viewport.Height);
+            scroll.Offset = new Vector(scroll.Offset.X, Math.Clamp(wanted, 0, most));
+        }
+
+        Dispatcher.UIThread.Post(place, DispatcherPriority.Background);
+        DispatcherTimer.RunOnce(place, TimeSpan.FromMilliseconds(180));
+    }
 }

@@ -70,10 +70,23 @@ public sealed partial class MainWindow
 
             if (e.PropertyName == nameof(MainWindowViewModel.MapCard))
                 rollNumber();
+            else if (e.PropertyName == nameof(MainWindowViewModel.IsRailExpanded) && viewModel.IsRailExpanded)
+            {
+                // (opened: its list was not laid out while it was folded)
+                railCentred = string.Empty;
+                centreRail();
+                moveRail();
+            }
             else if (e.PropertyName == nameof(MainWindowViewModel.IsRailExpanded))
                 moveRail();
         };
         rollNumber();
+
+        libraryModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(LibraryViewModel.Rows))
+                centreRail();
+        };
 
         var settings = settingsService.Current;
         libraryModel.Restore(settings.LibraryGroupBy, settings.LibraryNumber, settings.LibraryKeys, settings.LibraryRate);
@@ -610,6 +623,22 @@ public sealed partial class MainWindow
             modsPending: map != null && modded == null && (Math.Abs(rate - 1) >= 0.005 || odFlag != null),
             waiting: map != null && modded == null);
         libraryModel.ShownMd5 = md5;
+        centreRail();
+    }
+
+    private string railCentred = string.Empty;
+
+    /// <summary>The side card's list goes to the shown map, mid-list (once per map and group, so it is not pulled back while it is scrolled).</summary>
+    private void centreRail()
+    {
+        var md5 = libraryModel.ShownMd5;
+        int index = libraryModel.Rows.ToList().FindIndex(row => string.Equals(row.Md5, md5, StringComparison.OrdinalIgnoreCase));
+        string key = $"{md5}|{libraryModel.GroupTitle}|{index >= 0}";
+        if (index < 0 || key == railCentred)
+            return;
+
+        railCentred = key;
+        Motion.CentreRow(this.FindControl<ListBox>("RailList")!, index, 46);
     }
 
     // --- Local replays: downloaded ones, places ---
@@ -870,7 +899,15 @@ public sealed partial class MainWindow
             refreshLibraryNow();
 
             if (page.StartsWith("lib", StringComparison.OrdinalIgnoreCase))
+            {
                 openLibrary();
+                await Task.Delay(1500);
+                if (page.Contains("high", StringComparison.OrdinalIgnoreCase) && libraryModel.Groups.Count > 4)
+                    libraryModel.SelectedGroup = libraryModel.Groups[libraryModel.Groups.Count * 4 / 5];
+                if (page.Contains("locate", StringComparison.OrdinalIgnoreCase)
+                    && library.Maps.Maps.Values.OrderByDescending(map => library.RecordOf(map.Md5)?.Plays ?? 0).FirstOrDefault() is { } played)
+                    libraryModel.Locate(played.Md5, force: true);
+            }
             else if (page.StartsWith("set", StringComparison.OrdinalIgnoreCase))
                 viewModel.IsSettingsPage = true;
             else

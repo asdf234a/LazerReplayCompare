@@ -239,7 +239,9 @@
                       <StackPanel Spacing="5">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
                           <TextBlock Classes="muted" FontSize="10" Text="{Binding RailKind}" VerticalAlignment="Bottom" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Grid.Column="1" Text="{Binding RailShort}" FontSize="{Binding RailFontSize}" FontWeight="Bold" Foreground="{Binding RailBrush}" TextWrapping="Wrap" MaxWidth="68" />
+                          <Border Grid.Column="1" Background="{Binding RailBadge}" CornerRadius="6" Padding="6,0,6,1" MinWidth="26" BorderBrush="#30FFFFFF" BorderThickness="1">
+                            <TextBlock Text="{Binding RailShort}" FontSize="{Binding RailFontSize}" FontWeight="Bold" Foreground="{Binding RailBadgeText}" TextWrapping="Wrap" MaxWidth="60" TextAlignment="Center" />
+                          </Border>
                         </Grid>
                         <local:RankBar Height="4" Counts="{Binding RankCounts}" />
                       </StackPanel>
@@ -284,7 +286,7 @@
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
-            <ListBox Classes="plainList" ItemsSource="{Binding Library.Rows}" Tapped="RailMapTapped">
+            <ListBox x:Name="RailList" Classes="plainList" ItemsSource="{Binding Library.Rows}" Tapped="RailMapTapped">
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="local:MapRow">
                   <Grid ColumnDefinitions="80,*,Auto" Height="46" Cursor="Hand" Background="Transparent">

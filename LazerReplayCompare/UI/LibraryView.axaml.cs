@@ -110,16 +110,8 @@ public sealed partial class LibraryView : UserControl
     /// <summary>Scrolls a map's row to the middle of the list.</summary>
     private void centre(MapRow row)
     {
-        mapList.ScrollIntoView(row);   // (its row exists from here on)
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (mapList.ContainerFromItem(row) is not { } container || mapList.Scroll is not ScrollViewer scroll
-                || container.TranslatePoint(default, scroll) is not { } at)
-                return;
-
-            double wanted = scroll.Offset.Y + at.Y - (scroll.Viewport.Height - container.Bounds.Height) / 2;
-            scroll.Offset = new Vector(scroll.Offset.X, Math.Clamp(wanted, 0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height)));
-        }, DispatcherPriority.Loaded);
+        if (DataContext is LibraryViewModel model)
+            Motion.CentreRow(mapList, model.Rows.ToList().FindIndex(r => r.Md5 == row.Md5), 64);
     }
 
     public void FocusSearch()
@@ -129,7 +121,7 @@ public sealed partial class LibraryView : UserControl
     }
 
     /// <summary>Scrolls the list to a map (when it is in the shown group).</summary>
-    public void ScrollTo(MapRow row) => mapList.ScrollIntoView(row);
+    public void ScrollTo(MapRow row) => centre(row);
 
     private void SortClicked(object? sender, RoutedEventArgs e)
     {
