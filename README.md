@@ -138,6 +138,10 @@ By default it looks for osu!lazer in `%LocalAppData%\osulazer\current`. Pass `-p
 
 The app's typeface is LRC Sans. Torus, osu!'s typeface, is not part of this repository or of the releases. If you have its files, put `Torus-Regular.otf` and `Torus-Bold.otf` into `LazerReplayCompare/LocalFonts` before building and the build uses it (`-p:IncludeLocalFonts=false` leaves it out); for the Pacemaker overlay, put the same two files into tosu's `static/lazerReplayCompareShared`.
 
+## Licence
+
+LazerReplayCompare is released under the [MIT License](LICENSE). That covers this project's own code and overlays. The work of others that it includes stays under its own licence, listed below; note that the mod icons are CC BY-NC (non-commercial).
+
 ## Third-party notices
 
 LazerReplayCompare includes or is built from the work listed here. Each part stays under its own licence.
