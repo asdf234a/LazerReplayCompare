@@ -88,6 +88,18 @@ public sealed partial class MainWindow
                 centreRail();
         };
 
+        // the side card's rows carry their maps' backgrounds too (when the library's rows do)
+        _ = new RowBackgrounds(this.FindControl<ListBox>("RailList")!, row => row.RailBackground, (row, bitmap) => row.RailBackground = bitmap, 360,
+            () => libraryModel.ShowRowBackgrounds);
+
+        // the banner starts right of the side card: it follows the card's width (and whether it is there)
+        this.FindControl<Border>("LibraryRail")!.SizeChanged += (_, _) => layoutBanner();
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(MainWindowViewModel.ShowCompareList) or nameof(MainWindowViewModel.ShowRail))
+                Dispatcher.UIThread.Post(layoutBanner, DispatcherPriority.Loaded);
+        };
+
         var settings = settingsService.Current;
         libraryModel.Restore(settings.LibraryGroupBy, settings.LibraryNumber, settings.LibraryKeys, settings.LibraryRate);
         libraryModel.ShowRowBackgrounds = settings.RowBackgrounds;

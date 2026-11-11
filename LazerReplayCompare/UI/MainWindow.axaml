@@ -289,7 +289,19 @@
             <ListBox x:Name="RailList" Classes="plainList" ItemsSource="{Binding Library.Rows}" Tapped="RailMapTapped">
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="local:MapRow">
-                  <Grid ColumnDefinitions="80,*,Auto" Height="46" Cursor="Hand" Background="Transparent">
+                  <Grid ColumnDefinitions="80,*,Auto" Height="46" Cursor="Hand" Background="Transparent" ClipToBounds="True">
+                    <!-- The map's background across the row: dark under the number and title, showing towards the right. -->
+                    <Image Grid.ColumnSpan="3" Source="{Binding RailBackground}" Stretch="UniformToFill" IsVisible="{Binding RailBackground, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <Border Grid.ColumnSpan="3" IsVisible="{Binding RailBackground, Converter={x:Static ObjectConverters.IsNotNull}}">
+                      <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                          <GradientStop Offset="0" Color="{DynamicResource BannerScrim100Color}" />
+                          <GradientStop Offset="0.45" Color="{DynamicResource BannerScrim92Color}" />
+                          <GradientStop Offset="1" Color="{DynamicResource BannerScrim55Color}" />
+                        </LinearGradientBrush>
+                      </Border.Background>
+                    </Border>
+                    <Border Grid.ColumnSpan="3" Height="1" VerticalAlignment="Top" Background="{DynamicResource RowDividerBrush}" />
                     <Border Grid.ColumnSpan="3" Width="3" HorizontalAlignment="Left" Background="{DynamicResource TextBrush}" IsVisible="{Binding IsNowPlaying}" />
                     <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
                       <Border Background="{Binding NumberBadge}" CornerRadius="6" Padding="6,0,6,2" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,1">

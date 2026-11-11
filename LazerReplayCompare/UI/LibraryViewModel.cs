@@ -164,6 +164,15 @@ public sealed class MapRow : ObservableObject
         set => Set(ref background, value);
     }
 
+    private Bitmap? railBackground;
+
+    /// <summary>The background as the side card's narrow row shows it (a smaller copy, loaded while that row is on screen).</summary>
+    public Bitmap? RailBackground
+    {
+        get => railBackground;
+        set => Set(ref railBackground, value);
+    }
+
     public static string FormatLength(double milliseconds)
     {
         if (milliseconds <= 0)

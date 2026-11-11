@@ -1613,7 +1613,15 @@ public sealed partial class MainWindow : Window
             return;
 
         var zoom = viewModel.Zoom;
-        var width = Bounds.Width;
+
+        // The map page's library card is not part of the map: the banner (the map's own picture) begins right of it.
+        double left = 0;
+        if (viewModel.ShowCompareList && viewModel.ShowRail && this.FindControl<Border>("LibraryRail") is { IsVisible: true, Bounds.Width: > 0 } rail)
+            left = (rail.Bounds.Width + rail.Margin.Left + 8) * zoom;
+        banner.Margin = new Thickness(left, 0, 0, 0);
+        bannerSides.Margin = new Thickness(left, 0, 0, 0);
+
+        var width = Math.Max(0, Bounds.Width - left);
         var fade = banner_side_fade * zoom;
         var column = Math.Min(width, page_content_width * zoom + fade);
         bannerColumn.Width = column;
@@ -1627,7 +1635,13 @@ public sealed partial class MainWindow : Window
         bannerSides.IsVisible = side > 1;
         if (side <= 1 || column <= 0)
         {
-            bannerColumn.OpacityMask = null;
+            // edge to edge; beside the library card it still comes in softly rather than with a hard edge
+            bannerColumn.OpacityMask = left <= 0 || column <= 0 ? null : new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative),
+                GradientStops = { new GradientStop(Colors.Transparent, 0), new GradientStop(Colors.Black, Math.Min(36 * zoom / column, 0.2)), new GradientStop(Colors.Black, 1) },
+            };
             return;
         }
 
