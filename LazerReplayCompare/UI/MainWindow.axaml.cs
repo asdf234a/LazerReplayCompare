@@ -1618,8 +1618,8 @@ public sealed partial class MainWindow : Window
         double left = 0;
         if (viewModel.ShowCompareList && viewModel.ShowRail && this.FindControl<Border>("LibraryRail") is { IsVisible: true, Bounds.Width: > 0 } rail)
             left = (rail.Bounds.Width + rail.Margin.Left + 8) * zoom;
-        banner.Margin = new Thickness(left, 0, 0, 0);
-        bannerSides.Margin = new Thickness(left, 0, 0, 0);
+        // (only the picture moves over: the banner's scrims stay across the window, so nothing ends in an edge there)
+        bannerColumn.Margin = new Thickness(left, 0, 0, 0);
 
         var width = Math.Max(0, Bounds.Width - left);
         var fade = banner_side_fade * zoom;
@@ -1640,12 +1640,13 @@ public sealed partial class MainWindow : Window
             {
                 StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
                 EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative),
-                GradientStops = { new GradientStop(Colors.Transparent, 0), new GradientStop(Colors.Black, Math.Min(36 * zoom / column, 0.2)), new GradientStop(Colors.Black, 1) },
+                GradientStops = { new GradientStop(Colors.Transparent, 0), new GradientStop(Colors.Black, Math.Min(110 * zoom / column, 0.3)), new GradientStop(Colors.Black, 1) },
             };
             return;
         }
 
         var edge = Math.Min(fade / column, 0.25);
+        var leftEdge = left > 0 ? Math.Min(Math.Max(fade, 110 * zoom) / column, 0.3) : edge;
         bannerColumn.OpacityMask = new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
@@ -1653,14 +1654,17 @@ public sealed partial class MainWindow : Window
             GradientStops =
             {
                 new GradientStop(Colors.Transparent, 0),
-                new GradientStop(Colors.Black, edge),
+                new GradientStop(Colors.Black, leftEdge),
                 new GradientStop(Colors.Black, 1 - edge),
                 new GradientStop(Colors.Transparent, 1),
             },
         };
 
         // the blurred sides: full behind the sharp image's fade, gone at the window's edges
-        var inner = (side + fade / 2) / width;
+        // (they span the whole window: beside the library card they come in as gradually as at the window's other edge,
+        // so no edge shows where the banner begins)
+        double all = Math.Max(Bounds.Width, 1);
+        double ramp = Math.Max(side + fade / 2, 90 * zoom);
         bannerSidesImage.OpacityMask = new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
@@ -1668,8 +1672,9 @@ public sealed partial class MainWindow : Window
             GradientStops =
             {
                 new GradientStop(Colors.Transparent, 0),
-                new GradientStop(Colors.Black, inner),
-                new GradientStop(Colors.Black, 1 - inner),
+                new GradientStop(Colors.Transparent, Math.Min(left / all, 0.9)),
+                new GradientStop(Colors.Black, Math.Min((left + ramp) / all, 0.95)),
+                new GradientStop(Colors.Black, Math.Max(1 - (side + fade / 2) / all, 0.96)),
                 new GradientStop(Colors.Transparent, 1),
             },
         };
