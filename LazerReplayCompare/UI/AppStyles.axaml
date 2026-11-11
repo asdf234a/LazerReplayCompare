@@ -357,6 +357,15 @@
     <Setter Property="Stroke" Value="{DynamicResource TargetAccentBrush}" />
   </Style>
 
+  <!-- Flyouts: the app's own translucent panel instead of Fluent's opaque one -->
+  <Style Selector="FlyoutPresenter">
+    <Setter Property="Background" Value="{DynamicResource FlyoutBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FlyoutBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="14" />
+  </Style>
+
   <!-- Inputs -->
   <Style Selector="ComboBox">
     <Setter Property="MinHeight" Value="40" />

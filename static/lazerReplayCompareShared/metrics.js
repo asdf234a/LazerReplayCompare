@@ -1,6 +1,6 @@
 // Items the overlays can show, and how their values are worked out.
 //
-// Built in: score, score_acc, score_acc_log, live_rank, acc, acc_log, stable_acc, lazer_acc, ma_ratio, and the Rivals items
+// Built in: score, score_acc, score_acc_log, acc, acc_log, stable_acc, lazer_acc, ma_ratio, and the Rivals items
 // (rival_rank, rival_gap). Which item each overlay shows, and any custom items (made of judgement counts, from
 // the app's metrics.json), come from LazerReplayCompare's /state.
 
@@ -141,22 +141,6 @@ const BUILT_IN = {
         value: (s) => {
             const lost = lostShare(s);
             return lost == null ? null : 10 * Math.log2(baseLostShare(s) / lost);
-        },
-    },
-    // Where the score would land at this pace (Score acc x 1,000,000), among other players: a tie stays behind them. Nothing
-    // below 50th.
-    live_rank: {
-        name: 'Live rank',
-        format: 'rank',
-        scaleKey: 'Score',
-        perfect: true,
-        rank: () => true,
-        value: (s) => {
-            const share = scoreShare(s);
-            if (share == null || !s.rankOthers?.length) return null;
-            const expected = Math.floor(share * 1000000 + 1e-6);
-            const place = s.rankOthers.filter((score) => score >= expected).length + 1;
-            return place <= 50 ? place : null;
         },
     },
     acc: { name: 'Acc', format: 'percent', scaleKey: 'Acc', value: (s) => (Number(s.accuracy) || 0) * 100 },

@@ -56,8 +56,6 @@ public static class OverlayItems
         // 0 at a base picked on the Compare page (999,000, or a place on the leaderboard), +10 each time the score lost is
         // halved; all MAX counts as e^-gamma of a 300 (see metrics.js)
         new("score_acc_log", "Score log", "decimal", true),
-        // where the score would land on the leaderboard at this pace; hidden below 50th
-        new("live_rank", "Live rank", "rank", true),
         new("acc", "Acc", "percent", true),
         // 0 at a picked accuracy, +10 each time the accuracy lost is halved; the formula is picked too (metrics.js)
         new("acc_log", "Acc log", "decimal", true),
@@ -188,7 +186,6 @@ public static class OverlayItems
         ["ma_ratio"] = "Judgements",
         ["bms"] = "Judgements",
         ["miss_count"] = "Judgements",
-        ["live_rank"] = "Ranking",
         ["rival_rank"] = "Rivals",
         ["rival_gap"] = "Rivals",
     };

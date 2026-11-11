@@ -52,7 +52,7 @@
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ButtonBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
@@ -61,8 +61,8 @@
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
     <Style Selector="ToggleButton.quick:checked /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource TextBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource ChartBackgroundBrush}" />
+      <Setter Property="Background" Value="{DynamicResource PickedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
     <Style Selector="ItemsControl.quick">
       <Setter Property="ItemsPanel">

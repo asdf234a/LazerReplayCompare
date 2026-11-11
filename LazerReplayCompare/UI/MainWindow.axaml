@@ -68,14 +68,20 @@
       <Setter Property="Cursor" Value="Hand" />
     </Style>
     <Style Selector="ListBox.pick ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ButtonBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     </Style>
     <Style Selector="ListBox.pick ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource RowHoverBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
     <Style Selector="ListBox.pick ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource TextBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource ChartBackgroundBrush}" />
+      <Setter Property="Background" Value="{DynamicResource PickedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="ListBox.pick ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource PickedHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
     <Style Selector="ListBox.pick.items ListBoxItem">
       <Setter Property="Width" Value="136" />
