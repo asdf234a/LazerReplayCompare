@@ -112,6 +112,8 @@ public sealed partial class MainWindow : Window
         detailsView.ShowFileRequested += entry => ShowReplayFile(entry);
         detailsView.PinRequested += TogglePin;
         pageZoom = this.FindControl<LayoutTransformControl>("PageZoom")!;
+        setUpLibrary();
+        apiServer.Rivals = buildRivals;
 
         // back from a details page, and zoom, from anywhere in the window (before controls handle the input)
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
@@ -242,6 +244,7 @@ public sealed partial class MainWindow : Window
         stableReplaysWatcher?.Dispose();
         lazerReplays.Dispose();
         compactWindow?.Close();
+        danEngine?.Dispose();
         tosuClient.Dispose();
         apiServer.Dispose();
         leaderboard.Dispose();
@@ -276,6 +279,12 @@ public sealed partial class MainWindow : Window
         viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay, settingsService.Current.HiddenItems);
         watchCustomItems();
         lastTimelineSettings = (viewModel.CorrectionMode, OverlayItems.ScaleMetric(viewModel.OverlayDisplay.MainItem));
+
+        viewModel.IsRailExpanded = current.RailExpanded;
+        viewModel.RestoreRivals(current.RivalsMode);
+        viewModel.ShowRowBackgrounds = current.RowBackgrounds;
+        viewModel.UseDanEngine = current.UseDanEngine;
+        startLibrary();
     }
 
     private void OnSettingsChanged()
@@ -288,6 +297,25 @@ public sealed partial class MainWindow : Window
         var display = viewModel.OverlayDisplay;
         settingsService.SetOverlayDisplay(display);
         settingsService.SetHiddenItems(viewModel.HiddenItems);
+
+        // the library's settings
+        var saved = settingsService.Current;
+        bool rivalsChanged = saved.RivalsMode != viewModel.RivalsMode;
+        if (saved.RailExpanded != viewModel.IsRailExpanded || rivalsChanged || saved.RowBackgrounds != viewModel.ShowRowBackgrounds || saved.UseDanEngine != viewModel.UseDanEngine)
+        {
+            saved.RailExpanded = viewModel.IsRailExpanded;
+            saved.RivalsMode = viewModel.RivalsMode;
+            saved.RowBackgrounds = viewModel.ShowRowBackgrounds;
+            saved.UseDanEngine = viewModel.UseDanEngine;
+            settingsService.Save();
+            libraryModel.ShowRowBackgrounds = viewModel.ShowRowBackgrounds;
+            if (rivalsChanged && viewModel.RivalsMode != "local" && viewModel.OnlineRows.Count == 0)
+                loadOnline();
+            if (viewModel.UseDanEngine)
+                startDanEngine();
+        }
+
+        libraryModel.Glass = viewModel.ShowBackdrop;
 
         ThemeService.Apply(this, viewModel.Theme);
         if (compactWindow != null)
@@ -358,7 +386,7 @@ public sealed partial class MainWindow : Window
 
     /// <summary>The folders the API server may open files in: the osu!lazer and osu!stable folders and tosu's songs folder.</summary>
     private IEnumerable<string?> GetApiAllowedRoots() =>
-        new[] { viewModel.OsuLazerPath, viewModel.OsuStablePath, currentSnapshot.SongsFolder };
+        new[] { viewModel.OsuLazerPath, viewModel.OsuStablePath, currentSnapshot.SongsFolder, liveSnapshot.SongsFolder, AppPaths.Downloads };
 
     private (string Md5, IReadOnlyList<ReplayEntry> Replays, ReplayEntry? SelectedReplay) GetCurrentReplays()
     {
@@ -432,6 +460,8 @@ public sealed partial class MainWindow : Window
         viewModel.LazerFound = OsuLazerPathResolver.IsOsuLazerRoot(path);
         settingsService.SetOsuLazerPath(path);
         openLazerReplays();
+        if (started)
+            RefreshLibrary(this, new RoutedEventArgs());
     }
 
     /// <summary>Points the kept osu!lazer replay list at the osu!lazer folder (it reads the database once, then watches).</summary>
@@ -446,6 +476,7 @@ public sealed partial class MainWindow : Window
     {
         if (!currentSnapshot.IsStable && (md5 == null || string.Equals(md5, currentSnapshot.BeatmapChecksum, StringComparison.OrdinalIgnoreCase)))
             RefreshReplays();
+        updateRecords();
     });
 
     // --- osu!stable folder ---
@@ -524,6 +555,8 @@ public sealed partial class MainWindow : Window
         viewModel.StableFound = OsuStablePathResolver.IsOsuStableRoot(path);
         settingsService.SetOsuStablePath(path);
         watchStableReplays();
+        if (started)
+            RefreshLibrary(this, new RoutedEventArgs());
     }
 
     /// <summary>Watches osu!stable's Data/r while osu!stable is played, and rescans when a replay is written there.</summary>
@@ -583,6 +616,18 @@ public sealed partial class MainWindow : Window
         Dispatcher.UIThread.Post(() =>
         {
             viewModel.TosuConnected = true;
+            if (!onLiveSnapshot(snapshot))
+                return;   // the page stays on a map picked in the library
+
+            showSnapshot(snapshot);
+            OnResultsScreen(snapshot);
+        });
+    }
+
+    /// <summary>Shows a map on the map page: the one the game has selected, or one picked in the library.</summary>
+    private void showSnapshot(TosuSnapshot snapshot)
+    {
+        {
             var oldChecksum = currentSnapshot.BeatmapChecksum;
             var oldSpeed = currentSnapshot.PlaySpeed;
             var oldStable = currentSnapshot.IsStable;
@@ -619,8 +664,8 @@ public sealed partial class MainWindow : Window
             else if (snapshot.PlaySpeed != oldSpeed)
                 UpdateTarget();   // the auto target depends on the current rate
 
-            OnResultsScreen(snapshot);
-        });
+            onShownMapChanged();
+        }
     }
 
     private const string TosuBackgroundUrl = "http://" + TosuHost + "/files/beatmap/background";
@@ -768,6 +813,10 @@ public sealed partial class MainWindow : Window
                     return;
 
                 var (replays, backgroundPath) = lazerReplays.Find(md5, beatmapPath);
+                // replays downloaded from the online ranking are listed with osu!lazer's own
+                var downloaded = downloadedReplays(md5, beatmapPath);
+                if (downloaded.Count > 0)
+                    replays = replays.Concat(downloaded).OrderByDescending(entry => entry.Score).ToList();
                 // the first reading of the database is still under way: nothing is missing yet
                 bool fillingIn = lazerReplays.IsFillingIn;
                 lock (replayLock)
@@ -898,6 +947,7 @@ public sealed partial class MainWindow : Window
         fillingReplayList = false;
         viewModel.NotifyReplaysChanged();
         UpdateTarget();
+        updateLocalPlaces();
         OpenPendingResults();
     }
 
@@ -994,6 +1044,7 @@ public sealed partial class MainWindow : Window
         viewModel.AutoSpeed = speed;
         viewModel.IsTargetPinned = pinned;
         viewModel.Target = target;
+        markOnlineTarget();
         if (viewModel.Details is { } details && detailsOnCurrentMap)
         {
             details.Target = target;
@@ -1141,9 +1192,17 @@ public sealed partial class MainWindow : Window
 
     private void ShowComparePage(object? sender, RoutedEventArgs e)
     {
-        // Compare again while on it: back to the replay list
+        // Maps again while on it: from a replay's details back to the map, and between the map and the whole library
         if (!viewModel.IsSettingsPage)
-            CloseDetails();
+        {
+            if (viewModel.Details != null && !viewModel.IsLibraryOpen)
+                CloseDetails();
+            else if (viewModel.IsLibraryOpen)
+                closeLibrary();
+            else
+                openLibrary();
+        }
+
         viewModel.IsSettingsPage = false;
     }
 
@@ -1354,10 +1413,24 @@ public sealed partial class MainWindow : Window
                 stepZoom(-1);
             else if (e.Key is Key.D0 or Key.NumPad0)
                 applyZoom(1, save: true);
+            else if (e.Key == Key.F)
+                openLibrary(focusSearch: true);
             else
                 return;
 
             e.Handled = true;
+            return;
+        }
+
+        if (viewModel.ShowLibraryPage)
+        {
+            // back from the library to the map page (Backspace is the search box's while it is typed in)
+            if (e.Key is Key.Escape or Key.BrowserBack || (e.Key == Key.Back && FocusManager?.GetFocusedElement() is not TextBox))
+            {
+                closeLibrary();
+                e.Handled = true;
+            }
+
             return;
         }
 
@@ -1380,7 +1453,15 @@ public sealed partial class MainWindow : Window
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         // the mouse's back button
-        if (viewModel.ShowDetailsPage && e.GetCurrentPoint(this).Properties.IsXButton1Pressed)
+        if (!e.GetCurrentPoint(this).Properties.IsXButton1Pressed)
+            return;
+
+        if (viewModel.ShowLibraryPage)
+        {
+            closeLibrary();
+            e.Handled = true;
+        }
+        else if (viewModel.ShowDetailsPage)
         {
             CloseDetails();
             e.Handled = true;
@@ -1519,8 +1600,8 @@ public sealed partial class MainWindow : Window
 
     // The replay list's columns (header and rows): pin, player, date, mods, score, vs target, accuracy, miss, combo,
     // rank, chevron. A narrow page drops date, vs target and combo.
-    private const string replay_columns = "52,1.2*,0.9*,1.5*,1*,0.9*,0.8*,0.55*,0.65*,0.55*,36";
-    private const string narrow_replay_columns = "52,1.5*,0,1.4*,1*,0,0.9*,0.6*,0,0.6*,36";
+    private const string replay_columns = "84,1.2*,0.9*,1.5*,1*,0,0.8*,0.55*,0.65*,0.55*,36";
+    private const string narrow_replay_columns = "84,1.5*,0,1.4*,1*,0,0.9*,0.6*,0,0.6*,36";
     private static readonly int[] narrow_hidden_columns = [2, 5, 8];
 
     private void applyReplayColumns(Control control)

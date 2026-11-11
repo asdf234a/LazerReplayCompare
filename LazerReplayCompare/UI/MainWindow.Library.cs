@@ -1,0 +1,573 @@
+using System.Diagnostics;
+using System.Globalization;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+
+namespace LazerReplayCompare;
+
+// The library, browsing a map the game hasn't selected, the online ranking and the pacemaker's rivals (3.0).
+public sealed partial class MainWindow
+{
+    private readonly LibraryService library = new();
+    private LibraryViewModel libraryModel = null!;
+    private LibraryView libraryPage = null!;
+    private DanEngine? danEngine;
+    private DispatcherTimer? libraryRefresh;
+
+    // the map the game has selected; currentSnapshot is the map the page shows, which is another one while browsing
+    private TosuSnapshot liveSnapshot = new("lazer", "", "", "", "", "", "", "", "");
+    private bool browsing;
+
+    // the online ranking of the shown map, and a downloaded replay to pin once it is listed
+    private IReadOnlyList<OnlineScore> onlineScores = [];
+    private string onlineScoresMd5 = string.Empty;
+    private string pendingPin = string.Empty;
+
+    // downloaded replays' scores by file (read once)
+    private readonly Dictionary<string, ReplayEntry> downloadedEntries = new(StringComparer.OrdinalIgnoreCase);
+
+    private void setUpLibrary()
+    {
+        libraryModel = new LibraryViewModel(library);
+        viewModel.Library = libraryModel;
+        libraryPage = this.FindControl<LibraryView>("LibraryPage")!;
+        libraryPage.MapChosen += row => BrowseTo(row.Map);
+
+        var settings = settingsService.Current;
+        libraryModel.Restore(settings.LibraryGroupBy, settings.LibraryNumber, settings.LibraryKeys, settings.LibraryRate);
+        libraryModel.ShowRowBackgrounds = settings.RowBackgrounds;
+        libraryModel.OptionsChanged += () =>
+        {
+            settings.LibraryGroupBy = libraryModel.GroupByKey;
+            settings.LibraryNumber = libraryModel.NumberKind;
+            settings.LibraryKeys = libraryModel.KeysKey;
+            settings.LibraryRate = libraryModel.RateKey;
+            settingsService.Save();
+            updateMapCard();
+        };
+
+        // maps, ratings and records come in from background threads: the lists follow a moment later, all at once
+        library.Changed += () => Dispatcher.UIThread.Post(scheduleLibraryRefresh);
+        library.Sunny.Busy = () => isPlaying(Volatile.Read(ref liveSnapshot));
+        library.Sunny.Progress += () => Dispatcher.UIThread.Post(scheduleLibraryRefresh, DispatcherPriority.Background);
+        library.Maps.Changed += () => Dispatcher.UIThread.Post(() =>
+        {
+            updateRecords();
+            startDanEngine();
+        });
+    }
+
+    private static bool isPlaying(TosuSnapshot snapshot) => snapshot.State.Equals("play", StringComparison.OrdinalIgnoreCase);
+
+    private void scheduleLibraryRefresh()
+    {
+        if (libraryRefresh == null)
+        {
+            libraryRefresh = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            libraryRefresh.Tick += (_, _) =>
+            {
+                libraryRefresh.Stop();
+                refreshLibraryNow();
+            };
+        }
+
+        if (!libraryRefresh.IsEnabled)
+            libraryRefresh.Start();
+    }
+
+    private void refreshLibraryNow()
+    {
+        libraryModel.Glass = viewModel.ShowBackdrop;
+        libraryModel.Reload();
+        viewModel.ShowRail = libraryModel.Groups.Count > 0;
+        updateMapCard();
+
+        var sunny = library.Sunny.Status;
+        var parts = new List<string> { library.Maps.Status };
+        if (sunny.Running)
+            parts.Add($"Sunny ratings {sunny.Done:N0} / {sunny.Total:N0}{(sunny.Paused ? " (paused while you play)" : "")}");
+        if (danEngine != null)
+        {
+            var dans = danEngine.Status;
+            parts.Add(danEngine.Unavailable is { } why ? $"Dan estimates unavailable: {why}"
+                : dans.Running ? $"Dan estimates {dans.Done:N0} / {dans.Total:N0}{(dans.Paused ? " (paused while you play)" : "")}"
+                : "Dan estimates up to date");
+        }
+
+        viewModel.LibraryStatus = string.Join(" · ", parts);
+    }
+
+    /// <summary>Reads the games' libraries (the kept list shows first). Called once the folders are known.</summary>
+    private void startLibrary()
+    {
+        library.Maps.Start((viewModel.OsuLazerPath ?? string.Empty).Trim(), (viewModel.OsuStablePath ?? string.Empty).Trim());
+        updateRecords();
+    }
+
+    private void RefreshLibrary(object? sender, RoutedEventArgs e)
+    {
+        library.Maps.Refresh((viewModel.OsuLazerPath ?? string.Empty).Trim(), (viewModel.OsuStablePath ?? string.Empty).Trim());
+        updateRecords();
+    }
+
+    /// <summary>The player's best play of each map, from every local score (osu!lazer's kept replays and osu!stable's scores.db).</summary>
+    private void updateRecords()
+    {
+        var stableRoot = (viewModel.OsuStablePath ?? string.Empty).Trim();
+        bool stable = OsuStablePathResolver.IsOsuStableRoot(stableRoot);
+        library.UpdateRecords(() =>
+        {
+            var scores = lazerReplays.All();
+            if (stable)
+            {
+                try
+                {
+                    scores.AddRange(stableReplayFinder.AllScores(stableRoot));
+                }
+                catch (Exception ex)
+                {
+                    InternalLogger.Log(ex);
+                }
+            }
+
+            return scores;
+        });
+    }
+
+    private void startDanEngine()
+    {
+        if (!viewModel.UseDanEngine)
+            return;
+
+        try
+        {
+            if (danEngine == null)
+            {
+                danEngine = new DanEngine { Busy = () => isPlaying(Volatile.Read(ref liveSnapshot)) };
+                danEngine.Changed += () => Dispatcher.UIThread.Post(scheduleLibraryRefresh);
+                danEngine.Progress += () => Dispatcher.UIThread.Post(scheduleLibraryRefresh, DispatcherPriority.Background);
+                var engine = danEngine;
+                library.DanLookup = md5 => engine.Get(md5) is { } estimate ? new DanLookupResult(estimate.Rc, estimate.Ln, estimate.Numeric) : null;
+            }
+
+            if (danEngine.Unavailable == null)
+                danEngine.Update(library.Maps.Maps);
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+
+    // --- Pages ---
+
+    private void OpenLibrary(object? sender, RoutedEventArgs e) => openLibrary();
+
+    private void openLibrary(bool focusSearch = false)
+    {
+        viewModel.IsSettingsPage = false;
+        viewModel.IsLibraryOpen = true;
+        libraryModel.Glass = viewModel.ShowBackdrop;
+        libraryModel.SelectShownGroup();
+        if (libraryModel.RowOf(currentSnapshot.BeatmapChecksum) is { } row)
+            Dispatcher.UIThread.Post(() => libraryPage.ScrollTo(row), DispatcherPriority.Loaded);
+        if (focusSearch)
+            Dispatcher.UIThread.Post(libraryPage.FocusSearch, DispatcherPriority.Loaded);
+    }
+
+    private void closeLibrary() => viewModel.IsLibraryOpen = false;
+
+    private void ToggleRail(object? sender, RoutedEventArgs e) => viewModel.IsRailExpanded = !viewModel.IsRailExpanded;
+
+    private void RailGroupClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: LibraryGroup group })
+        {
+            libraryModel.SelectedGroup = group;
+            viewModel.IsRailExpanded = true;
+        }
+    }
+
+    private void RailMapTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Source is StyledElement { DataContext: MapRow row })
+            BrowseTo(row.Map);
+    }
+
+    // --- Browsing: the map page on a map picked in the library ---
+
+    /// <summary>
+    /// A snapshot from tosu. False while the page stays on a map picked in the library; a play that starts (or a results
+    /// screen that opens) takes the page back to the game's map.
+    /// </summary>
+    private bool onLiveSnapshot(TosuSnapshot snapshot)
+    {
+        var previous = liveSnapshot;
+        Volatile.Write(ref liveSnapshot, snapshot);
+        libraryModel.NowPlayingMd5 = snapshot.BeatmapChecksum;
+
+        if (!browsing)
+            return true;
+
+        bool started = (isPlaying(snapshot) && !isPlaying(previous)) || (snapshot.IsResultsScreen && !previous.IsResultsScreen);
+        if (!started)
+        {
+            if (snapshot.BeatmapChecksum != previous.BeatmapChecksum)
+                updateMapCard();
+            return false;
+        }
+
+        browsing = false;
+        closeLibrary();
+        return true;
+    }
+
+    private void BrowseTo(MapInfo map)
+    {
+        closeLibrary();
+        viewModel.Details = null;
+        detailsFromResults = false;
+
+        if (string.Equals(map.Md5, liveSnapshot.BeatmapChecksum, StringComparison.OrdinalIgnoreCase))
+        {
+            backToLiveMap();
+            return;
+        }
+
+        browsing = true;
+        showSnapshot(snapshotOf(map));
+    }
+
+    private void BackToLiveMap(object? sender, RoutedEventArgs e) => backToLiveMap();
+
+    private void backToLiveMap()
+    {
+        if (!browsing && currentSnapshot.BeatmapChecksum == liveSnapshot.BeatmapChecksum)
+            return;
+
+        browsing = false;
+        showSnapshot(liveSnapshot);
+    }
+
+    /// <summary>A map of the library in the shape tosu reports the game's map, so the page shows both the same way.</summary>
+    private TosuSnapshot snapshotOf(MapInfo map)
+    {
+        bool stable = !map.Clients.Contains("lazer", StringComparison.OrdinalIgnoreCase);
+        var folder = System.IO.Path.GetDirectoryName(map.ChartPath) ?? string.Empty;
+        var file = System.IO.Path.GetFileName(map.ChartPath);
+
+        // osu!lazer keeps files flat under their hashes; osu!stable keeps each set in its own folder under Songs
+        var songs = stable ? System.IO.Path.GetDirectoryName(folder) ?? string.Empty : folder;
+        return new TosuSnapshot(
+            Client: stable ? "stable" : "lazer",
+            State: "menu",
+            BeatmapChecksum: map.Md5,
+            BeatmapArtist: map.ArtistEnglish,
+            BeatmapTitle: map.TitleEnglish,
+            BeatmapVersion: map.Version,
+            SongsFolder: songs,
+            BeatmapFolder: stable ? System.IO.Path.GetFileName(folder) : string.Empty,
+            BeatmapFile: file,
+            DirectBackgroundPath: map.BackgroundPath,
+            Speed: new PlaySpeed(1, false, stable));
+    }
+
+    /// <summary>The shown map changed (the game's, or one picked in the library): the card, the tabs and the online ranking follow.</summary>
+    private void onShownMapChanged()
+    {
+        var md5 = currentSnapshot.BeatmapChecksum;
+        if (!string.IsNullOrEmpty(md5) && library.Maps.Find(md5) == null && !library.Maps.Loading)
+        {
+            // a map the library hasn't read yet (just downloaded): read the games' libraries again, not more than twice a minute
+            library.Maps.Refresh((viewModel.OsuLazerPath ?? string.Empty).Trim(), (viewModel.OsuStablePath ?? string.Empty).Trim(), TimeSpan.FromSeconds(30));
+        }
+
+        updateMapCard();
+        viewModel.NotifyTabsChanged();
+
+        if (md5 != onlineScoresMd5)
+        {
+            onlineScores = [];
+            onlineScoresMd5 = md5;
+            viewModel.OnlineRows.Clear();
+            viewModel.OnlineSummary = string.Empty;
+            viewModel.OnlineNote = string.Empty;
+            viewModel.NotifyTabsChanged();
+            if (viewModel.IsOnlineTab || viewModel.RivalsMode != "local")
+                loadOnline();
+        }
+    }
+
+    private void updateMapCard()
+    {
+        var md5 = currentSnapshot.BeatmapChecksum;
+        var map = string.IsNullOrEmpty(md5) ? null : library.Maps.Find(md5);
+        var live = string.IsNullOrWhiteSpace(liveSnapshot.BeatmapChecksum) ? "nothing yet"
+            : string.Join(" ", new[] { liveSnapshot.BeatmapTitle, string.IsNullOrWhiteSpace(liveSnapshot.BeatmapVersion) ? string.Empty : $"[{liveSnapshot.BeatmapVersion}]" }.Where(part => part.Length > 0));
+
+        viewModel.MapCard = new MapCardViewModel(
+            map,
+            map == null ? null : library.DifficultyOf(map),
+            map == null ? null : library.RecordOf(md5),
+            libraryModel.NumberKind,
+            viewModel.BeatmapTitle,
+            viewModel.BeatmapSubtitle,
+            browsing,
+            live);
+        libraryModel.ShownMd5 = md5;
+    }
+
+    // --- Local replays: downloaded ones, places ---
+
+    private static string downloadPath(string md5, long scoreId) => System.IO.Path.Combine(AppPaths.Downloads, md5.ToLowerInvariant(), $"{scoreId}.osr");
+
+    /// <summary>The replays downloaded for a beatmap (their scores are read from the files, once).</summary>
+    private List<ReplayEntry> downloadedReplays(string md5, string beatmapPath)
+    {
+        var result = new List<ReplayEntry>();
+        var folder = System.IO.Path.Combine(AppPaths.Downloads, md5.ToLowerInvariant());
+        if (string.IsNullOrWhiteSpace(md5) || !Directory.Exists(folder) || !File.Exists(beatmapPath))
+            return result;
+
+        foreach (var file in Directory.EnumerateFiles(folder, "*.osr"))
+        {
+            try
+            {
+                ReplayEntry? entry;
+                lock (downloadedEntries)
+                    downloadedEntries.TryGetValue(file, out entry);
+
+                if (entry == null)
+                {
+                    entry = ReplayFinder.ReadReplay(file, beatmapPath);
+                    lock (downloadedEntries)
+                        downloadedEntries[file] = entry;
+                }
+
+                result.Add(entry);
+            }
+            catch (Exception ex)
+            {
+                InternalLogger.Log(ex);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Numbers the listed replays by score and says where the player's best stands.</summary>
+    private void updateLocalPlaces()
+    {
+        var byScore = viewModel.ReplayRows.OrderByDescending(row => row.Entry.Score).ToList();
+        for (int i = 0; i < byScore.Count; i++)
+            byScore[i].Position = i + 1;
+
+        var mine = byScore.FirstOrDefault(row => string.Equals(row.Player, library.Player, StringComparison.OrdinalIgnoreCase));
+        viewModel.LocalSummary = mine == null || byScore.Count < 2 ? string.Empty
+            : mine.Position == 1 ? $"Your best is #1 of {byScore.Count} here"
+            : $"Your best is #{mine.Position} of {byScore.Count} here · {(byScore[0].Entry.Score - mine.Entry.Score).ToString("N0", CultureInfo.InvariantCulture)} behind #1";
+        viewModel.NotifyTabsChanged();
+
+        // a replay that was just downloaded becomes the target
+        if (pendingPin.Length > 0 && viewModel.ReplayRows.FirstOrDefault(row => string.Equals(row.Entry.FilePath, pendingPin, StringComparison.OrdinalIgnoreCase)) is { HasReplay: true } downloaded)
+        {
+            pendingPin = string.Empty;
+            if (!downloaded.IsPinned)
+                downloaded.IsPinned = true;
+        }
+
+        markOnlineTarget();
+    }
+
+    // --- Online ranking ---
+
+    private void ShowLocalTab(object? sender, RoutedEventArgs e) => viewModel.IsOnlineTab = false;
+
+    private void ShowOnlineTab(object? sender, RoutedEventArgs e)
+    {
+        viewModel.IsOnlineTab = true;
+        if (viewModel.OnlineRows.Count == 0)
+            loadOnline();
+    }
+
+    private async void loadOnline()
+    {
+        try
+        {
+            var md5 = currentSnapshot.BeatmapChecksum;
+            var map = string.IsNullOrEmpty(md5) ? null : library.Maps.Find(md5);
+            if (string.IsNullOrEmpty(md5))
+                return;
+
+            if (!leaderboard.HasClient)
+            {
+                viewModel.OnlineNote = "Enter an osu! API client in Settings → osu! API to see this map's online ranking.";
+                return;
+            }
+
+            if (map == null || map.BeatmapId <= 0)
+            {
+                viewModel.OnlineNote = map == null ? "The library hasn't read this map yet." : "This map isn't on osu!'s website, so it has no online ranking.";
+                return;
+            }
+
+            viewModel.OnlineNote = "Asking osu! for the ranking…";
+            var scores = await leaderboard.GetDetailedAsync(map.BeatmapId);
+            if (md5 != currentSnapshot.BeatmapChecksum)
+                return;
+
+            onlineScores = scores;
+            onlineScoresMd5 = md5;
+            viewModel.OnlineRows.Clear();
+            foreach (var score in scores)
+            {
+                viewModel.OnlineRows.Add(new OnlineScoreRow(score, string.Equals(score.Player, library.Player, StringComparison.OrdinalIgnoreCase))
+                {
+                    IsSaved = File.Exists(downloadPath(md5, score.ScoreId)),
+                });
+            }
+
+            viewModel.OnlineNote = scores.Count == 0 ? "No scores came back (no leaderboard, or osu! couldn't be reached). It is asked again in a minute." : string.Empty;
+
+            var mine = viewModel.OnlineRows.FirstOrDefault(row => row.IsUser);
+            viewModel.OnlineSummary = mine == null ? (scores.Count > 0 ? $"You aren't in the top {scores.Count}" : string.Empty)
+                : mine.Score.Position == 1 ? "You are #1"
+                : $"You are #{mine.Score.Position} · {(scores[mine.Score.Position - 2].TotalScore - mine.Score.TotalScore).ToString("N0", CultureInfo.InvariantCulture)} behind #{mine.Score.Position - 1}";
+            viewModel.NotifyTabsChanged();
+            markOnlineTarget();
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+            viewModel.OnlineNote = $"Couldn't read the ranking: {ex.Message}";
+        }
+    }
+
+    private void markOnlineTarget()
+    {
+        var target = viewModel.Target?.FilePath ?? string.Empty;
+        var md5 = currentSnapshot.BeatmapChecksum;
+        foreach (var row in viewModel.OnlineRows)
+            row.IsTarget = target.Length > 0 && string.Equals(target, downloadPath(md5, row.Score.ScoreId), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>A click on an online score: its replay is downloaded (that one only, once) and becomes the comparison target.</summary>
+    private async void OnlineTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Source is not StyledElement { DataContext: OnlineScoreRow row } || row.IsBusy)
+            return;
+
+        try
+        {
+            var md5 = currentSnapshot.BeatmapChecksum;
+            var path = downloadPath(md5, row.Score.ScoreId);
+            if (currentSnapshot.IsStable)
+            {
+                row.Note = "Downloaded replays are compared in osu!lazer: this map is shown from osu!stable.";
+                return;
+            }
+
+            if (!row.IsSaved)
+            {
+                if (!row.Score.HasReplay)
+                {
+                    row.Note = "osu! has no replay of this score";
+                    return;
+                }
+
+                row.IsBusy = true;
+                bool ok = await leaderboard.DownloadReplayAsync(row.Score.ScoreId, path);
+                row.IsBusy = false;
+                if (!ok)
+                {
+                    row.Note = string.IsNullOrEmpty(leaderboard.LastError) ? "Couldn't download the replay" : leaderboard.LastError;
+                    return;
+                }
+
+                row.Note = string.Empty;
+                row.IsSaved = true;
+            }
+
+            if (md5 != currentSnapshot.BeatmapChecksum)
+                return;
+
+            pendingPin = path;
+            RefreshReplays();
+        }
+        catch (Exception ex)
+        {
+            row.IsBusy = false;
+            row.Note = ex.Message;
+            InternalLogger.Log(ex);
+        }
+    }
+
+    // --- Rivals for the pacemaker overlay ---
+
+    private const int max_rivals = 12;
+
+    /// <summary>The opponents for the game's map: local replays at the play's rate, and leaderboard scores without a replay here.</summary>
+    private RivalSet buildRivals()
+    {
+        string mode = settingsService.Current.RivalsMode is "online" or "both" ? settingsService.Current.RivalsMode : "local";
+        var live = Volatile.Read(ref liveSnapshot);
+
+        List<ReplayEntry> replays;
+        ReplayEntry? selected;
+        string md5;
+        lock (replayLock)
+        {
+            replays = currentReplays.ToList();
+            md5 = currentReplaysMd5;
+            selected = replaySelection.GetSelected(replays);
+        }
+
+        // the list belongs to the game's map only while the page shows it
+        if (string.IsNullOrEmpty(md5) || !string.Equals(md5, live.BeatmapChecksum, StringComparison.OrdinalIgnoreCase))
+            return new RivalSet(live.BeatmapChecksum, mode, library.Player, []);
+
+        var target = selected ?? replays.FirstOrDefault(replay => AutoTargetRule.IsCompatible(replay, live.PlaySpeed));
+        var rivals = new List<Rival>();
+        if (mode != "online")
+        {
+            foreach (var replay in replays.Where(replay => replay.HasReplay && (AutoTargetRule.IsCompatible(replay, live.PlaySpeed) || ReferenceEquals(replay, selected))))
+            {
+                rivals.Add(new Rival(replay.FilePath, replay.Player, "replay", replay.FilePath, replay.Score, replay.Accuracy, replay.MaxCombo, Ranks.Letter(replay.Rank), replay.ModsText,
+                    replay.Date, target != null && string.Equals(target.FilePath, replay.FilePath, StringComparison.OrdinalIgnoreCase),
+                    string.Equals(replay.Player, library.Player, StringComparison.OrdinalIgnoreCase)));
+            }
+        }
+
+        if (mode != "local" && string.Equals(onlineScoresMd5, md5, StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var score in onlineScores)
+            {
+                var path = downloadPath(md5, score.ScoreId);
+                if (rivals.Any(rival => string.Equals(rival.FilePath, path, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                bool saved = File.Exists(path);
+                rivals.Add(new Rival($"online:{score.ScoreId}", score.Player, saved ? "replay" : "online", saved ? path : string.Empty, score.TotalScore, score.Accuracy, score.MaxCombo,
+                    Ranks.Letter(score.Rank), score.Mods.Count == 0 ? "NM" : string.Join(" ", score.Mods), score.Date?.ToString("O") ?? string.Empty,
+                    false, string.Equals(score.Player, library.Player, StringComparison.OrdinalIgnoreCase)));
+            }
+        }
+
+        return new RivalSet(md5, mode, library.Player, rivals.OrderByDescending(rival => rival.Score).Take(max_rivals).ToList());
+    }
+
+    private void OpenDataFolder(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = $"\"{AppPaths.Root}\"", UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+}

@@ -44,6 +44,25 @@ public sealed class ReplayRow : ObservableObject
     public string ComboText => Entry.MaxCombo.ToString("N0", CultureInfo.InvariantCulture);
     public string Rank => Entry.Rank;
 
+    /// <summary>"SS", "S", "A" … (osu!lazer names SS "X").</summary>
+    public string RankLetter => Ranks.Letter(Entry.Rank);
+    public Avalonia.Media.IBrush RankBrush => DifficultyColors.ForRank(Entry.Rank);
+
+    private int position;
+
+    /// <summary>Its place among the listed replays, by score.</summary>
+    public int Position
+    {
+        get => position;
+        set
+        {
+            if (Set(ref position, value))
+                OnPropertyChanged(nameof(PositionText));
+        }
+    }
+
+    public string PositionText => position > 0 ? position.ToString(CultureInfo.InvariantCulture) : string.Empty;
+
     /// <summary>False for an osu!stable score whose replay file is missing: listed, but it can't be compared against.</summary>
     public bool HasReplay => Entry.HasReplay;
 

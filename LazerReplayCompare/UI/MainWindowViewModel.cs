@@ -74,7 +74,7 @@ public enum ReplaySortKey
 }
 
 /// <summary>State shown by <see cref="MainWindow"/> and <see cref="CompactWindow"/>.</summary>
-public sealed class MainWindowViewModel : ObservableObject
+public sealed partial class MainWindowViewModel : ObservableObject
 {
     public ObservableCollection<ReplayRow> ReplayRows { get; } = new();
 
@@ -97,6 +97,7 @@ public sealed class MainWindowViewModel : ObservableObject
             OnPropertyChanged(nameof(ShowBackdrop));
             OnPropertyChanged(nameof(ShowCompareList));
             OnPropertyChanged(nameof(ShowDetailsPage));
+            OnPropertyChanged(nameof(ShowLibraryPage));
         }
     }
 
@@ -118,8 +119,8 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    public bool ShowCompareList => IsComparePage && Details == null;
-    public bool ShowDetailsPage => IsComparePage && Details != null;
+    public bool ShowCompareList => IsComparePage && Details == null && !IsLibraryOpen;
+    public bool ShowDetailsPage => IsComparePage && Details != null && !IsLibraryOpen;
 
     // --- Connections ---
 
@@ -214,6 +215,7 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowDisconnectedPlaceholder));
         OnPropertyChanged(nameof(ShowNoReplays));
         OnPropertyChanged(nameof(ShowNoBeatmap));
+        NotifyTabsChanged();
     }
 
     // --- Beatmap and replays ---
@@ -272,6 +274,7 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowCompareContent));
         OnPropertyChanged(nameof(ShowNoReplays));
         OnPropertyChanged(nameof(ShowNoBeatmap));
+        NotifyTabsChanged();
     }
 
     // --- Sorting ---

@@ -44,6 +44,24 @@ public sealed class AppSettings
     public string? SubMetric { get; set; }
     public bool ShowBackground { get; set; } = true;
 
+    // The library (3.0): how it is grouped and what number leads each map
+    public string LibraryGroupBy { get; set; } = "dan";
+    public string LibraryNumber { get; set; } = "sunny";
+    public string LibraryKeys { get; set; } = "0";
+    public string LibraryRate { get; set; } = string.Empty;
+
+    /// <summary>Each map's background across its row in the library.</summary>
+    public bool RowBackgrounds { get; set; } = true;
+
+    /// <summary>The library card beside the map page is open.</summary>
+    public bool RailExpanded { get; set; }
+
+    /// <summary>Who the pacemaker overlay races against: "local", "online" or "both".</summary>
+    public string RivalsMode { get; set; } = "local";
+
+    /// <summary>Estimate dans with the analyser's estimators (a headless browser in the background).</summary>
+    public bool UseDanEngine { get; set; } = true;
+
     /// <summary>Open the details of the replay a results screen shows.</summary>
     public bool OpenDetailsOnResults { get; set; } = true;
 
