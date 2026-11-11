@@ -228,6 +228,13 @@ public sealed class LazerReplayStore : IDisposable
         }
     }
 
+    /// <summary>Every kept replay with the beatmaps (MD5) it belongs to, for the library's records.</summary>
+    public List<(IReadOnlyList<string> Md5s, ReplayEntry Entry)> All()
+    {
+        lock (sync)
+            return replays.Values.Select(replay => ((IReadOnlyList<string>)replay.Beatmaps, replay.Entry)).ToList();
+    }
+
     public void Dispose()
     {
         lock (sync)

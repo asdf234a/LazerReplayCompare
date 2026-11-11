@@ -17,9 +17,10 @@ public sealed class SunnyCache
     /// <summary>Changes when the algorithm's port gives different numbers, so old ones are thrown away</summary>
     private const int Algorithm = 1;
 
+    /// <summary>The key counts with dan tables (every key count from 1 to 10 gets a Sunny rating)</summary>
     public static readonly int[] KeyCounts = [4, 6, 7];
 
-    public static bool Rated(int keys) => Array.IndexOf(KeyCounts, keys) >= 0;
+    public static bool Rated(int keys) => keys is >= 1 and <= 10;
 
     /// <summary>A rating and the chart file it came from (size and last write, to notice edits)</summary>
     private sealed class Entry

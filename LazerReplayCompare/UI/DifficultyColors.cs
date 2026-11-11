@@ -1,0 +1,133 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
+
+namespace LazerReplayCompare;
+
+/// <summary>
+/// The colours of difficulty numbers and grades. A number is coloured by its own scale: Sunny star ratings and osu!'s
+/// star ratings run along osu!'s difficulty spectrum; the estimators' dan numbers run along the same spectrum, which
+/// they cover about 1.8 times as fast.
+/// </summary>
+public static class DifficultyColors
+{
+    // osu!'s star rating spectrum (OsuColour.ForStarDifficulty)
+    private static readonly (double At, Color Color)[] spectrum =
+    [
+        (0.1, Color.Parse("#4290FB")), (1.25, Color.Parse("#4FC0FF")), (2.0, Color.Parse("#4FFFD5")), (2.5, Color.Parse("#7CFF4F")),
+        (3.3, Color.Parse("#F6F05C")), (4.2, Color.Parse("#FF8068")), (4.9, Color.Parse("#FF4E6F")), (5.8, Color.Parse("#C645B8")),
+        (6.7, Color.Parse("#6563DE")), (7.7, Color.Parse("#18158E")), (9.0, Color.Parse("#000000")),
+    ];
+
+    private static readonly Dictionary<int, IBrush> cache = new();
+
+    public static IBrush ForStars(double stars) => brush(stars);
+
+    /// <summary>Sunny ratings sit a little above osu!'s for the same map, so they are read a little lower on the spectrum.</summary>
+    public static IBrush ForSunny(double sunny) => brush(sunny * 0.85);
+
+    public static IBrush ForDanLevel(double level) => brush(level * 0.55);
+
+    public static readonly IBrush Neutral = new SolidColorBrush(Color.Parse("#9AA3B2")).ToImmutable();
+
+    private static IBrush brush(double value)
+    {
+        if (!double.IsFinite(value))
+            return Neutral;
+
+        int key = (int)Math.Round(Math.Clamp(value, 0, 12) * 20);
+        lock (cache)
+        {
+            if (!cache.TryGetValue(key, out var found))
+                cache[key] = found = new SolidColorBrush(readable(at(key / 20.0))).ToImmutable();
+            return found;
+        }
+    }
+
+    private static Color at(double value)
+    {
+        if (value <= spectrum[0].At)
+            return spectrum[0].Color;
+
+        for (int i = 1; i < spectrum.Length; i++)
+        {
+            if (value > spectrum[i].At)
+                continue;
+
+            var (a, b) = (spectrum[i - 1], spectrum[i]);
+            double t = (value - a.At) / (b.At - a.At);
+            return Color.FromRgb(mix(a.Color.R, b.Color.R, t), mix(a.Color.G, b.Color.G, t), mix(a.Color.B, b.Color.B, t));
+        }
+
+        return spectrum[^1].Color;
+    }
+
+    private static byte mix(byte a, byte b, double t) => (byte)Math.Round(a + (b - a) * t);
+
+    /// <summary>The spectrum's dark end is unreadable as text on the app's dark surfaces: it is lifted towards a light violet.</summary>
+    private static Color readable(Color color)
+    {
+        double luminance = (0.2126 * color.R + 0.7152 * color.G + 0.0722 * color.B) / 255;
+        if (luminance >= 0.42)
+            return color;
+
+        double lift = Math.Clamp((0.42 - luminance) / 0.42, 0, 1) * 0.75 + 0.15;
+        var target = Color.Parse("#C9BBFF");
+        return Color.FromRgb(mix(color.R, target.R, lift), mix(color.G, target.G, lift), mix(color.B, target.B, lift));
+    }
+
+    // --- Grades ---
+
+    private static readonly Dictionary<string, IBrush> ranks = new()
+    {
+        ["SS"] = new SolidColorBrush(Color.Parse("#FF9CC8")).ToImmutable(),
+        ["S"] = new SolidColorBrush(Color.Parse("#F5C451")).ToImmutable(),
+        ["A"] = new SolidColorBrush(Color.Parse("#6EE7A0")).ToImmutable(),
+        ["B"] = new SolidColorBrush(Color.Parse("#60A5FA")).ToImmutable(),
+        ["C"] = new SolidColorBrush(Color.Parse("#C4A1FF")).ToImmutable(),
+        ["D"] = new SolidColorBrush(Color.Parse("#FF8A8A")).ToImmutable(),
+        ["F"] = new SolidColorBrush(Color.Parse("#8B93A3")).ToImmutable(),
+        [""] = new SolidColorBrush(Color.Parse("#4A5261")).ToImmutable(),
+    };
+
+    /// <summary>The colour of a grade, by its letter ("SS" … "D"; osu!lazer's "X", "XH", "SH" are understood too).</summary>
+    public static IBrush ForRank(string? rank) => ranks.GetValueOrDefault(Ranks.Letter(rank)) ?? Neutral;
+}
+
+/// <summary>How many of a group's maps have each grade, as one thin bar (SS first, never played last).</summary>
+public sealed class RankBar : Control
+{
+    public static readonly StyledProperty<IReadOnlyList<int>?> CountsProperty = AvaloniaProperty.Register<RankBar, IReadOnlyList<int>?>(nameof(Counts));
+
+    /// <summary>Counts in <see cref="Ranks.Letters"/> order.</summary>
+    public IReadOnlyList<int>? Counts
+    {
+        get => GetValue(CountsProperty);
+        set => SetValue(CountsProperty, value);
+    }
+
+    static RankBar()
+    {
+        AffectsRender<RankBar>(CountsProperty);
+    }
+
+    public override void Render(DrawingContext context)
+    {
+        var counts = Counts;
+        double total = counts?.Sum() ?? 0;
+        if (counts == null || total <= 0)
+            return;
+
+        double x = 0;
+        using var clip = context.PushClip(new RoundedRect(new Rect(Bounds.Size), Bounds.Height / 2));
+        for (int i = 0; i < counts.Count && i < Ranks.Letters.Length; i++)
+        {
+            if (counts[i] <= 0)
+                continue;
+
+            double width = Bounds.Width * counts[i] / total;
+            context.FillRectangle(DifficultyColors.ForRank(Ranks.Letters[i]), new Rect(x, 0, Math.Max(0, width - 1), Bounds.Height));
+            x += width;
+        }
+    }
+}

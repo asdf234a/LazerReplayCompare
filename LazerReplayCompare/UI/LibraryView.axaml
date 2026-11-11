@@ -1,0 +1,173 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:LazerReplayCompare"
+             x:Class="LazerReplayCompare.LibraryView"
+             x:CompileBindings="False">
+  <UserControl.Styles>
+    <Style Selector="ListBox.plainList">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.plainList ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="ListBox.plainList ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource RowHoverBrush}" />
+    </Style>
+    <Style Selector="ListBox.plainList ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource OptionSelectedBrush}" />
+    </Style>
+    <Style Selector="Border.nowBadge">
+      <Setter Property="Background" Value="{DynamicResource TextBrush}" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="6,1" />
+    </Style>
+    <Style Selector="Border.nowBadge TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource PageBrush}" />
+      <Setter Property="FontSize" Value="10.5" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style Selector="TextBox.search">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBox.search:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.search:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid x:Name="Root" RowDefinitions="Auto,Auto,*" Margin="20,14,20,0">
+    <!-- Search and what is listed -->
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+      <Border Classes="surface" Classes.glass="{Binding Glass}" CornerRadius="10" Padding="12,0" Height="40">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+          <Path Width="15" Height="15" Stretch="Uniform" StrokeThickness="1.8" Stroke="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                Data="M10.5,10.5 L15,15 M6.5,1.5 A5,5 0 1 1 6.49,1.5 Z" />
+          <TextBox x:Name="SearchBox" Grid.Column="1" Classes="search" Text="{Binding SearchText, Mode=TwoWay}" PlaceholderText="{Binding SearchWatermark}"
+                   ToolTip.Tip="Words, and filters: sunny, stars, dan, keys, od, hp, bpm, ln, length, notes, plays, acc, rank with = != &gt; &gt;= &lt; &lt;=. For example: sunny&gt;5 rank&lt;s length&lt;2:30" />
+          <TextBlock Grid.Column="2" Classes="muted" FontSize="12" Text="Ctrl F" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <ComboBox MinWidth="150" ItemsSource="{Binding CollectionOptions}" SelectedItem="{Binding SelectedCollection, Mode=TwoWay}" ToolTip.Tip="Only the maps of a collection" />
+        <ComboBox MinWidth="112" ItemsSource="{Binding NumberOptions}" SelectedItem="{Binding SelectedNumber, Mode=TwoWay}"
+                  ToolTip.Tip="The number each map is led by: its Sunny star rating, the estimators' dan number (a * marks a Sunny rating standing in for it), or osu!'s stars" />
+        <ComboBox MinWidth="104" ItemsSource="{Binding KeysOptions}" SelectedItem="{Binding SelectedKeys, Mode=TwoWay}" />
+        <ComboBox MinWidth="104" ItemsSource="{Binding RateOptions}" SelectedItem="{Binding SelectedRate, Mode=TwoWay}" ToolTip.Tip="Best plays at this rate or faster" />
+      </StackPanel>
+    </Grid>
+
+    <TextBlock Grid.Row="1" Margin="4,8,4,0" FontSize="13" Foreground="{DynamicResource TargetLabelBrush}" Text="{Binding FilterNote}" IsVisible="{Binding HasFilterNote}" />
+
+    <Grid Grid.Row="2" x:Name="Panes" ColumnDefinitions="264,*" ColumnSpacing="12" Margin="0,10,0,0">
+      <!-- Groups -->
+      <Border x:Name="GroupsPane" Classes="surface" Classes.glass="{Binding Glass}" CornerRadius="12,12,0,0" ClipToBounds="True">
+        <DockPanel>
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="14,10,10,10">
+            <TextBlock Classes="muted" FontSize="12" Text="Group by" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding GroupByOptions}" SelectedItem="{Binding SelectedGroupBy, Mode=TwoWay}" />
+          </Grid>
+          <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource RowDividerBrush}" />
+          <ListBox Classes="plainList" ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="local:LibraryGroup">
+                <StackPanel Margin="14,9,14,10" Spacing="7">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Classes="secondary mono" FontSize="12" Text="{Binding CountText}" VerticalAlignment="Bottom" />
+                  </Grid>
+                  <local:RankBar Height="5" Counts="{Binding RankCounts}" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+
+      <!-- Maps -->
+      <Border Grid.Column="1" Classes="surface" Classes.glass="{Binding Glass}" CornerRadius="12,12,0,0" ClipToBounds="True">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="12" Margin="20,12,20,10">
+            <TextBlock Text="{Binding GroupTitle}" FontSize="17" FontWeight="Bold" />
+            <TextBlock Grid.Column="1" Classes="secondary" FontSize="12" Text="{Binding GroupCountText}" VerticalAlignment="Bottom" Margin="0,0,0,2" />
+            <TextBlock Grid.Column="2" Classes="muted" FontSize="12" Text="{Binding StatusText}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,2" TextTrimming="CharacterEllipsis" />
+          </Grid>
+
+          <Grid Grid.Row="1" x:Name="MapHeader" Classes="mapCells" ColumnDefinitions="132,*,48,62,48,58,64,28,126,56,30" Margin="20,0,14,4">
+            <Button Classes="sortHeader" HorizontalContentAlignment="Left" Content="{Binding NumberHeader}" Tag="Number" Click="SortClicked" ToolTip.Tip="The dan is under the number" />
+            <Button Grid.Column="1" Classes="sortHeader" HorizontalContentAlignment="Left" Content="{Binding TitleHeader}" Tag="Title" Click="SortClicked" />
+            <Button Grid.Column="2" Classes="sortHeader" Content="{Binding KeysHeader}" Tag="Keys" Click="SortClicked" />
+            <Button Grid.Column="3" Classes="sortHeader" Content="{Binding StarsHeader}" Tag="Stars" Click="SortClicked" />
+            <Button Grid.Column="4" Classes="sortHeader" Content="{Binding OdHeader}" Tag="Od" Click="SortClicked" />
+            <Button Grid.Column="5" Classes="sortHeader" Content="{Binding BpmHeader}" Tag="Bpm" Click="SortClicked" />
+            <Button Grid.Column="6" Classes="sortHeader" Content="{Binding LengthHeader}" Tag="Length" Click="SortClicked" />
+            <Button Grid.Column="8" Classes="sortHeader" HorizontalContentAlignment="Left" Content="{Binding RankHeader}" Tag="Rank" Click="SortClicked" />
+            <Button Grid.Column="9" Classes="sortHeader" Content="{Binding PlaysHeader}" Tag="Plays" Click="SortClicked" />
+          </Grid>
+
+          <ListBox Grid.Row="2" x:Name="MapList" Classes="plainList" ItemsSource="{Binding Rows}" Tapped="MapTapped" KeyDown="MapListKeyDown">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="local:MapRow">
+                <Border Height="64" Cursor="Hand" ClipToBounds="True" BorderBrush="{DynamicResource RowDividerBrush}" BorderThickness="0,1,0,0" ToolTip.Tip="{Binding BestTooltip}">
+                  <Panel>
+                    <!-- The map's background across the row: dark under the number and title, showing towards the right. -->
+                    <Image Source="{Binding Background}" Stretch="UniformToFill" IsVisible="{Binding Background, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <Border IsVisible="{Binding Background, Converter={x:Static ObjectConverters.IsNotNull}}">
+                      <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                          <GradientStop Offset="0" Color="{DynamicResource BannerScrim100Color}" />
+                          <GradientStop Offset="0.38" Color="{DynamicResource BannerScrim92Color}" />
+                          <GradientStop Offset="1" Color="{DynamicResource BannerScrim35Color}" />
+                        </LinearGradientBrush>
+                      </Border.Background>
+                    </Border>
+                    <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TextBrush}" IsVisible="{Binding IsNowPlaying}" />
+                    <Grid Classes="mapCells" ColumnDefinitions="132,*,48,62,48,58,64,28,126,56,30" Margin="20,0,14,0">
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="24" FontWeight="Bold" Foreground="{Binding NumberBrush}" LineHeight="28" />
+                        <TextBlock Text="{Binding DanText}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3" Margin="0,0,16,0">
+                        <DockPanel HorizontalAlignment="Left">
+                          <Border DockPanel.Dock="Right" Classes="nowBadge" Margin="10,0,0,0" VerticalAlignment="Center" IsVisible="{Binding IsNowPlaying}">
+                            <TextBlock Text="NOW PLAYING" />
+                          </Border>
+                          <TextBlock DockPanel.Dock="Right" Classes="secondary" Text="{Binding DiffText}" FontSize="14" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Bottom" MaxWidth="220" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                        <TextBlock Classes="muted" FontSize="12" Text="{Binding Sub}" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="2" Classes="mono" Text="{Binding KeysText}" FontWeight="SemiBold" TextAlignment="Right" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="3" Classes="mono" Text="{Binding StarsText}" TextAlignment="Right" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="4" Classes="mono" Text="{Binding OdText}" TextAlignment="Right" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="5" Classes="mono" Text="{Binding BpmText}" TextAlignment="Right" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="6" Classes="mono" Text="{Binding LengthText}" TextAlignment="Right" VerticalAlignment="Center" />
+                      <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding RankText}" Width="28" FontSize="20" FontWeight="Bold" Foreground="{Binding RankBrush}" VerticalAlignment="Center" />
+                        <TextBlock Classes="mono" Text="{Binding AccText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="9" Classes="mono" Text="{Binding PlaysText}" TextAlignment="Right" VerticalAlignment="Center" />
+                      <Path Grid.Column="10" Width="14" Height="14" Stretch="Uniform" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
+                            Stroke="{DynamicResource TextSecondaryBrush}" Data="M9,6 L15,12 L9,18" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+                  </Panel>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>
