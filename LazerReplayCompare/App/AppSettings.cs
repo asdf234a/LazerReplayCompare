@@ -62,6 +62,9 @@ public sealed class AppSettings
     /// <summary>Estimate dans with the analyser's estimators (a headless browser in the background).</summary>
     public bool UseDanEngine { get; set; } = true;
 
+    /// <summary>How much of the CPU rating maps and estimating dans may take: "light" (a quarter of the cores), "normal" (half) or "fast" (all).</summary>
+    public string BackgroundSpeed { get; set; } = "light";
+
     /// <summary>Open the details of the replay a results screen shows.</summary>
     public bool OpenDetailsOnResults { get; set; } = true;
 

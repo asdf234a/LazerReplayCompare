@@ -285,6 +285,8 @@ public sealed partial class MainWindow : Window
         viewModel.RestoreRivals(current.RivalsMode);
         viewModel.ShowRowBackgrounds = current.RowBackgrounds;
         viewModel.UseDanEngine = current.UseDanEngine;
+        viewModel.RestoreSpeed(current.BackgroundSpeed);
+        applyBackgroundSpeed();
         startLibrary();
     }
 
@@ -317,6 +319,14 @@ public sealed partial class MainWindow : Window
         }
 
         libraryModel.Glass = viewModel.ShowBackdrop;
+        if (saved.BackgroundSpeed != viewModel.BackgroundSpeed)
+        {
+            saved.BackgroundSpeed = viewModel.BackgroundSpeed;
+            settingsService.Save();
+            applyBackgroundSpeed();
+            // a run under way keeps its threads: the ratings start again with the new number (what is done is kept)
+            library.Sunny.Update(library.Maps.Maps);
+        }
 
         ThemeService.Apply(this, viewModel.Theme);
         if (compactWindow != null)

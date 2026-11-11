@@ -52,7 +52,9 @@ public sealed partial class MainWindow
         // maps, ratings and records come in from background threads: the lists follow a moment later, all at once
         library.Changed += () => Dispatcher.UIThread.Post(scheduleLibraryRefresh);
         library.Sunny.Busy = () => isPlaying(Volatile.Read(ref liveSnapshot));
-        library.Sunny.Progress += () => Dispatcher.UIThread.Post(scheduleLibraryRefresh, DispatcherPriority.Background);
+        // progress only moves the numbers in the top bar; the lists are made again when new ratings are in
+        library.Sunny.Progress += scheduleWorkStatus;
+        applyBackgroundSpeed();
         library.Maps.Changed += () => Dispatcher.UIThread.Post(() =>
         {
             updateRecords();
@@ -78,16 +80,93 @@ public sealed partial class MainWindow
         {
             // while thousands of maps are being rated, the lists are made again only every few seconds
             bool working = library.Sunny.Status.Running || danEngine?.Status.Running == true;
-            libraryRefresh.Interval = TimeSpan.FromSeconds(working ? 5 : 0.5);
+            libraryRefresh.Interval = TimeSpan.FromSeconds(working ? 12 : 0.5);
             libraryRefresh.Start();
         }
     }
 
+    private int workStatusQueued;
+
+    /// <summary>Shows how the background work stands, at most a few times a second (called from the workers' threads).</summary>
+    private void scheduleWorkStatus()
+    {
+        if (Interlocked.Exchange(ref workStatusQueued, 1) == 1)
+            return;
+
+        Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                await Task.Delay(400);
+                Volatile.Write(ref workStatusQueued, 0);
+                updateWorkStatus();
+            }
+            catch (Exception ex)
+            {
+                InternalLogger.Log(ex);
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    private void updateWorkStatus()
+    {
+        var sunny = library.Sunny.Status;
+        var dans = danEngine?.Status ?? WorkProgress.Idle;
+        bool reading = library.Maps.Loading && library.Maps.Maps.Count == 0;
+
+        static string remaining(WorkProgress work) => work.Remaining is { } left && left > TimeSpan.Zero
+            ? left.TotalMinutes >= 1 ? $" · about {Math.Ceiling(left.TotalMinutes):0} min left" : " · under a minute left"
+            : string.Empty;
+
+        if (reading)
+        {
+            viewModel.WorkText = "Reading the libraries…";
+            viewModel.WorkPercent = 0;
+            viewModel.WorkDetails = "Reading osu!lazer's and osu!stable's beatmap lists (once; they are kept for the next start).";
+        }
+        else if (sunny.Running)
+        {
+            viewModel.WorkText = sunny.Checking ? "Checking maps…" : $"Rating maps {sunny.Done:N0} / {sunny.Total:N0}{(sunny.Paused ? " (paused)" : "")}";
+            viewModel.WorkPercent = sunny.Fraction * 100;
+            viewModel.WorkDetails = $"Working out each map's Sunny star rating in the background{remaining(sunny)}.\nIt pauses while you play, and what is done is kept, so it only happens once per map."
+                                    + (dans.Running ? $"\nDan estimates: {dans.Done:N0} / {dans.Total:N0}." : string.Empty)
+                                    + "\nSettings → Library sets how much of the CPU it may take.";
+        }
+        else if (dans.Running)
+        {
+            viewModel.WorkText = $"Estimating dans {dans.Done:N0} / {dans.Total:N0}{(dans.Paused ? " (paused)" : "")}";
+            viewModel.WorkPercent = dans.Fraction * 100;
+            viewModel.WorkDetails = $"Estimating each 4K, 6K and 7K map's dan with the analyser, in a hidden browser{remaining(dans)}.\nIt pauses while you play, and what is done is kept.\nSettings → Library sets how much of the CPU it may take.";
+        }
+        else
+        {
+            viewModel.WorkText = string.Empty;
+            viewModel.WorkPercent = 0;
+        }
+    }
+
+    /// <summary>How many threads the ratings and the dan estimates may use, from the setting (applied to runs that start after it).</summary>
+    private void applyBackgroundSpeed()
+    {
+        int cores = Environment.ProcessorCount;
+        int threads = viewModel.BackgroundSpeed switch
+        {
+            "fast" => cores,
+            "normal" => Math.Max(1, cores / 2),
+            _ => Math.Clamp(cores / 4, 1, 6),
+        };
+
+        library.Sunny.Threads = threads;
+        if (danEngine != null)
+            danEngine.Workers = threads;
+    }
+
     private void refreshLibraryNow()
     {
+        updateWorkStatus();
         libraryModel.Glass = viewModel.ShowBackdrop;
         libraryModel.Reload();
-        viewModel.ShowRail = libraryModel.Groups.Count > 0;
+        viewModel.ShowRail = library.Maps.Maps.Count > 0;
         updateMapCard();
 
         var sunny = library.Sunny.Status;
@@ -153,7 +232,8 @@ public sealed partial class MainWindow
             {
                 danEngine = new DanEngine { Busy = () => isPlaying(Volatile.Read(ref liveSnapshot)) };
                 danEngine.Changed += () => Dispatcher.UIThread.Post(scheduleLibraryRefresh);
-                danEngine.Progress += () => Dispatcher.UIThread.Post(scheduleLibraryRefresh, DispatcherPriority.Background);
+                danEngine.Progress += scheduleWorkStatus;
+                applyBackgroundSpeed();
                 var engine = danEngine;
                 library.DanLookup = md5 => engine.Get(md5) is { } estimate ? new DanLookupResult(estimate.Rc, estimate.Ln, estimate.Numeric) : null;
             }

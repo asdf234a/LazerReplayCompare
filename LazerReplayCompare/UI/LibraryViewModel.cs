@@ -441,7 +441,8 @@ public sealed class LibraryViewModel : ObservableObject
             if (!Set(ref nowPlayingMd5, value ?? string.Empty))
                 return;
 
-            foreach (var row in all)
+            // (the rows on screen can be an earlier, identical set: see showGroup)
+            foreach (var row in all.Concat(rows))
                 row.IsNowPlaying = string.Equals(row.Md5, nowPlayingMd5, StringComparison.OrdinalIgnoreCase);
         }
     }
@@ -479,32 +480,107 @@ public sealed class LibraryViewModel : ObservableObject
 
     // --- Building ---
 
-    /// <summary>Reads the service's maps, ratings and records again (on the UI thread; a few thousand maps take a moment).</summary>
-    public void Reload()
+    private bool building;
+    private bool buildAgain;
+    private bool buildAgainRows;
+
+    /// <summary>
+    /// Reads the service's maps, ratings and records again. Tens of thousands of rows are made, filtered and grouped on a
+    /// background thread; the lists follow when they are ready, so the window never waits for them.
+    /// </summary>
+    public void Reload() => build(rows: true);
+
+    /// <summary>Filters and groups the maps again (the search text or an option changed).</summary>
+    public void Rebuild() => build(rows: false);
+
+    private async void build(bool rows)
     {
-        var maps = service.Maps.Maps;
-        double? minRate = double.TryParse(selectedRate.Key, NumberStyles.Float, CultureInfo.InvariantCulture, out var rate) ? rate : null;
-        var built = new List<MapRow>(maps.Count);
-        foreach (var map in maps.Values)
+        if (filling)
+            return;
+
+        // one run at a time: a request made meanwhile runs once more afterwards, with the latest text and options
+        if (building)
         {
-            var record = service.RecordOf(map.Md5);
-            built.Add(new MapRow(map, service.DifficultyOf(map), record?.BestAt(minRate), record?.Plays ?? 0, record?.LastPlayedTicks ?? 0, NumberKind)
-            {
-                IsNowPlaying = string.Equals(map.Md5, nowPlayingMd5, StringComparison.OrdinalIgnoreCase),
-            });
+            buildAgain = true;
+            buildAgainRows |= rows;
+            return;
         }
 
-        all = built;
-        fillOptions(maps);
-        SearchWatermark = maps.Count == 0 ? "Search maps" : $"Search {maps.Count:N0} maps, or filter: sunny>5 rank<s od>=8";
+        building = true;
+        try
+        {
+            do
+            {
+                bool makeRows = rows || buildAgainRows || all.Count == 0;
+                buildAgain = false;
+                buildAgainRows = false;
+                rows = false;
 
-        var sunny = service.Sunny.Status;
-        StatusText = service.Maps.Loading && maps.Count == 0 ? "Reading the games' libraries…"
-            : sunny.Running ? (sunny.Paused ? $"Rating maps paused while you play · {sunny.Done:N0} / {sunny.Total:N0}" : $"Rating maps in the background · {sunny.Done:N0} / {sunny.Total:N0}")
-            : maps.Count == 0 ? service.Maps.Status
-            : string.Empty;
+                var maps = service.Maps.Maps;
+                if (makeRows)
+                {
+                    fillOptions(maps);
+                    SearchWatermark = maps.Count == 0 ? "Search maps" : $"Search {maps.Count:N0} maps, or filter: sunny>5 rank<s od>=8";
+                }
 
-        Rebuild();
+                var sunny = service.Sunny.Status;
+                StatusText = service.Maps.Loading && maps.Count == 0 ? "Reading the games' libraries…"
+                    : sunny.Running ? (sunny.Paused ? $"Rating maps paused while you play · {sunny.Done:N0} / {sunny.Total:N0}" : $"Rating maps in the background · {sunny.Done:N0} / {sunny.Total:N0}")
+                    : maps.Count == 0 ? service.Maps.Status
+                    : string.Empty;
+
+                // what the run works from, read on the UI thread
+                string numberKind = NumberKind;
+                double? minRate = double.TryParse(selectedRate.Key, NumberStyles.Float, CultureInfo.InvariantCulture, out var rate) ? rate : null;
+                string playing = nowPlayingMd5;
+                string text = searchText;
+                int keys = int.TryParse(selectedKeys.Key, out var k) ? k : 0;
+                string collectionName = selectedCollection.Key;
+                var existing = all;
+
+                var (list, note, groups) = await Task.Run(() =>
+                {
+                    var made = existing;
+                    if (makeRows)
+                    {
+                        made = new List<MapRow>(maps.Count);
+                        foreach (var map in maps.Values)
+                        {
+                            var record = service.RecordOf(map.Md5);
+                            made.Add(new MapRow(map, service.DifficultyOf(map), record?.BestAt(minRate), record?.Plays ?? 0, record?.LastPlayedTicks ?? 0, numberKind)
+                            {
+                                IsNowPlaying = string.Equals(map.Md5, playing, StringComparison.OrdinalIgnoreCase),
+                            });
+                        }
+                    }
+
+                    var query = LibraryQuery.Parse(text);
+                    HashSet<string>? collection = null;
+                    if (collectionName.Length > 0)
+                    {
+                        collection = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var osuCollection in service.Maps.Collections.Where(c => string.Equals(c.Name, collectionName, StringComparison.OrdinalIgnoreCase)))
+                            collection.UnionWith(osuCollection.Md5s);
+                    }
+
+                    var shown = made.Where(row => (keys == 0 || row.Map.Keys == keys) && (collection == null || collection.Contains(row.Md5)) && query.Matches(row)).ToList();
+                    var grouped = group(shown).OrderBy(g => g.Order).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                    return (made, query.Note, grouped);
+                });
+
+                all = list;
+                FilterNote = note;
+                apply(groups);
+            } while (buildAgain);
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+        finally
+        {
+            building = false;
+        }
     }
 
     private void fillOptions(IReadOnlyDictionary<string, MapInfo> maps)
@@ -539,33 +615,23 @@ public sealed class LibraryViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedCollection));
     }
 
-    /// <summary>Filters and groups the maps again (the search text or an option changed).</summary>
-    public void Rebuild()
+    /// <summary>Shows freshly made groups. The same groups as before are replaced in place, so the list keeps its place.</summary>
+    private void apply(List<LibraryGroup> groups)
     {
-        if (filling)
-            return;
-
-        var query = LibraryQuery.Parse(searchText);
-        FilterNote = query.Note;
-
-        int keys = int.TryParse(selectedKeys.Key, out var k) ? k : 0;
-        HashSet<string>? collection = null;
-        if (selectedCollection.Key.Length > 0)
+        var previous = selectedGroup?.Name;
+        if (groups.Count == Groups.Count && groups.Select(g => g.Name).SequenceEqual(Groups.Select(g => g.Name)))
         {
-            collection = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var list in service.Maps.Collections.Where(c => string.Equals(c.Name, selectedCollection.Key, StringComparison.OrdinalIgnoreCase)))
-                collection.UnionWith(list.Md5s);
+            for (int i = 0; i < groups.Count; i++)
+                Groups[i] = groups[i];
+        }
+        else
+        {
+            Groups.Clear();
+            foreach (var item in groups)
+                Groups.Add(item);
         }
 
-        var shown = all.Where(row => (keys == 0 || row.Map.Keys == keys) && (collection == null || collection.Contains(row.Md5)) && query.Matches(row)).ToList();
-        var groups = group(shown).OrderBy(g => g.Order).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase).ToList();
-
-        var previous = selectedGroup?.Name;
-        Groups.Clear();
-        foreach (var item in groups)
-            Groups.Add(item);
         markCurrentGroup();
-
         selectedGroup = Groups.FirstOrDefault(g => g.Name == previous) ?? Groups.FirstOrDefault(g => g.IsCurrent)
                         // otherwise the first group that is a real one (not "no dan", "Not rated" …)
                         ?? Groups.FirstOrDefault(g => !g.Name.Contains("no dan", StringComparison.OrdinalIgnoreCase) && !g.Name.StartsWith("No", StringComparison.Ordinal))
@@ -591,7 +657,23 @@ public sealed class LibraryViewModel : ObservableObject
             _ => row => double.IsNaN(row.Number) ? 1000 + (row.Difficulty.Sunny ?? 99) : row.Number,
         };
 
-        Rows = (sortDescending ? list.OrderByDescending(key) : list.OrderBy(key)).ToList();
+        var sorted = (sortDescending ? list.OrderByDescending(key) : list.OrderBy(key)).ToList();
+
+        // the same maps showing the same things: the list on screen stays as it is (its place, its loaded backgrounds)
+        if (sorted.Count == rows.Count && sorted.Count > 0)
+        {
+            bool same = true;
+            for (int i = 0; i < sorted.Count && same; i++)
+            {
+                var (a, b) = (sorted[i], rows[i]);
+                same = a.Md5 == b.Md5 && a.NumberText == b.NumberText && a.DanText == b.DanText && a.RankText == b.RankText && a.AccText == b.AccText && a.Plays == b.Plays;
+            }
+
+            if (same)
+                return;
+        }
+
+        Rows = sorted;
     }
 
     private IEnumerable<LibraryGroup> group(List<MapRow> shown)

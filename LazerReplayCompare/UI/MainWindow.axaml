@@ -142,6 +142,13 @@
 
         <!-- Connection state and compact mode, in the bar (so the page never scrolls under them) -->
         <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <!-- Background work on the library (rating maps, estimating dans), while it runs -->
+          <Border Classes="chip" Padding="10,4" VerticalAlignment="Center" IsVisible="{Binding ShowWork}" ToolTip.Tip="{Binding WorkDetails}">
+            <StackPanel Spacing="3">
+              <TextBlock Classes="mono" FontSize="12" Text="{Binding WorkText}" />
+              <ProgressBar Height="2" MinHeight="2" MinWidth="0" Maximum="100" Value="{Binding WorkPercent}" Foreground="{DynamicResource TargetAccentBrush}" />
+            </StackPanel>
+          </Border>
           <Border Classes="pill" Classes.ok="{Binding AllConnected}" Padding="10,4" VerticalAlignment="Center"
                   ToolTip.Tip="{Binding ConnectionDetails}">
             <StackPanel Orientation="Horizontal" Spacing="7">
@@ -905,6 +912,12 @@
                 <ComboBox Grid.Column="1" MinWidth="130" ItemsSource="{Binding Library.NumberOptions}" SelectedItem="{Binding Library.SelectedNumber, Mode=TwoWay}" />
                 <TextBlock Grid.Column="2" Classes="muted" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"
                            Text="Sunny star rating, the estimators' dan number (a * marks a Sunny rating standing in for it), or osu!'s stars. Each is coloured on its own scale; the dan is always shown under it." />
+              </Grid>
+              <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10">
+                <TextBlock Text="Background work" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1" MinWidth="230" ItemsSource="{Binding SpeedOptions}" SelectedItem="{Binding SelectedSpeed, Mode=TwoWay}" />
+                <TextBlock Grid.Column="2" Classes="muted" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"
+                           Text="How much of the CPU rating maps and estimating dans may take. Light keeps the computer responsive; it always pauses while you play." />
               </Grid>
               <CheckBox Content="Show each map's background across its row" IsChecked="{Binding ShowRowBackgrounds, Mode=TwoWay}" />
               <CheckBox Content="Estimate dans with the analyser (a hidden browser in the background)" IsChecked="{Binding UseDanEngine, Mode=TwoWay}"

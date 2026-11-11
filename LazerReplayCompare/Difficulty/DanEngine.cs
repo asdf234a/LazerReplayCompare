@@ -141,6 +141,9 @@ public sealed class DanEngine : IDisposable
     /// <summary>True while osu! needs the CPU (a play): no new charts go out</summary>
     public Func<bool>? Busy { get; set; }
 
+    /// <summary>Web Workers the browser runs (and threads checking chart files): every core by default. Read when the browser starts.</summary>
+    public int Workers { get; set; } = Environment.ProcessorCount;
+
     /// <summary>The engine's server port, or 0 while the server hasn't been started (nothing to work out yet)</summary>
     public int Port => server.Port;
 
@@ -242,7 +245,7 @@ public sealed class DanEngine : IDisposable
         int added = 0, changed = 0;
         try
         {
-            Parallel.ForEach(maps, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = stop }, map =>
+            Parallel.ForEach(maps, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Workers, 1, Environment.ProcessorCount), CancellationToken = stop }, map =>
             {
                 long size, time;
                 try
@@ -683,7 +686,7 @@ public sealed class DanEngine : IDisposable
         }) info.ArgumentList.Add(arg);
         // Linux runs as root in a container
         if (!OperatingSystem.IsWindows()) info.ArgumentList.Add("--no-sandbox");
-        info.ArgumentList.Add(server.PageUrl(Environment.ProcessorCount));
+        info.ArgumentList.Add(server.PageUrl(Math.Clamp(Workers, 1, Environment.ProcessorCount)));
         try
         {
             browser = Process.Start(info);

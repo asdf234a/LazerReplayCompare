@@ -225,4 +225,58 @@ public sealed partial class MainWindowViewModel
     }
 
     public string DataFolder => AppPaths.Root;
+
+    // --- Background work (rating maps, estimating dans), shown in the top bar while it runs ---
+
+    private string workText = string.Empty;
+    private string workDetails = string.Empty;
+    private double workPercent;
+
+    /// <summary>"Rating maps 1,234 / 45,270" while maps are rated or dans estimated; empty when nothing runs.</summary>
+    public string WorkText
+    {
+        get => workText;
+        set
+        {
+            if (Set(ref workText, value))
+                OnPropertyChanged(nameof(ShowWork));
+        }
+    }
+
+    public string WorkDetails
+    {
+        get => workDetails;
+        set => Set(ref workDetails, value);
+    }
+
+    public double WorkPercent
+    {
+        get => workPercent;
+        set => Set(ref workPercent, value);
+    }
+
+    public bool ShowWork => WorkText.Length > 0;
+
+    public IReadOnlyList<OverlayOption> SpeedOptions { get; } =
+    [
+        new("light", "Light (a quarter of the CPU)"),
+        new("normal", "Normal (half of the CPU)"),
+        new("fast", "Fast (all of the CPU)"),
+    ];
+
+    private OverlayOption? selectedSpeed;
+
+    public OverlayOption? SelectedSpeed
+    {
+        get => selectedSpeed ?? SpeedOptions[0];
+        set
+        {
+            if (value != null && Set(ref selectedSpeed, value))
+                SettingsChanged?.Invoke();
+        }
+    }
+
+    public string BackgroundSpeed => SelectedSpeed?.Key ?? "light";
+
+    public void RestoreSpeed(string speed) => selectedSpeed = SpeedOptions.FirstOrDefault(o => o.Key == speed) ?? SpeedOptions[0];
 }
