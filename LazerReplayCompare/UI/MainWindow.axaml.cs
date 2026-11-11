@@ -136,6 +136,13 @@ public sealed partial class MainWindow : Window
         {
             // (the scroll offset is in page units; the banner sits outside the zoomed page)
             var offset = scroll.Offset.Y;
+            if (banner.Opacity <= 0 && offset > bannerScroll && bannerScroll > 0)
+            {
+                // scrolled past already and going further: nothing of it is on screen to move or fade
+                bannerScroll = offset;
+                return;
+            }
+
             bannerScroll = offset;
             bannerOffset.Y = -offset * viewModel.Zoom;
             // ... and gradually gives way to the blurred copy as the page scrolls (gone once its sharp part is scrolled past).
@@ -149,7 +156,11 @@ public sealed partial class MainWindow : Window
 
             // Fade the content's top edge under the top bar once there is something scrolled past it.
             if (compareScroll.OpacityMask is LinearGradientBrush { GradientStops: [var top, _] })
-                top.Color = Color.FromArgb((byte)Math.Round(255 * (1 - Math.Clamp(compareScroll.Offset.Y / 28, 0, 1))), 0, 0, 0);
+            {
+                var color = Color.FromArgb((byte)Math.Round(255 * (1 - Math.Clamp(compareScroll.Offset.Y / 28, 0, 1))), 0, 0, 0);
+                if (top.Color != color)
+                    top.Color = color;
+            }
         };
         detailsScroll.ScrollChanged += (_, _) => followScroll(detailsScroll);
         viewModel.PropertyChanged += (_, e) =>
@@ -1730,6 +1741,11 @@ public sealed partial class MainWindow : Window
         if (grid == null)
             return;
 
+        // (only when the page's width class changed: see LibraryView.applyColumns)
+        if ((grid.Tag as bool? ?? false) == narrowPage)
+            return;
+
+        grid.Tag = narrowPage;
         grid.ColumnDefinitions = new ColumnDefinitions(narrowPage ? narrow_replay_columns : replay_columns);
         foreach (var cell in grid.Children)
             cell.IsVisible = !narrowPage || !narrow_hidden_columns.Contains(Grid.GetColumn(cell));

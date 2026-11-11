@@ -20,6 +20,12 @@
     <AllowedReferenceRelatedFileExtensions>.none</AllowedReferenceRelatedFileExtensions>
   </PropertyGroup>
 
+  <!-- The build that is run day to day is the Debug one (its data folder sits beside it): it is compiled optimised too,
+       so lists and layout run as fast as in a release. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(OsuReference)' == 'Local'">
     <Reference Include="osu.Framework">
       <HintPath>$(OsuLazerCurrentPath)\osu.Framework.dll</HintPath>

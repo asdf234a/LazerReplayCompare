@@ -77,7 +77,7 @@ public sealed class ReplayDetailsViewModel : ObservableObject
     public string ScoreLabel { get; }
     public string ScoreText => Entry.Score.ToString("N0", invariant);
     public string AccuracyText => ShownAccuracy.Text(Entry.Accuracy, listedFromStable);
-    public string RankText => Entry.Rank;
+    public string RankText => Ranks.Letter(Entry.Rank) is { Length: > 0 } letter ? letter : Entry.Rank;   // SS, not the file's "X"
     public string MaxComboText => Entry.MaxCombo.ToString("N0", invariant);
 
     /// <summary>MAX ÷ 300 to two decimals; "Perfect" when there is no 300.</summary>

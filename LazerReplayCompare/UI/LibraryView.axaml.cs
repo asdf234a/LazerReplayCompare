@@ -158,6 +158,12 @@ public sealed partial class LibraryView : UserControl
         if (grid == null)
             return;
 
+        // (a row is laid out wide to begin with; scrolling hands rows on as they are, and setting the same columns again
+        // would lay each of them out a second time)
+        if ((grid.Tag as bool? ?? false) == narrow)
+            return;
+
+        grid.Tag = narrow;
         grid.ColumnDefinitions = new ColumnDefinitions(narrow ? narrow_map_columns : map_columns);
         foreach (var cell in grid.Children)
             cell.IsVisible = !narrow || !narrow_hidden_columns.Contains(Grid.GetColumn(cell));

@@ -270,7 +270,7 @@ public static class BackdropImage
     /// A small, heavily blurred copy of <paramref name="source"/> for the window backdrop. Blurring a ~160 px copy and
     /// letting it scale up keeps this cheap, and nothing is re-blurred while the UI redraws.
     /// </summary>
-    public static Bitmap? CreateBlurred(Bitmap source, int width = 160, int radius = 5, int passes = 3)
+    public static Bitmap? CreateBlurred(Bitmap source, int width = 320, int radius = 10, int passes = 3)
     {
         try
         {

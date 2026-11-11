@@ -23,7 +23,7 @@ public static class SmoothScroll
     {
         public double Target;
         public double LastSet = double.NaN;
-        public DispatcherTimer? Timer;
+        public bool Running;
         public Stopwatch Watch = new();
     }
 
@@ -36,7 +36,7 @@ public static class SmoothScroll
         // the wheel button held and dragged
         ScrollViewer? dragged = null;
         double pressedAt = 0, pointerAt = 0;
-        DispatcherTimer? dragTimer = null;
+        bool dragLoop = false;
         var dragWatch = new Stopwatch();
         Cursor? cursorBefore = null;
 
@@ -46,7 +46,6 @@ public static class SmoothScroll
                 return;
 
             dragged = null;
-            dragTimer?.Stop();
             window.Cursor = cursorBefore;
         }
 
@@ -64,27 +63,30 @@ public static class SmoothScroll
             e.Handled = true;
 
             dragWatch.Restart();
-            dragTimer ??= new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(8) };
-            dragTimer.Tick -= tick;
-            dragTimer.Tick += tick;
-            dragTimer.Start();
+            if (!dragLoop)
+            {
+                dragLoop = true;
+                Motion.EachFrame(window, () => dragLoop = tick());
+            }
         }, RoutingStrategies.Tunnel);
 
-        void tick(object? sender, EventArgs e)
+        // one frame of the drag; false once the button is up
+        bool tick()
         {
             if (dragged == null)
-                return;
+                return false;
 
             double seconds = Math.Min(dragWatch.Elapsed.TotalSeconds, 0.05);
             dragWatch.Restart();
 
             double away = pointerAt - pressedAt, past = Math.Abs(away) - dead_zone;
             if (past <= 0)
-                return;
+                return true;
 
             // a little away is a slow crawl, far away runs through thousands of rows
             double speed = Math.Sign(away) * (past * 9 + past * past * 0.09);
             setOffset(dragged, dragged.Offset.Y + speed * seconds);
+            return true;
         }
 
         window.AddHandler(InputElement.PointerMovedEvent, (_, e) =>
@@ -120,27 +122,23 @@ public static class SmoothScroll
         double now = scroller.Offset.Y;
 
         // not moving, or moved by something else meanwhile (its bar, a key): the glide starts from where it is
-        if (glide.Timer is not { IsEnabled: true } || double.IsNaN(glide.LastSet) || Math.Abs(now - glide.LastSet) > 1)
+        if (!glide.Running || double.IsNaN(glide.LastSet) || Math.Abs(now - glide.LastSet) > 1)
             glide.Target = now;
 
         glide.Target = Math.Clamp(glide.Target - e.Delta.Y * wheel_step, 0, most(scroller));
         e.Handled = true;
 
-        if (glide.Timer == null)
+        if (!glide.Running)
         {
-            glide.Timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(8) };
-            glide.Timer.Tick += (_, _) => step(scroller, glide);
-        }
-
-        if (!glide.Timer.IsEnabled)
-        {
+            glide.Running = true;
             glide.LastSet = now;
             glide.Watch.Restart();
-            glide.Timer.Start();
+            Motion.EachFrame(scroller, () => glide.Running && step(scroller, glide));
         }
     }
 
-    private static void step(ScrollViewer scroller, Glide glide)
+    /// <summary>One frame of a glide. False when it is over.</summary>
+    private static bool step(ScrollViewer scroller, Glide glide)
     {
         double seconds = Math.Min(glide.Watch.Elapsed.TotalSeconds, 0.05);
         glide.Watch.Restart();
@@ -149,8 +147,7 @@ public static class SmoothScroll
         if (Math.Abs(now - glide.LastSet) > 1)
         {
             // taken elsewhere (the bar was dragged, a row was scrolled to)
-            glide.Timer!.Stop();
-            return;
+            return glide.Running = false;
         }
 
         glide.Target = Math.Clamp(glide.Target, 0, most(scroller));
@@ -158,18 +155,18 @@ public static class SmoothScroll
         if (Math.Abs(left) < 0.5)
         {
             setOffset(scroller, glide.Target);
-            glide.Timer!.Stop();
-            return;
+            return glide.Running = false;
         }
 
         setOffset(scroller, now + left * (1 - Math.Exp(-seconds / glide_time)));
         glide.LastSet = scroller.Offset.Y;
+        return true;
     }
 
     private static void stop(ScrollViewer scroller)
     {
         if (glides.TryGetValue(scroller, out var glide))
-            glide.Timer?.Stop();
+            glide.Running = false;
     }
 
     private static double most(ScrollViewer scroller) => Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);

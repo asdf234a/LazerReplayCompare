@@ -111,7 +111,7 @@
   <Grid>
     <!-- Beatmap background: a blurred copy behind the whole page (the translucent cards sit on it) ... -->
     <Panel IsHitTestVisible="False" IsVisible="{Binding ShowBackdrop}">
-      <local:FocalImage Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="HighQuality" />
+      <local:FocalImage Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="MediumQuality" />
       <Border>
         <Border.Background>
           <SolidColorBrush Color="{DynamicResource BannerScrim80Color}" />
@@ -121,7 +121,7 @@
            the copy under it, so its colours carry on into the page below; it fades out with the banner (down, and as the
            page scrolls) and towards the window's edges (see layoutBanner). -->
       <Panel x:Name="BannerSides" IsVisible="False">
-        <local:FocalImage x:Name="BannerSidesImage" Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="HighQuality" />
+        <local:FocalImage x:Name="BannerSidesImage" Source="{Binding BlurredBackground}" RenderOptions.BitmapInterpolationMode="MediumQuality" />
       </Panel>
     </Panel>
 

@@ -61,6 +61,14 @@ public sealed partial class MainWindow
 
                 if (depth < 0 || shownDepth < 0)
                     Motion.Enter(page, 14, 1, 220);
+                else if (depth == 2)
+                {
+                    // into a replay: its page slides in from the right, and its sections follow one after the other
+                    Motion.Enter(page, 0, 1, 300, offsetX: 56);
+                    this.FindControl<ReplayDetailsView>("DetailsView")?.PlayEntrance();
+                }
+                else if (shownDepth == 2)
+                    Motion.Enter(page, 0, 1, 280, 0.2, offsetX: -40);   // back out of it: the map's page returns from the left
                 else if (depth > shownDepth)
                     Motion.Enter(page, 26, 0.98, 260);
                 else if (depth < shownDepth)

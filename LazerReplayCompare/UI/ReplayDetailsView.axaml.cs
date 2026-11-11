@@ -99,4 +99,22 @@ public sealed partial class ReplayDetailsView : UserControl
         if (this.FindControl<Control>(name) is { } section && scroll.Content is Visual content && section.TranslatePoint(default, content) is { } at)
             scroll.Offset = new Vector(0, Math.Max(0, at.Y - 12));
     }
+
+    /// <summary>The page was opened: its sections arrive one after the other, each rising into place.</summary>
+    public void PlayEntrance()
+    {
+        if (this.FindControl<StackPanel>("Page") is not { } page)
+            return;
+
+        // (once the replay's sections are laid out: which of them there are depends on the replay)
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            int index = 0;
+            foreach (var section in page.Children)
+            {
+                if (section.IsVisible)
+                    Motion.Enter(section, 22, 1, 320, delay: 60 + 55 * Math.Min(index++, 6));
+            }
+        }, Avalonia.Threading.DispatcherPriority.Loaded);
+    }
 }
