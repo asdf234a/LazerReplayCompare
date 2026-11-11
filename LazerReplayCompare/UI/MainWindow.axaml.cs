@@ -117,6 +117,7 @@ public sealed partial class MainWindow : Window
 
         // back from a details page, and zoom, from anywhere in the window (before controls handle the input)
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
+        SmoothScroll.Attach(this);   // gliding wheel, and scrolling by holding the wheel button
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerWheelChangedEvent, OnWindowPointerWheel, RoutingStrategies.Tunnel);
         setUpTitleBar(this.FindControl<Border>("TitleBar")!);
