@@ -1,0 +1,53 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>lr2hp-for-osu dan engine</title>
+<!--
+  Opened by the app in a headless browser (Edge or Chrome). It takes charts from the app over the
+  app's websocket and works out the analyser's dan estimate for each, one Web Worker per core.
+  ?workers=N sets how many workers to use.
+-->
+<script type="module">
+const params = new URLSearchParams(location.search);
+const count = Math.max(1, Number(params.get('workers')) || navigator.hardwareConcurrency || 2);
+const idle = [];
+const queue = [];
+let ws = null;
+
+function send(message) {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+}
+
+function startWorker() {
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+    worker.onmessage = (event) => {
+        const { id, result, error } = event.data || {};
+        send(error ? { type: 'danError', id, error } : { type: 'danResult', id, result });
+        idle.push(worker);
+        pump();
+    };
+    worker.onerror = (event) => send({ type: 'danEngineError', error: String(event.message || 'worker failed') });
+    idle.push(worker);
+}
+
+function pump() {
+    while (idle.length > 0 && queue.length > 0) idle.pop().postMessage(queue.shift());
+}
+
+for (let i = 0; i < count; i++) startWorker();
+
+ws = new WebSocket(`ws://${location.host}/`);
+ws.onopen = () => send({ type: 'hello', overlay: 'dan engine', folder: '', host: 'app', caps: ['danEngine'], workers: count });
+ws.onmessage = (event) => {
+    let message;
+    try {
+        message = JSON.parse(event.data);
+    } catch {
+        return;
+    }
+    if (message.type !== 'danJob') return;
+    queue.push({ id: message.id, text: message.text, settings: message.settings || {} });
+    pump();
+};
+// The app is gone: nothing left to do
+ws.onclose = () => window.close();
+</script>
