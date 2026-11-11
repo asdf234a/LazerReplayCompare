@@ -186,7 +186,7 @@
     <LayoutTransformControl x:Name="PageZoom">
     <Grid>
       <!-- ===================== Compare ===================== -->
-      <Grid IsVisible="{Binding ShowCompareList}" ColumnDefinitions="Auto,*">
+      <Grid x:Name="ComparePage" IsVisible="{Binding ShowCompareList}" ColumnDefinitions="Auto,*">
       <!-- The library beside the map page: folded, a summary of its groups; opened, the maps of one group -->
       <Border x:Name="LibraryRail" Classes="surface" Classes.glass="{Binding ShowBackdrop}" Margin="14,22,0,14" ClipToBounds="True" IsVisible="{Binding ShowRail}">
         <Panel>
@@ -204,7 +204,7 @@
                       <StackPanel Spacing="5">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
                           <TextBlock Classes="muted" FontSize="10" Text="{Binding RailKind}" VerticalAlignment="Bottom" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Grid.Column="1" Text="{Binding RailShort}" FontSize="16" FontWeight="Bold" Foreground="{Binding RailBrush}" TextTrimming="CharacterEllipsis" MaxWidth="68" />
+                          <TextBlock Grid.Column="1" Text="{Binding RailShort}" FontSize="{Binding RailFontSize}" FontWeight="Bold" Foreground="{Binding RailBrush}" TextWrapping="Wrap" MaxWidth="68" />
                         </Grid>
                         <local:RankBar Height="4" Counts="{Binding RankCounts}" />
                       </StackPanel>
@@ -324,7 +324,11 @@
                   <StackPanel Width="150" Spacing="2" IsVisible="{Binding MapCard.HasMap}" VerticalAlignment="Top">
                     <TextBlock Classes="mono" Text="{Binding MapCard.NumberText}" FontSize="44" FontWeight="Bold" Foreground="{Binding MapCard.NumberBrush}" LineHeight="48" />
                     <TextBlock Text="{Binding MapCard.DanText}" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
+                    <TextBlock Classes="secondary" Text="{Binding MapCard.LnDanText}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="{Binding MapCard.HasLnDan}"
+                               ToolTip.Tip="The LN dan: this map is 20% hold notes or more" />
                     <TextBlock Classes="muted" FontSize="11" Text="{Binding MapCard.NumberName}" ToolTip.Tip="Which number is shown is picked in Settings → Library" />
+                    <Button Content="Open in osu!" Click="OpenInOsu" MinHeight="26" Padding="10,0" FontSize="12" Margin="0,8,0,0" HorizontalAlignment="Left"
+                            IsVisible="{Binding MapCard.CanOpenInOsu}" ToolTip.Tip="Opens this beatmap in the game (osu://b/…)" />
                   </StackPanel>
 
                   <StackPanel Grid.Column="1" Spacing="4">
@@ -750,17 +754,17 @@
 
       <!-- ===================== Replay details ===================== -->
       <!-- (its own DataContext is the page's model, so its visibility is bound on a wrapper) -->
-      <Panel IsVisible="{Binding ShowDetailsPage}">
+      <Panel x:Name="DetailsPanel" IsVisible="{Binding ShowDetailsPage}">
         <local:ReplayDetailsView x:Name="DetailsView" DataContext="{Binding Details}" />
       </Panel>
 
       <!-- ===================== Library ===================== -->
-      <Panel IsVisible="{Binding ShowLibraryPage}">
+      <Panel x:Name="LibraryPanel" IsVisible="{Binding ShowLibraryPage}">
         <local:LibraryView x:Name="LibraryPage" DataContext="{Binding Library}" />
       </Panel>
 
       <!-- ===================== Settings ===================== -->
-      <ScrollViewer IsVisible="{Binding IsSettingsPage}" HorizontalScrollBarVisibility="Disabled">
+      <ScrollViewer x:Name="SettingsPage" IsVisible="{Binding IsSettingsPage}" HorizontalScrollBarVisibility="Disabled">
         <StackPanel MaxWidth="820" Margin="28,22,28,32" Spacing="18">
           <TextBlock Text="Settings" FontSize="24" FontWeight="Bold" />
 

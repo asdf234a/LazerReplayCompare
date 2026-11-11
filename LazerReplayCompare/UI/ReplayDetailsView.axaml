@@ -1,4 +1,4 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:LazerReplayCompare"
              x:Class="LazerReplayCompare.ReplayDetailsView"
@@ -261,17 +261,16 @@
                         </StackPanel>
                         <TextBlock Classes="mono" FontSize="12" FontWeight="SemiBold" Text="{Binding AccuracyText}" HorizontalAlignment="Center" />
                       </StackPanel>
-                      <!-- the bar fills from the bottom; misses in its bottom right corner -->
+                      <!-- the lane's judgements, the worse ones at the bottom; misses counted in its bottom right corner -->
                       <Panel Height="120">
                         <Border Background="{DynamicResource ChartBackgroundBrush}" CornerRadius="5" />
-                        <Border Height="{Binding BarHeight}" VerticalAlignment="Bottom" Background="{DynamicResource TextSecondaryBrush}" CornerRadius="5" />
+                        <local:SegmentBar Vertical="True" Segments="{Binding Segments}" Title="{Binding Title}" />
                         <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,3,3" Padding="4,1" CornerRadius="6"
                                 Background="{DynamicResource JudgementMissBrush}" IsVisible="{Binding HasMisses}">
                           <TextBlock Classes="mono" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource PrimaryButtonTextBrush}" Text="{Binding MissText}" />
                         </Border>
                       </Panel>
                     </StackPanel>
-                    <local:SegmentBar Height="6" Segments="{Binding Segments}" Title="{Binding Title}" />
                     <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="4" RowSpacing="1">
                       <TextBlock Classes="muted" FontSize="10" Text="Mean" VerticalAlignment="Center" />
                       <TextBlock Grid.Column="1" Classes="mono" Classes.early="{Binding IsEarly}" Classes.late="{Binding IsLate}" FontSize="11" FontWeight="SemiBold"

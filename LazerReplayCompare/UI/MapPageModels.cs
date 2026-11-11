@@ -39,6 +39,8 @@ public sealed class MapCardViewModel : ObservableObject
             _ => "Sunny",
         };
         DanText = difficulty.Dan ?? (map.Keys is 4 or 6 or 7 ? string.Empty : $"{map.Keys}K has no dans");
+        LnDanText = difficulty.Rc != null && difficulty.Ln != null ? difficulty.Ln : string.Empty;
+        BeatmapId = map.BeatmapId;
 
         StatusLabel = string.IsNullOrEmpty(map.Status) ? string.Empty : MapStatus.Label(map.Status).ToUpperInvariant();
         LengthText = MapRow.FormatLength(map.LengthMs);
@@ -91,6 +93,14 @@ public sealed class MapCardViewModel : ObservableObject
     public IBrush NumberBrush { get; } = DifficultyColors.Neutral;
     public string NumberName { get; } = "Sunny";
     public string DanText { get; } = string.Empty;
+
+    /// <summary>The LN dan of a map of 20 % hold notes or more, shown under the regular one.</summary>
+    public string LnDanText { get; } = string.Empty;
+    public bool HasLnDan => LnDanText.Length > 0;
+
+    /// <summary>The map's id on osu!'s website (0 for a map that was never submitted).</summary>
+    public int BeatmapId { get; }
+    public bool CanOpenInOsu => BeatmapId > 0;
     public string StatusLabel { get; } = string.Empty;
     public bool HasStatus => StatusLabel.Length > 0;
     public string LengthText { get; } = string.Empty;

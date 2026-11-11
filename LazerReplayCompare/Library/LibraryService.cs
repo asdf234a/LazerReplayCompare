@@ -1,10 +1,37 @@
 namespace LazerReplayCompare;
 
-/// <summary>How hard a map is, as the app shows it: its Sunny star rating and, for 4K, 6K and 7K, its dan.</summary>
-/// <param name="Dan">The dan with its part ("Reform 4 mid", "LN 8 high"), or null when there is none.</param>
-/// <param name="DanGroup">The dan without its part ("Reform 4"), which maps are grouped by.</param>
-/// <param name="DanLevel">The estimator's numeric difficulty, when an estimator gave one.</param>
-public sealed record MapDifficulty(double? Sunny, double LnRatio, string? Dan, string? DanGroup, bool DanIsLn, double? DanLevel);
+/// <summary>How hard a map is, as the app shows it: its Sunny star rating and, for 4K, 6K and 7K, its dans.</summary>
+/// <param name="Rc">The regular dan with its part ("Reform 4 mid"), or null when there is none.</param>
+/// <param name="Ln">The LN dan ("LN 8 high"), only for a map of 20 % hold notes or more.</param>
+/// <param name="DanLevel">
+/// The estimator's number, moved so that a dan runs from x.00 to x.99 (Reform 3 is 3.00 to 3.99; the estimators put it
+/// from 2.51 to 3.50), when an estimator gave one.
+/// </param>
+public sealed record MapDifficulty(double? Sunny, double LnRatio, string? Rc, string? Ln, double? DanLevel, int Keys)
+{
+    /// <summary>A map of this share of hold notes or more is listed under its LN dan too.</summary>
+    public const double LnShare = 0.2;
+
+    /// <summary>The dan written under a map's number: the regular one (the LN dan when a map has no regular one).</summary>
+    public string? Dan => Rc ?? Ln;
+
+    /// <summary>The regular dan without its part ("Reform 4"), which maps are grouped by. In 4K everything under Reform 1 is one group.</summary>
+    public string? RcGroup
+    {
+        get
+        {
+            if (Rc == null)
+                return null;
+
+            var dan = Dans.Dan(Rc.TrimStart('<', '>', ' '));
+            return Keys == 4 && (Rc.StartsWith('<') || dan.StartsWith("Intro", StringComparison.OrdinalIgnoreCase)) ? BelowFirst : dan;
+        }
+    }
+
+    public string? LnGroup => Ln == null ? null : Dans.Dan(Ln.TrimStart('<', '>', ' '));
+
+    public const string BelowFirst = "< Reform 1";
+}
 
 /// <summary>A dan estimate from the analyser's estimators (the dan engine), when it has one for a map.</summary>
 public sealed record DanLookupResult(string? Rc, string? Ln, double? Numeric);
@@ -116,15 +143,21 @@ public sealed class LibraryService
             level = estimate.Numeric is { } number && double.IsFinite(number) ? number : null;
         }
 
-        if (rc == null && ln == null && star is { } value)
-            (rc, ln) = Dans.Split(value, lnRatio, map.Keys, extended: true);
+        // what the estimators didn't give comes from the Sunny rating's tables
+        if (star is { } value)
+        {
+            var (tableRc, tableLn) = Dans.Split(value, lnRatio, map.Keys, extended: true);
+            rc ??= known(tableRc);
+            ln ??= known(tableLn);
+        }
 
         rc = known(rc);
-        ln = known(ln);
+        ln = lnRatio >= MapDifficulty.LnShare ? known(ln) : null;
 
-        // a map of mostly holds shows its LN dan, the rest their RC dan
-        bool useLn = ln != null && lnRatio >= 0.15;
-        string? dan = useLn ? ln : rc ?? ln;
-        return new MapDifficulty(star, lnRatio, dan, dan == null ? null : Dans.Dan(dan.TrimStart('<', '>', ' ')), useLn, level);
+        // the estimators put a dan from x-0.49 to x+0.50: half a step up, it runs from x.00 to x.99
+        if (level is { } raw)
+            level = raw + 0.4999;
+
+        return new MapDifficulty(star, lnRatio, rc, ln, level, map.Keys);
     }
 }

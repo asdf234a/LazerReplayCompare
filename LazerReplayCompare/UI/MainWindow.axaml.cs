@@ -1436,9 +1436,26 @@ public sealed partial class MainWindow : Window
         if (viewModel.ShowLibraryPage)
         {
             // back from the library to the map page (Backspace is the search box's while it is typed in)
-            if (e.Key is Key.Escape or Key.BrowserBack || (e.Key == Key.Back && FocusManager?.GetFocusedElement() is not TextBox))
+            if (e.Key is Key.Escape or Key.BrowserBack || (e.Key == Key.Left && e.KeyModifiers == KeyModifiers.Alt)
+                || (e.Key == Key.Back && FocusManager?.GetFocusedElement() is not TextBox))
             {
+                mapOpenedFromLibrary = false;
                 closeLibrary();
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        // a map opened from the library: Back returns to the library
+        if (viewModel.ShowCompareList && mapOpenedFromLibrary)
+        {
+            var onMap = FocusManager?.GetFocusedElement();
+            bool typing = onMap is TextBox || onMap is ComboBox { IsDropDownOpen: true };
+            if (e.Key == Key.BrowserBack || (e.Key == Key.Left && e.KeyModifiers == KeyModifiers.Alt) || (!typing && e.Key is Key.Back or Key.Escape))
+            {
+                mapOpenedFromLibrary = false;
+                openLibrary();
                 e.Handled = true;
             }
 
@@ -1469,7 +1486,14 @@ public sealed partial class MainWindow : Window
 
         if (viewModel.ShowLibraryPage)
         {
+            mapOpenedFromLibrary = false;
             closeLibrary();
+            e.Handled = true;
+        }
+        else if (viewModel.ShowCompareList && mapOpenedFromLibrary)
+        {
+            mapOpenedFromLibrary = false;
+            openLibrary();
             e.Handled = true;
         }
         else if (viewModel.ShowDetailsPage)

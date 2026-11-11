@@ -34,7 +34,28 @@ public sealed partial class MainWindow
         libraryModel = new LibraryViewModel(library);
         viewModel.Library = libraryModel;
         libraryPage = this.FindControl<LibraryView>("LibraryPage")!;
-        libraryPage.MapChosen += row => BrowseTo(row.Map);
+        libraryPage.MapChosen += row =>
+        {
+            BrowseTo(row.Map);
+            mapOpenedFromLibrary = true;   // Back returns to the library
+        };
+
+        // pages and maps fade in rather than snap (short, so nothing waits on it)
+        var pages = new (string Property, Control Page)[]
+        {
+            (nameof(MainWindowViewModel.ShowCompareList), this.FindControl<Control>("ComparePage")!),
+            (nameof(MainWindowViewModel.ShowDetailsPage), this.FindControl<Control>("DetailsPanel")!),
+            (nameof(MainWindowViewModel.ShowLibraryPage), this.FindControl<Control>("LibraryPanel")!),
+            (nameof(MainWindowViewModel.IsSettingsPage), this.FindControl<Control>("SettingsPage")!),
+        };
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            foreach (var (property, page) in pages)
+            {
+                if (e.PropertyName == property && page.IsVisible)
+                    fadeIn(page);
+            }
+        };
 
         var settings = settingsService.Current;
         libraryModel.Restore(settings.LibraryGroupBy, settings.LibraryNumber, settings.LibraryKeys, settings.LibraryRate);
@@ -279,7 +300,10 @@ public sealed partial class MainWindow
     private void RailMapTapped(object? sender, TappedEventArgs e)
     {
         if (e.Source is StyledElement { DataContext: MapRow row })
+        {
             BrowseTo(row.Map);
+            mapOpenedFromLibrary = false;
+        }
     }
 
     // --- Browsing: the map page on a map picked in the library ---
@@ -363,10 +387,61 @@ public sealed partial class MainWindow
             Speed: new PlaySpeed(1, false, stable));
     }
 
+    // the library a map was opened from: Back (Backspace, Esc, the mouse's back button) returns to it
+    private bool mapOpenedFromLibrary;
+    private string fadedMap = string.Empty;
+
+    /// <summary>Fades a page or a card in over a moment.</summary>
+    private static async void fadeIn(Control control, double from = 0, int milliseconds = 170)
+    {
+        try
+        {
+            var animation = new Avalonia.Animation.Animation
+            {
+                Duration = TimeSpan.FromMilliseconds(milliseconds),
+                Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
+                Children =
+                {
+                    new Avalonia.Animation.KeyFrame { Cue = new Avalonia.Animation.Cue(0), Setters = { new Avalonia.Styling.Setter(Visual.OpacityProperty, from) } },
+                    new Avalonia.Animation.KeyFrame { Cue = new Avalonia.Animation.Cue(1), Setters = { new Avalonia.Styling.Setter(Visual.OpacityProperty, 1.0) } },
+                },
+            };
+            await animation.RunAsync(control);
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+
+    private void OpenInOsu(object? sender, RoutedEventArgs e)
+    {
+        if (viewModel.MapCard is not { BeatmapId: > 0 } card)
+            return;
+
+        try
+        {
+            // osu!lazer shows the beatmap's info, osu!stable opens it in osu!direct
+            Process.Start(new ProcessStartInfo { FileName = $"osu://b/{card.BeatmapId}", UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            InternalLogger.Log(ex);
+        }
+    }
+
     /// <summary>The shown map changed (the game's, or one picked in the library): the card, the tabs and the online ranking follow.</summary>
     private void onShownMapChanged()
     {
         var md5 = currentSnapshot.BeatmapChecksum;
+        if (md5 != fadedMap)
+        {
+            // another map: its page fades in (from part way, so browsing song select doesn't flicker)
+            fadedMap = md5;
+            if (viewModel.ShowCompareList && this.FindControl<Control>("CompareContent") is { } content)
+                fadeIn(content, 0.25, 200);
+        }
+
         if (!string.IsNullOrEmpty(md5) && library.Maps.Find(md5) == null && !library.Maps.Loading)
         {
             // a map the library hasn't read yet (just downloaded): read the games' libraries again, not more than twice a minute

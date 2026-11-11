@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using osu.Game.Rulesets.Scoring;
 
@@ -312,7 +312,7 @@ public sealed class ReplayDetailsViewModel : ObservableObject
         double lowest = stats.Lanes.Select(l => l.Accuracy).OfType<double>().DefaultIfEmpty(100).Min();
         double floor = Math.Min(90, Math.Floor(lowest / 5) * 5);
         LaneColumns = stats.Lanes.Select(l => new LaneColumn(l, floor, result.StableJudging) { IsSelected = l.Lane == highlightColumn }).ToList();
-        LanesCaption = $"Accuracy, misses and timing of each lane · bars run from {floor.ToString("0", invariant)}% to 100% · mean in ms";
+        LanesCaption = "Accuracy, judgements and timing of each lane · the box shows the lane's judgements, the worse ones at the bottom · mean in ms";
         HasMiddleLane = stats.HasMiddleLane;
 
         string accuracy(HandStat hand) => hand.Accuracy is double value ? ShownAccuracy.Text(value / 100, result.StableJudging) : "—";

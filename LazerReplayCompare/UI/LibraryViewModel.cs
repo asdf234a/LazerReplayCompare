@@ -36,6 +36,9 @@ public sealed class MapRow : ObservableObject
     public IBrush NumberBrush { get; }
 
     public string DanText => Difficulty.Dan ?? string.Empty;
+
+    /// <summary>The LN dan, for a map of 20 % hold notes or more ("" otherwise).</summary>
+    public string LnDanText => Difficulty.Ln ?? string.Empty;
     public string Title => Map.TitleEnglish.Length > 0 ? Map.TitleEnglish : "(no title)";
     public string DiffText => $"[{Map.Version}]";
     public string Sub => string.IsNullOrWhiteSpace(Map.Mapper) ? Map.ArtistEnglish : $"{Map.ArtistEnglish} · mapped by {Map.Mapper}";
@@ -121,9 +124,22 @@ public sealed class LibraryGroup : ObservableObject
     public IReadOnlyList<int> RankCounts { get; }
     public string CountText => Rows.Count.ToString("N0", CultureInfo.InvariantCulture);
 
-    /// <summary>A short form for the narrow rail: "Reform" over "4", or the whole name.</summary>
-    public string RailKind => Name.Contains(' ') && char.IsDigit(Name[^1]) ? Name[..Name.LastIndexOf(' ')] : string.Empty;
-    public string RailShort => Name.Contains(' ') && char.IsDigit(Name[^1]) ? Name[(Name.LastIndexOf(' ') + 1)..] : Name;
+    private static readonly Dictionary<string, string> greek = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Alpha"] = "α", ["Beta"] = "β", ["Gamma"] = "γ", ["Delta"] = "δ", ["Epsilon"] = "ε",
+        ["Zeta"] = "ζ", ["Eta"] = "η", ["Theta"] = "θ", ["Iota"] = "ι", ["Kappa"] = "κ",
+    };
+
+    private string lastWord => Name.Contains(' ') ? Name[(Name.LastIndexOf(' ') + 1)..] : Name;
+    private bool hasShortForm => char.IsDigit(lastWord[^1]) || greek.ContainsKey(lastWord);
+
+    /// <summary>
+    /// The folded card's label: the dan's number, or its Greek letter for a letter dan ("Emik Zeta" is ζ), under what
+    /// comes before it ("Reform", "Emik"). A name with neither is written whole, small, on as many lines as it needs.
+    /// </summary>
+    public string RailShort => !hasShortForm ? Name : greek.GetValueOrDefault(lastWord) ?? lastWord;
+    public string RailKind => !hasShortForm ? string.Empty : Name.Contains(' ') ? Name[..Name.LastIndexOf(' ')] : (greek.ContainsKey(Name) ? Name : string.Empty);
+    public double RailFontSize => hasShortForm ? 18 : 11;
     public IBrush RailBrush => Rows.Count == 0 ? DifficultyColors.Neutral : Rows[Rows.Count / 2].NumberBrush;
 
     private bool isCurrent;
@@ -183,6 +199,7 @@ public sealed class LibraryViewModel : ObservableObject
     public IReadOnlyList<LibraryOption> GroupByOptions { get; } =
     [
         new("dan", "Dan"),
+        new("lndan", "LN dan"),
         new("sunny", "Sunny SR"),
         new("stars", "osu! stars"),
         new("collection", "Collection"),
@@ -198,7 +215,14 @@ public sealed class LibraryViewModel : ObservableObject
         new(NumberStars, "Stars"),
     ];
 
-    public ObservableCollection<LibraryOption> KeysOptions { get; } = new() { new("0", "All keys") };
+    public IReadOnlyList<LibraryOption> KeysOptions { get; } =
+    [
+        new("0", "All keys"),
+        new("4", "4K"),
+        new("6", "6K"),
+        new("7", "7K"),
+        new("others", "Others"),
+    ];
 
     public IReadOnlyList<LibraryOption> RateOptions { get; } =
     [
@@ -282,15 +306,14 @@ public sealed class LibraryViewModel : ObservableObject
         selectedGroupBy = GroupByOptions.FirstOrDefault(o => o.Key == groupBy) ?? selectedGroupBy;
         selectedNumber = NumberOptions.FirstOrDefault(o => o.Key == number) ?? selectedNumber;
         selectedRate = RateOptions.FirstOrDefault(o => o.Key == rate) ?? selectedRate;
-        wantedKeys = keys;
+        selectedKeys = KeysOptions.FirstOrDefault(o => o.Key == keys) ?? selectedKeys;
         filling = false;
         OnPropertyChanged(nameof(SelectedGroupBy));
         OnPropertyChanged(nameof(SelectedNumber));
         OnPropertyChanged(nameof(SelectedRate));
+        OnPropertyChanged(nameof(SelectedKeys));
         OnPropertyChanged(nameof(NumberHeader));
     }
-
-    private string wantedKeys = "0";
 
     public string GroupByKey => selectedGroupBy.Key;
     public string KeysKey => selectedKeys.Key;
@@ -534,7 +557,7 @@ public sealed class LibraryViewModel : ObservableObject
                 double? minRate = double.TryParse(selectedRate.Key, NumberStyles.Float, CultureInfo.InvariantCulture, out var rate) ? rate : null;
                 string playing = nowPlayingMd5;
                 string text = searchText;
-                int keys = int.TryParse(selectedKeys.Key, out var k) ? k : 0;
+                string keys = selectedKeys.Key;
                 string collectionName = selectedCollection.Key;
                 var existing = all;
 
@@ -563,7 +586,7 @@ public sealed class LibraryViewModel : ObservableObject
                             collection.UnionWith(osuCollection.Md5s);
                     }
 
-                    var shown = made.Where(row => (keys == 0 || row.Map.Keys == keys) && (collection == null || collection.Contains(row.Md5)) && query.Matches(row)).ToList();
+                    var shown = made.Where(row => hasKeys(row.Map.Keys, keys) && (collection == null || collection.Contains(row.Md5)) && query.Matches(row)).ToList();
                     var grouped = group(shown).OrderBy(g => g.Order).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase).ToList();
                     return (made, query.Note, grouped);
                 });
@@ -587,18 +610,6 @@ public sealed class LibraryViewModel : ObservableObject
     {
         filling = true;
 
-        var keys = maps.Values.Select(map => map.Keys).Where(k => k > 0).Distinct().OrderBy(k => k).ToList();
-        var wanted = KeysOptions.Count > 1 ? selectedKeys.Key : wantedKeys;
-        if (KeysOptions.Count - 1 != keys.Count)
-        {
-            while (KeysOptions.Count > 1)
-                KeysOptions.RemoveAt(KeysOptions.Count - 1);
-            foreach (var count in keys)
-                KeysOptions.Add(new LibraryOption(count.ToString(CultureInfo.InvariantCulture), $"{count}K"));
-        }
-
-        selectedKeys = KeysOptions.FirstOrDefault(o => o.Key == wanted) ?? KeysOptions[0];
-
         var names = service.Maps.Collections.Select(c => c.Name).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
         if (!names.SequenceEqual(CollectionOptions.Skip(1).Select(o => o.Name)))
         {
@@ -611,7 +622,6 @@ public sealed class LibraryViewModel : ObservableObject
         }
 
         filling = false;
-        OnPropertyChanged(nameof(SelectedKeys));
         OnPropertyChanged(nameof(SelectedCollection));
     }
 
@@ -681,8 +691,11 @@ public sealed class LibraryViewModel : ObservableObject
         switch (selectedGroupBy.Key)
         {
             case "dan":
-                bool manyKeys = selectedKeys.Key == "0";
-                return shown.GroupBy(row => danGroup(row, manyKeys))
+            case "lndan":
+                bool ln = selectedGroupBy.Key == "lndan";
+                bool manyKeys = selectedKeys.Key is "0" or "others";
+                return shown.Where(row => !ln || row.Difficulty.LnGroup != null)
+                            .GroupBy(row => danGroup(row, manyKeys, ln))
                             .Select(g => new LibraryGroup(g.Key.Name, g.ToList(), g.Key.Order));
 
             case "sunny":
@@ -721,20 +734,27 @@ public sealed class LibraryViewModel : ObservableObject
         }
     }
 
-    private static (string Name, double Order) danGroup(MapRow row, bool manyKeys)
+    private static bool hasKeys(int keys, string wanted) => wanted switch
+    {
+        "0" => true,
+        "others" => keys is not (4 or 6 or 7),
+        _ => int.TryParse(wanted, out var count) && keys == count,
+    };
+
+    private static (string Name, double Order) danGroup(MapRow row, bool manyKeys, bool ln)
     {
         var difficulty = row.Difficulty;
-        if (difficulty.DanGroup == null)
+        var name = ln ? difficulty.LnGroup : difficulty.RcGroup;
+        if (name == null)
             return (manyKeys && row.Map.Keys > 0 ? $"{row.Map.Keys}K · no dan" : "No dan", row.Map.Keys > 0 ? row.Map.Keys * 1000 + 999 : 99999);
 
-        var order = Dans.DanOrder(row.Map.Keys, difficulty.DanIsLn, extended: true);
-        int index = Array.IndexOf(order, difficulty.DanGroup);
-        if (index < 0)
-            index = (difficulty.Dan ?? string.Empty).StartsWith('<') ? -1 : order.Length;
+        // in the table's order; what is under the first dan comes first, what is above the last one last
+        var order = Dans.DanOrder(row.Map.Keys, ln, extended: true);
+        int index = name == MapDifficulty.BelowFirst ? -1 : Array.IndexOf(order, name);
+        if (index < 0 && name != MapDifficulty.BelowFirst)
+            index = ((ln ? difficulty.Ln : difficulty.Rc) ?? string.Empty).StartsWith('<') ? -1 : order.Length;
 
-        // RC dans first, then LN dans, each in its table's order
-        double position = row.Map.Keys * 1000 + (difficulty.DanIsLn ? 400 : 0) + index + 1;
-        return (manyKeys ? $"{row.Map.Keys}K {difficulty.DanGroup}" : difficulty.DanGroup, position);
+        return (manyKeys ? $"{row.Map.Keys}K {name}" : name, row.Map.Keys * 1000 + index + 1);
     }
 
     private static (string Name, double Order) recency(long ticks, DateTime now)
