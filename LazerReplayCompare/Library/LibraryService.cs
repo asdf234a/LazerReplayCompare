@@ -152,11 +152,14 @@ public sealed class LibraryService
     /// </summary>
     public MapDifficulty? DifficultyAt(MapInfo map, double rate, string? odFlag)
     {
-        if (Math.Abs(rate - 1) < 0.005 && odFlag == null)
-            return DifficultyOf(map);
-
+        bool plain = Math.Abs(rate - 1) < 0.005 && odFlag == null;
         if (!SunnyCache.Rated(map.Keys) || map.ChartPath.Length == 0)
-            return null;
+            return plain ? DifficultyOf(map) : null;
+
+        // as the game has it, and rated in full already (or with no estimator to wait for): nothing to work out
+        if (plain && (DanAtRate == null || map.Keys is not (4 or 6 or 7) || DanLookup?.Invoke(map.Md5) != null)
+                  && (Sunny.Get(map.Md5) ?? early.GetValueOrDefault(map.Md5)) != null)
+            return DifficultyOf(map);
 
         var key = $"{map.Md5}|{Math.Round(rate, 2).ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture)}|{odFlag}";
         if (modded.TryGetValue(key, out var found))
@@ -170,25 +173,46 @@ public sealed class LibraryService
         {
             try
             {
-                // the Sunny rating first (quick); the estimator's dan follows when there is an estimator
                 entry.Sunny = await Sunny.AtRateAsync(map, rate, odFlag);
-                entry.Ready = true;
-                ModdedChanged?.Invoke();
 
-                if (DanAtRate is { } estimator && await estimator(map, rate, odFlag) is { } dan)
+                // The estimator's dan usually follows within moments. It is waited for that long (from how long it took
+                // before), so the map shows its dan level at once instead of a stand-in first; only when it takes
+                // longer is the Sunny rating shown meanwhile.
+                if (DanAtRate is { } estimator && map.Keys is 4 or 6 or 7)
                 {
-                    entry.Dan = dan;
-                    ModdedChanged?.Invoke();
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    var estimate = estimator(map, rate, odFlag);
+                    if (await Task.WhenAny(estimate, Task.Delay(danGrace)) != estimate)
+                    {
+                        entry.Ready = true;
+                        ModdedChanged?.Invoke();
+                    }
+
+                    entry.Dan = await estimate;
+                    if (entry.Dan != null)
+                        tookDan(watch.Elapsed);
                 }
             }
             catch (Exception ex)
             {
                 InternalLogger.Log(ex);
-                entry.Ready = true;
-                ModdedChanged?.Invoke();
             }
+
+            entry.Ready = true;
+            ModdedChanged?.Invoke();
         });
         return null;
+    }
+
+    // how long the estimator took lately (a moving average), and the time it is given before a stand-in is shown
+    private double danSeconds = 1.5;
+    private TimeSpan danGrace => TimeSpan.FromSeconds(Math.Clamp(Volatile.Read(ref danSeconds) * 2.5, 2, 10));
+
+    private void tookDan(TimeSpan took)
+    {
+        // (a first one also starts the browser: counted, but it doesn't stretch the wait beyond its bounds)
+        double seconds = Math.Min(took.TotalSeconds, 20);
+        Volatile.Write(ref danSeconds, Volatile.Read(ref danSeconds) * 0.7 + seconds * 0.3);
     }
 
     private static MapDifficulty difficulty(MapInfo map, SunnyResult? sunny, DanLookupResult? estimate)

@@ -41,6 +41,8 @@ public static class DanNames
 
         if (dan.StartsWith("Regular ", StringComparison.OrdinalIgnoreCase))
             dan = "Reg " + dan["Regular ".Length..];
+        else if (dan.StartsWith("Reform ", StringComparison.OrdinalIgnoreCase))
+            dan = "Ref " + dan["Reform ".Length..];
 
         return lead + dan + part;
     }
@@ -233,7 +235,7 @@ public sealed class LibraryGroup : ObservableObject
 
             var before = Name[..Name.LastIndexOf(' ')];
             if (symbol == null)
-                return before.Replace("Regular", "Reg");
+                return before.Replace("Regular", "Reg").Replace("Reform", "Ref");
 
             // a letter dan is its sign; only what tells two of them apart stays ("7K", "LN")
             return string.Join(' ', before.Split(' ').Where(word => word == "LN" || (word.Length >= 2 && word[^1] == 'K' && char.IsDigit(word[0]))));
@@ -1011,6 +1013,8 @@ public sealed class LibraryViewModel : ObservableObject
                 var byMd5 = shown.ToDictionary(row => row.Md5, StringComparer.OrdinalIgnoreCase);
                 var lists = service.Maps.Collections
                                    .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                                   // by name, as the game lists its collections
+                                   .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
                                    .Select((g, index) => new LibraryGroup(g.Key, g.SelectMany(c => c.Md5s).Distinct(StringComparer.OrdinalIgnoreCase)
                                                                                  .Select(md5 => byMd5.GetValueOrDefault(md5)).Where(row => row != null).Select(row => row!).ToList(), index))
                                    .Where(g => g.Rows.Count > 0)

@@ -18,7 +18,7 @@ public sealed class MapCardViewModel : ObservableObject
 {
     /// <param name="map">The library's entry, or null when the library doesn't know the map (the game's own texts are shown).</param>
     public MapCardViewModel(MapInfo? map, MapDifficulty? difficulty, MapRecord? record, string numberKind, string fallbackTitle, string fallbackSubtitle, bool browsing, string liveMapText,
-        double rate = 1, string? odFlag = null, bool modsPending = false)
+        double rate = 1, string? odFlag = null, bool modsPending = false, bool waiting = false)
     {
         Map = map;
         IsBrowsing = browsing;
@@ -35,6 +35,14 @@ public sealed class MapCardViewModel : ObservableObject
         NumberBrush = row.NumberBrush;
         NumberBadge = row.NumberBadge;
         NumberBadgeText = row.NumberBadgeText;
+        if (waiting && NumberText.StartsWith('*'))
+        {
+            // the dan level is on its way: no stand-in for the moment it takes
+            NumberText = "…";
+            NumberBadge = DifficultyColors.Badge(double.NaN);
+            NumberBadgeText = DifficultyColors.Neutral;
+        }
+
         (StatusBrush, StatusTextBrush) = DifficultyColors.ForStatus(map.Status);
         NumberName = numberKind switch
         {

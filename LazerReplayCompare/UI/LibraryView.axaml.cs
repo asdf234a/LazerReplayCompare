@@ -79,7 +79,7 @@ public sealed partial class LibraryView : UserControl
                 return;
 
             watched = model;
-            model.Located += row => Dispatcher.UIThread.Post(() => mapList.ScrollIntoView(row), DispatcherPriority.Loaded);
+            model.Located += row => Dispatcher.UIThread.Post(() => centre(row), DispatcherPriority.Loaded);
             model.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName != nameof(LibraryViewModel.Rows))
@@ -105,6 +105,21 @@ public sealed partial class LibraryView : UserControl
             panes.ColumnDefinitions = new ColumnDefinitions(groups ? "264,*" : "0,*");
             panes.ColumnSpacing = groups ? 12 : 0;
         };
+    }
+
+    /// <summary>Scrolls a map's row to the middle of the list.</summary>
+    private void centre(MapRow row)
+    {
+        mapList.ScrollIntoView(row);   // (its row exists from here on)
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (mapList.ContainerFromItem(row) is not { } container || mapList.Scroll is not ScrollViewer scroll
+                || container.TranslatePoint(default, scroll) is not { } at)
+                return;
+
+            double wanted = scroll.Offset.Y + at.Y - (scroll.Viewport.Height - container.Bounds.Height) / 2;
+            scroll.Offset = new Vector(scroll.Offset.X, Math.Clamp(wanted, 0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height)));
+        }, DispatcherPriority.Loaded);
     }
 
     public void FocusSearch()

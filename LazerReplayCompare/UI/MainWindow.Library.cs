@@ -298,9 +298,10 @@ public sealed partial class MainWindow
         viewModel.IsSettingsPage = false;
         viewModel.IsLibraryOpen = true;
         libraryModel.Glass = viewModel.ShowBackdrop;
-        // it opens on the game's map (on the shown one when that is another, picked in the library before)
-        if (!libraryModel.Locate(browsing ? currentSnapshot.BeatmapChecksum : liveSnapshot.BeatmapChecksum, force: false))
-            libraryModel.SelectShownGroup();
+        // it opens on the shown map's group; from there it only moves when asked to (Now playing)
+        libraryModel.SelectShownGroup();
+        if (libraryModel.RowOf(currentSnapshot.BeatmapChecksum) is { } row)
+            Dispatcher.UIThread.Post(() => libraryPage.ScrollTo(row), DispatcherPriority.Loaded);
         if (focusSearch)
             Dispatcher.UIThread.Post(libraryPage.FocusSearch, DispatcherPriority.Loaded);
     }
@@ -340,10 +341,6 @@ public sealed partial class MainWindow
         var previous = liveSnapshot;
         Volatile.Write(ref liveSnapshot, snapshot);
         libraryModel.NowPlayingMd5 = snapshot.BeatmapChecksum;
-
-        // the open library follows the game's map (when what is picked shows it)
-        if (viewModel.ShowLibraryPage && snapshot.BeatmapChecksum != previous.BeatmapChecksum)
-            libraryModel.Locate(snapshot.BeatmapChecksum, force: false);
         libraryModel.NowPlayingText = string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum) ? string.Empty
             : string.Join(" ", new[] { snapshot.BeatmapTitle, string.IsNullOrWhiteSpace(snapshot.BeatmapVersion) ? string.Empty : $"[{snapshot.BeatmapVersion}]" }.Where(part => part.Length > 0));
 
@@ -610,7 +607,8 @@ public sealed partial class MainWindow
             live,
             rate,
             odFlag,
-            modsPending: map != null && modded == null);
+            modsPending: map != null && modded == null && (Math.Abs(rate - 1) >= 0.005 || odFlag != null),
+            waiting: map != null && modded == null);
         libraryModel.ShownMd5 = md5;
     }
 
