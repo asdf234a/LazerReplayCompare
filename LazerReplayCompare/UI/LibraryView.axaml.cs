@@ -175,4 +175,6 @@ public sealed partial class LibraryView : UserControl
             bitmap.Dispose();
         }
     }
+
+    private void ClearQuickFilters(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => (DataContext as LibraryViewModel)?.ClearQuickFilters();
 }

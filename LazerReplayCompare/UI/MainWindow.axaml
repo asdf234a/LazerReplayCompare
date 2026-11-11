@@ -226,6 +226,8 @@
             </Grid>
             <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource RowDividerBrush}" />
             <TextBox DockPanel.Dock="Top" Margin="10,10,10,6" FontSize="13" Text="{Binding Library.SearchText, Mode=TwoWay}" PlaceholderText="Search maps" />
+            <ComboBox DockPanel.Dock="Top" Margin="10,0,10,6" HorizontalAlignment="Stretch" ItemsSource="{Binding Library.GroupByOptions}" SelectedItem="{Binding Library.SelectedGroupBy, Mode=TwoWay}"
+                      ToolTip.Tip="What the maps are grouped by (the same choice as in the full library)" />
             <ComboBox DockPanel.Dock="Top" Margin="10,0,10,8" HorizontalAlignment="Stretch" ItemsSource="{Binding Library.Groups}" SelectedItem="{Binding Library.SelectedGroup, Mode=TwoWay}"
                       ToolTip.Tip="The group whose maps are listed">
               <ComboBox.ItemTemplate>
@@ -244,7 +246,7 @@
                     <Border Grid.ColumnSpan="3" Width="3" HorizontalAlignment="Left" Background="{DynamicResource TextBrush}" IsVisible="{Binding IsNowPlaying}" />
                     <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
                       <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="17" FontWeight="Bold" Foreground="{Binding NumberBrush}" LineHeight="20" />
-                      <TextBlock Text="{Binding DanText}" FontSize="10.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding ShortDanText}" FontSize="10.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding DanText}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1" Margin="0,0,8,0">
                       <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
@@ -379,8 +381,8 @@
                 <Border Background="{DynamicResource OptionBrush}" Padding="22,10,22,14" IsVisible="{Binding MapCard.HasMap}">
                   <StackPanel Spacing="12">
                     <WrapPanel ItemSpacing="10" LineSpacing="4">
-                      <Border CornerRadius="11" Padding="9,1" Background="{Binding MapCard.StarsBrush}" VerticalAlignment="Center" ToolTip.Tip="osu!'s star rating">
-                        <TextBlock Classes="mono" FontSize="13" FontWeight="Bold" Foreground="#14171D" Text="{Binding MapCard.StarsText, StringFormat='★ {0}'}" />
+                      <Border CornerRadius="11" Padding="9,1" Background="{Binding MapCard.StarsBadgeBrush}" BorderBrush="#30FFFFFF" BorderThickness="1" VerticalAlignment="Center" ToolTip.Tip="osu!'s star rating">
+                        <TextBlock Classes="mono" FontSize="13" FontWeight="Bold" Foreground="{Binding MapCard.StarsBadgeTextBrush}" Text="{Binding MapCard.StarsText, StringFormat='★ {0}'}" />
                       </Border>
                       <TextBlock Text="{Binding MapCard.VersionText}" FontSize="15" FontWeight="Bold" Foreground="{Binding MapCard.StarsBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="460" />
                       <TextBlock Classes="muted" FontSize="14" Text="mapped by" VerticalAlignment="Center" IsVisible="{Binding MapCard.HasMapper}" />

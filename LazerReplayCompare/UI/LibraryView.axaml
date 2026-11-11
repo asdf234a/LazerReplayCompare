@@ -45,6 +45,32 @@
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
     </Style>
+    <Style Selector="ToggleButton.quick">
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="Padding" Value="11,0" />
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleButton.quick:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.quick:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ChartBackgroundBrush}" />
+    </Style>
+    <Style Selector="ItemsControl.quick">
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate>
+          <StackPanel Orientation="Horizontal" Spacing="4" />
+        </ItemsPanelTemplate>
+      </Setter>
+    </Style>
   </UserControl.Styles>
 
   <Grid x:Name="Root" RowDefinitions="Auto,Auto,*" Margin="20,14,20,0">
@@ -66,7 +92,40 @@
       </StackPanel>
     </Grid>
 
-    <TextBlock Grid.Row="1" Margin="4,8,4,0" FontSize="13" Foreground="{DynamicResource TargetLabelBrush}" Text="{Binding FilterNote}" IsVisible="{Binding HasFilterNote}" />
+    <StackPanel Grid.Row="1">
+      <!-- Quick filters: by plays, by best rank, by kind -->
+      <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Margin="0,8,0,0">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Classes="muted" FontSize="12" Text="Plays" VerticalAlignment="Center" Margin="4,0,2,0" />
+          <ItemsControl Classes="quick" ItemsSource="{Binding PlayFilters}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="local:QuickFilter">
+                <ToggleButton Classes="quick" Content="{Binding Name}" IsChecked="{Binding IsOn, Mode=TwoWay}" ToolTip.Tip="{Binding Tip}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="muted" FontSize="12" Text="Best" VerticalAlignment="Center" Margin="12,0,2,0" />
+          <ItemsControl Classes="quick" ItemsSource="{Binding RankFilters}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="local:QuickFilter">
+                <ToggleButton Classes="quick" MinWidth="34" HorizontalContentAlignment="Center" Content="{Binding Name}" Foreground="{Binding Brush}" FontWeight="Bold"
+                              IsChecked="{Binding IsOn, Mode=TwoWay}" ToolTip.Tip="{Binding Tip}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="muted" FontSize="12" Text="Notes" VerticalAlignment="Center" Margin="12,0,2,0" />
+          <ItemsControl Classes="quick" ItemsSource="{Binding KindFilters}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="local:QuickFilter">
+                <ToggleButton Classes="quick" Content="{Binding Name}" IsChecked="{Binding IsOn, Mode=TwoWay}" ToolTip.Tip="{Binding Tip}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Button Content="Clear" Click="ClearQuickFilters" MinHeight="28" Padding="10,0" FontSize="12" Margin="8,0,0,0" IsVisible="{Binding HasQuickFilters}" />
+        </StackPanel>
+      </ScrollViewer>
+      <TextBlock Margin="4,8,4,0" FontSize="13" Foreground="{DynamicResource TargetLabelBrush}" Text="{Binding FilterNote}" IsVisible="{Binding HasFilterNote}" />
+    </StackPanel>
 
     <Grid Grid.Row="2" x:Name="Panes" ColumnDefinitions="264,*" ColumnSpacing="12" Margin="0,10,0,0">
       <!-- Groups -->

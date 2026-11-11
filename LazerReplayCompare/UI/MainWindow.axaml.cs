@@ -1447,15 +1447,17 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        // a map opened from the library: Back returns to the library
-        if (viewModel.ShowCompareList && mapOpenedFromLibrary)
+        // the map page: Back folds the opened side card first, then goes to the library
+        if (viewModel.ShowCompareList)
         {
             var onMap = FocusManager?.GetFocusedElement();
             bool typing = onMap is TextBox || onMap is ComboBox { IsDropDownOpen: true };
-            if (e.Key == Key.BrowserBack || (e.Key == Key.Left && e.KeyModifiers == KeyModifiers.Alt) || (!typing && e.Key is Key.Back or Key.Escape))
+            bool backKey = e.Key == Key.BrowserBack || (e.Key == Key.Left && e.KeyModifiers == KeyModifiers.Alt) || (!typing && e.Key == Key.Back);
+            // Esc folds the card, and leaves a map that was opened from the library; it doesn't leave the game's own map
+            bool escape = !typing && e.Key == Key.Escape && (railOpen || mapOpenedFromLibrary);
+            if (backKey || escape)
             {
-                mapOpenedFromLibrary = false;
-                openLibrary();
+                backFromMap();
                 e.Handled = true;
             }
 
@@ -1478,6 +1480,21 @@ public sealed partial class MainWindow : Window
         e.Handled = true;
     }
 
+    private bool railOpen => viewModel.ShowRail && viewModel.IsRailExpanded;
+
+    /// <summary>Back on the map page: the opened side card folds; with it folded, the library opens.</summary>
+    private void backFromMap()
+    {
+        if (railOpen)
+        {
+            viewModel.IsRailExpanded = false;
+            return;
+        }
+
+        mapOpenedFromLibrary = false;
+        openLibrary();
+    }
+
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         // the mouse's back button
@@ -1490,10 +1507,9 @@ public sealed partial class MainWindow : Window
             closeLibrary();
             e.Handled = true;
         }
-        else if (viewModel.ShowCompareList && mapOpenedFromLibrary)
+        else if (viewModel.ShowCompareList)
         {
-            mapOpenedFromLibrary = false;
-            openLibrary();
+            backFromMap();
             e.Handled = true;
         }
         else if (viewModel.ShowDetailsPage)

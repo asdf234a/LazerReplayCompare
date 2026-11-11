@@ -50,6 +50,8 @@ public sealed class MapCardViewModel : ObservableObject
 
         StarsText = map.Stars >= 0 ? map.Stars.ToString("0.00", CultureInfo.InvariantCulture) : "–";
         StarsBrush = map.Stars >= 0 ? DifficultyColors.ForStars(map.Stars) : DifficultyColors.Neutral;
+        StarsBadgeBrush = map.Stars >= 0 ? DifficultyColors.StarsBadge(map.Stars) : DifficultyColors.Neutral;
+        StarsBadgeTextBrush = DifficultyColors.StarsBadgeText(map.Stars);
         VersionText = map.Version;
         Mapper = map.Mapper;
 
@@ -109,6 +111,8 @@ public sealed class MapCardViewModel : ObservableObject
     public string LastPlayedText { get; } = string.Empty;
     public string StarsText { get; } = string.Empty;
     public IBrush StarsBrush { get; } = DifficultyColors.Neutral;
+    public IBrush StarsBadgeBrush { get; } = DifficultyColors.Neutral;
+    public IBrush StarsBadgeTextBrush { get; } = DifficultyColors.StarsBadgeText(0);
     public string VersionText { get; } = string.Empty;
     public string Mapper { get; } = string.Empty;
     public bool HasMapper => Mapper.Length > 0;

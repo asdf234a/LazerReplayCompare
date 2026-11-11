@@ -21,7 +21,33 @@ public static class DifficultyColors
 
     private static readonly Dictionary<int, IBrush> cache = new();
 
-    public static IBrush ForStars(double stars) => brush(stars);
+    /// <summary>From here on osu! writes a star rating in yellow (on a badge that goes on to black).</summary>
+    public const double HighStars = 6.5;
+
+    private static readonly IBrush highText = new SolidColorBrush(Color.Parse("#FFD966")).ToImmutable();
+    private static readonly IBrush darkText = new SolidColorBrush(Color.Parse("#14171D")).ToImmutable();
+    private static readonly Dictionary<int, IBrush> badges = new();
+
+    /// <summary>A star rating as text: along the spectrum, and yellow from 6.5 stars as in the game.</summary>
+    public static IBrush ForStars(double stars) => double.IsFinite(stars) && stars >= HighStars ? highText : brush(stars);
+
+    /// <summary>The badge behind a star rating: the spectrum as it is, down to black.</summary>
+    public static IBrush StarsBadge(double stars)
+    {
+        if (!double.IsFinite(stars))
+            return Neutral;
+
+        int key = (int)Math.Round(Math.Clamp(stars, 0, 12) * 20);
+        lock (badges)
+        {
+            if (!badges.TryGetValue(key, out var found))
+                badges[key] = found = new SolidColorBrush(at(key / 20.0)).ToImmutable();
+            return found;
+        }
+    }
+
+    /// <summary>The text on that badge: dark, yellow from 6.5 stars.</summary>
+    public static IBrush StarsBadgeText(double stars) => double.IsFinite(stars) && stars >= HighStars ? highText : darkText;
 
     /// <summary>Sunny ratings sit a little above osu!'s for the same map, so they are read a little lower on the spectrum.</summary>
     public static IBrush ForSunny(double sunny) => brush(sunny * 0.85);

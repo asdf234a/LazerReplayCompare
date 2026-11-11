@@ -6,6 +6,77 @@ using Avalonia.Media.Imaging;
 
 namespace LazerReplayCompare;
 
+/// <summary>Short forms of dan names, for the map page's narrow side card.</summary>
+public static class DanNames
+{
+    // the letter dans' own signs: Greek letters in 4K; in 7K γ, Ψ and Ω are Jinjin's (the courses' forum thread).
+    // Stellium has none there ("the Epsilon dan of 7K"): a star stands for it.
+    private static readonly Dictionary<string, string> symbols = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Alpha"] = "α", ["Beta"] = "β", ["Gamma"] = "γ", ["Delta"] = "δ", ["Epsilon"] = "ε",
+        ["Zeta"] = "ζ", ["Eta"] = "η", ["Theta"] = "θ", ["Iota"] = "ι", ["Kappa"] = "κ",
+        ["Azimuth"] = "Ψ", ["Zenith"] = "Ω", ["Stellium"] = "★",
+    };
+
+    /// <summary>The sign of a letter dan ("Regular Azimuth" is Ψ, "Emik Zeta" is ζ), or null for a numbered or otherwise named one.</summary>
+    public static string? Symbol(string dan)
+    {
+        var last = dan.Contains(' ') ? dan[(dan.LastIndexOf(' ') + 1)..] : dan;
+        return symbols.GetValueOrDefault(last);
+    }
+
+    /// <summary>"Regular 9 low" is "Reg 9 low"; a letter dan is its sign alone ("Regular Gamma mid" is "γ mid", "LN Zenith low" is "LN Ω low").</summary>
+    public static string Short(string band)
+    {
+        if (band.Length == 0)
+            return band;
+
+        string lead = band[..(band.Length - band.TrimStart('<', '>', ' ').Length)];
+        string body = band[lead.Length..];
+        string dan = Dans.Dan(body);
+        string part = body[dan.Length..];
+
+        if (Symbol(dan) is { } symbol)
+            return lead + (dan.StartsWith("LN ", StringComparison.OrdinalIgnoreCase) ? "LN " : string.Empty) + symbol + part;
+
+        if (dan.StartsWith("Regular ", StringComparison.OrdinalIgnoreCase))
+            dan = "Reg " + dan["Regular ".Length..];
+
+        return lead + dan + part;
+    }
+}
+
+/// <summary>A filter of the row under the library's search box ("Played", "S", "LN").</summary>
+public sealed class QuickFilter : ObservableObject
+{
+    private readonly Action<QuickFilter> changed;
+    private bool isOn;
+
+    public QuickFilter(string key, string name, string tip, Action<QuickFilter> changed, IBrush? brush = null)
+    {
+        Key = key;
+        Name = name;
+        Tip = tip;
+        Brush = brush;
+        this.changed = changed;
+    }
+
+    public string Key { get; }
+    public string Name { get; }
+    public string Tip { get; }
+    public IBrush? Brush { get; }
+
+    public bool IsOn
+    {
+        get => isOn;
+        set
+        {
+            if (Set(ref isOn, value))
+                changed(this);
+        }
+    }
+}
+
 /// <summary>One map in the library's list.</summary>
 public sealed class MapRow : ObservableObject
 {
@@ -36,6 +107,9 @@ public sealed class MapRow : ObservableObject
     public IBrush NumberBrush { get; }
 
     public string DanText => Difficulty.Dan ?? string.Empty;
+
+    /// <summary>The dan as the narrow side card writes it ("Reg 9 low", "γ mid").</summary>
+    public string ShortDanText => DanNames.Short(DanText);
 
     /// <summary>The LN dan, for a map of 20 % hold notes or more ("" otherwise).</summary>
     public string LnDanText => Difficulty.Ln ?? string.Empty;
@@ -124,21 +198,32 @@ public sealed class LibraryGroup : ObservableObject
     public IReadOnlyList<int> RankCounts { get; }
     public string CountText => Rows.Count.ToString("N0", CultureInfo.InvariantCulture);
 
-    private static readonly Dictionary<string, string> greek = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Alpha"] = "α", ["Beta"] = "β", ["Gamma"] = "γ", ["Delta"] = "δ", ["Epsilon"] = "ε",
-        ["Zeta"] = "ζ", ["Eta"] = "η", ["Theta"] = "θ", ["Iota"] = "ι", ["Kappa"] = "κ",
-    };
-
     private string lastWord => Name.Contains(' ') ? Name[(Name.LastIndexOf(' ') + 1)..] : Name;
-    private bool hasShortForm => char.IsDigit(lastWord[^1]) || greek.ContainsKey(lastWord);
+    private string? symbol => DanNames.Symbol(Name);
+    private bool hasShortForm => symbol != null || char.IsDigit(lastWord[^1]);
 
     /// <summary>
-    /// The folded card's label: the dan's number, or its Greek letter for a letter dan ("Emik Zeta" is ζ), under what
-    /// comes before it ("Reform", "Emik"). A name with neither is written whole, small, on as many lines as it needs.
+    /// The folded card's label: the dan's number under its kind ("Reform", "LN"), or a letter dan's sign alone ("Emik
+    /// Zeta" is ζ, "Regular Azimuth" is Ψ). A name with neither is written whole, small, on as many lines as it needs.
     /// </summary>
-    public string RailShort => !hasShortForm ? Name : greek.GetValueOrDefault(lastWord) ?? lastWord;
-    public string RailKind => !hasShortForm ? string.Empty : Name.Contains(' ') ? Name[..Name.LastIndexOf(' ')] : (greek.ContainsKey(Name) ? Name : string.Empty);
+    public string RailShort => symbol ?? (hasShortForm ? lastWord : Name);
+
+    public string RailKind
+    {
+        get
+        {
+            if (!hasShortForm || !Name.Contains(' '))
+                return string.Empty;
+
+            var before = Name[..Name.LastIndexOf(' ')];
+            if (symbol == null)
+                return before.Replace("Regular", "Reg");
+
+            // a letter dan is its sign; only what tells two of them apart stays ("7K", "LN")
+            return string.Join(' ', before.Split(' ').Where(word => word == "LN" || (word.Length >= 2 && word[^1] == 'K' && char.IsDigit(word[0]))));
+        }
+    }
+
     public double RailFontSize => hasShortForm ? 18 : 11;
     public IBrush RailBrush => Rows.Count == 0 ? DifficultyColors.Neutral : Rows[Rows.Count / 2].NumberBrush;
 
@@ -189,6 +274,103 @@ public sealed class LibraryViewModel : ObservableObject
         selectedRate = RateOptions[0];
         selectedCollection = allMaps;
         CollectionOptions.Add(allMaps);
+
+        PlayFilters =
+        [
+            new QuickFilter("played", "Played", "Maps you have a score on", quickChanged),
+            new QuickFilter("unplayed", "Not played", "Maps without a score of yours", quickChanged),
+            new QuickFilter("month", "This month", "Played in the last 31 days", quickChanged),
+        ];
+        RankFilters = Ranks.Letters.Where(letter => letter.Length > 0)
+                           .Select(letter => new QuickFilter("rank", letter, $"Maps whose best rank is {letter} (several can be picked)", quickChanged, DifficultyColors.ForRank(letter)))
+                           .ToList();
+        KindFilters =
+        [
+            new QuickFilter("rice", "Rice", "Under 20% hold notes", quickChanged),
+            new QuickFilter("ln", "LN", "20% hold notes or more", quickChanged),
+        ];
+    }
+
+    // --- Quick filters (the row under the search box) ---
+
+    public IReadOnlyList<QuickFilter> PlayFilters { get; }
+    public IReadOnlyList<QuickFilter> RankFilters { get; }
+    public IReadOnlyList<QuickFilter> KindFilters { get; }
+
+    private IEnumerable<QuickFilter> quickFilters => PlayFilters.Concat(RankFilters).Concat(KindFilters);
+    public bool HasQuickFilters => quickFilters.Any(f => f.IsOn);
+
+    private bool settingQuick;
+
+    private void quickChanged(QuickFilter filter)
+    {
+        if (settingQuick)
+            return;
+
+        settingQuick = true;
+        if (filter.IsOn)
+        {
+            // what cannot hold together gives way: played or not, a rank needs a play, rice or LN
+            QuickFilter play(string key) => PlayFilters.First(f => f.Key == key);
+            switch (filter.Key)
+            {
+                case "played":
+                case "month":
+                    play("unplayed").IsOn = false;
+                    break;
+
+                case "unplayed":
+                    play("played").IsOn = false;
+                    play("month").IsOn = false;
+                    foreach (var rank in RankFilters)
+                        rank.IsOn = false;
+                    break;
+
+                case "rank":
+                    play("unplayed").IsOn = false;
+                    break;
+
+                case "rice":
+                case "ln":
+                    foreach (var kind in KindFilters)
+                        kind.IsOn = kind == filter;
+                    break;
+            }
+        }
+
+        settingQuick = false;
+        OnPropertyChanged(nameof(HasQuickFilters));
+        Rebuild();
+    }
+
+    public void ClearQuickFilters()
+    {
+        settingQuick = true;
+        foreach (var filter in quickFilters)
+            filter.IsOn = false;
+        settingQuick = false;
+        OnPropertyChanged(nameof(HasQuickFilters));
+        Rebuild();
+    }
+
+    /// <summary>What the quick filters let through, as they stand now (read on the UI thread, run on the build's).</summary>
+    private Func<MapRow, bool> quickTest()
+    {
+        if (!HasQuickFilters)
+            return _ => true;
+
+        bool on(string key) => quickFilters.Any(f => f.Key == key && f.IsOn);
+        bool played = on("played"), unplayed = on("unplayed"), month = on("month"), ln = on("ln"), rice = on("rice");
+        var ranks = RankFilters.Where(f => f.IsOn).Select(f => f.Name).ToHashSet();
+        long since = DateTime.UtcNow.AddDays(-31).Ticks;
+
+        return row =>
+        {
+            bool has = row.Plays > 0 || row.Best != null;
+            return (!played || has) && (!unplayed || !has) && (!month || row.LastPlayedTicks >= since)
+                   && (ranks.Count == 0 || (row.Best != null && ranks.Contains(Ranks.Letter(row.Best.Rank))))
+                   && (!ln || row.Difficulty.LnRatio >= MapDifficulty.LnShare) && (!rice || row.Difficulty.LnRatio < MapDifficulty.LnShare);
+        };
     }
 
     /// <summary>A setting the user picked changed (the window saves it).</summary>
@@ -560,6 +742,7 @@ public sealed class LibraryViewModel : ObservableObject
                 string keys = selectedKeys.Key;
                 string collectionName = selectedCollection.Key;
                 var existing = all;
+                var quick = quickTest();
 
                 var (list, note, groups) = await Task.Run(() =>
                 {
@@ -586,7 +769,7 @@ public sealed class LibraryViewModel : ObservableObject
                             collection.UnionWith(osuCollection.Md5s);
                     }
 
-                    var shown = made.Where(row => hasKeys(row.Map.Keys, keys) && (collection == null || collection.Contains(row.Md5)) && query.Matches(row)).ToList();
+                    var shown = made.Where(row => hasKeys(row.Map.Keys, keys) && (collection == null || collection.Contains(row.Md5)) && quick(row) && query.Matches(row)).ToList();
                     var grouped = group(shown).OrderBy(g => g.Order).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase).ToList();
                     return (made, query.Note, grouped);
                 });
