@@ -290,8 +290,8 @@
                   <Grid ColumnDefinitions="80,*,Auto" Height="46" Cursor="Hand" Background="Transparent">
                     <Border Grid.ColumnSpan="3" Width="3" HorizontalAlignment="Left" Background="{DynamicResource TextBrush}" IsVisible="{Binding IsNowPlaying}" />
                     <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
-                      <Border Background="{Binding NumberBadge}" CornerRadius="6" Padding="6,0" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,1">
-                        <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="14" FontWeight="Bold" Foreground="{Binding NumberBadgeText}" LineHeight="18" />
+                      <Border Background="{Binding NumberBadge}" CornerRadius="6" Padding="6,0,6,2" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,1">
+                        <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="14" FontWeight="Bold" Foreground="{Binding NumberBadgeText}" />
                       </Border>
                       <TextBlock Text="{Binding ShortDanText}" FontSize="10.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding DanText}" />
                     </StackPanel>
@@ -371,8 +371,8 @@
                 <Grid ColumnDefinitions="Auto,*" Margin="22,16,22,14">
                   <!-- The number the library is led by, and the dan under it -->
                   <StackPanel Width="150" Spacing="2" IsVisible="{Binding MapCard.HasMap}" VerticalAlignment="Top">
-                    <Border x:Name="MapNumberBox" CornerRadius="12" Padding="11,1" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,4">
-                      <TextBlock x:Name="MapNumber" Classes="mono" Text="–" FontSize="38" FontWeight="Bold" LineHeight="44" />
+                    <Border x:Name="MapNumberBox" CornerRadius="12" Padding="11,0,11,5" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,4">
+                      <TextBlock x:Name="MapNumber" Classes="mono" Text="–" FontSize="38" FontWeight="Bold" />
                     </Border>
                     <TextBlock Text="{Binding MapCard.DanText}" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
                     <TextBlock Classes="secondary" Text="{Binding MapCard.LnDanText}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="{Binding MapCard.HasLnDan}"

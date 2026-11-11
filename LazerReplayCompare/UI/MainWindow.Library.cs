@@ -34,13 +34,8 @@ public sealed partial class MainWindow
         libraryModel = new LibraryViewModel(library);
         viewModel.Library = libraryModel;
         libraryPage = this.FindControl<LibraryView>("LibraryPage")!;
-        libraryPage.NowPlayingChosen += () =>
-        {
-            // straight to the map the game is on; Back returns to the library
-            backToLiveMap();
-            closeLibrary();
-            mapOpenedFromLibrary = true;
-        };
+        // the library goes to the map the game is on (whatever hides it is dropped)
+        libraryPage.NowPlayingChosen += () => libraryModel.Locate(liveSnapshot.BeatmapChecksum, force: true);
         libraryPage.MapChosen += row =>
         {
             BrowseTo(row.Map);
@@ -303,9 +298,9 @@ public sealed partial class MainWindow
         viewModel.IsSettingsPage = false;
         viewModel.IsLibraryOpen = true;
         libraryModel.Glass = viewModel.ShowBackdrop;
-        libraryModel.SelectShownGroup();
-        if (libraryModel.RowOf(currentSnapshot.BeatmapChecksum) is { } row)
-            Dispatcher.UIThread.Post(() => libraryPage.ScrollTo(row), DispatcherPriority.Loaded);
+        // it opens on the game's map (on the shown one when that is another, picked in the library before)
+        if (!libraryModel.Locate(browsing ? currentSnapshot.BeatmapChecksum : liveSnapshot.BeatmapChecksum, force: false))
+            libraryModel.SelectShownGroup();
         if (focusSearch)
             Dispatcher.UIThread.Post(libraryPage.FocusSearch, DispatcherPriority.Loaded);
     }
@@ -345,6 +340,10 @@ public sealed partial class MainWindow
         var previous = liveSnapshot;
         Volatile.Write(ref liveSnapshot, snapshot);
         libraryModel.NowPlayingMd5 = snapshot.BeatmapChecksum;
+
+        // the open library follows the game's map (when what is picked shows it)
+        if (viewModel.ShowLibraryPage && snapshot.BeatmapChecksum != previous.BeatmapChecksum)
+            libraryModel.Locate(snapshot.BeatmapChecksum, force: false);
         libraryModel.NowPlayingText = string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum) ? string.Empty
             : string.Join(" ", new[] { snapshot.BeatmapTitle, string.IsNullOrWhiteSpace(snapshot.BeatmapVersion) ? string.Empty : $"[{snapshot.BeatmapVersion}]" }.Where(part => part.Length > 0));
 

@@ -79,6 +79,7 @@ public sealed partial class LibraryView : UserControl
                 return;
 
             watched = model;
+            model.Located += row => Dispatcher.UIThread.Post(() => mapList.ScrollIntoView(row), DispatcherPriority.Loaded);
             model.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName != nameof(LibraryViewModel.Rows))

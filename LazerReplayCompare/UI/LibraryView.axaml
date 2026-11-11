@@ -96,7 +96,7 @@
       <!-- Quick filters: by plays, by best rank, by kind -->
       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,8,0,0">
       <Button Grid.Column="1" Click="GoToNowPlaying" MinHeight="28" Padding="10,0" FontSize="12" MaxWidth="300" IsVisible="{Binding HasNowPlaying}"
-              ToolTip.Tip="Opens the map the game is on">
+              ToolTip.Tip="Shows the map the game is on in the list (its group is picked; filters that hide it are dropped)">
         <StackPanel Orientation="Horizontal" Spacing="7">
           <Path Width="9" Height="10" Stretch="Uniform" Fill="{DynamicResource TargetAccentBrush}" Data="M0,0 L9,5 L0,10 Z" VerticalAlignment="Center" />
           <TextBlock Classes="muted" FontSize="12" Text="Now playing" VerticalAlignment="Center" />
@@ -202,8 +202,8 @@
                     <Border Width="3" HorizontalAlignment="Left" Background="{DynamicResource TextBrush}" IsVisible="{Binding IsNowPlaying}" />
                     <Grid Classes="mapCells" ColumnDefinitions="132,*,48,62,48,58,64,28,126,56,30" Margin="20,0,14,0">
                       <StackPanel VerticalAlignment="Center">
-                        <Border Background="{Binding NumberBadge}" CornerRadius="8" Padding="8,0" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,2">
-                          <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="19" FontWeight="Bold" Foreground="{Binding NumberBadgeText}" LineHeight="25" />
+                        <Border Background="{Binding NumberBadge}" CornerRadius="8" Padding="8,0,8,3" HorizontalAlignment="Left" BorderBrush="#30FFFFFF" BorderThickness="1" Margin="0,0,0,2">
+                          <TextBlock Classes="mono" Text="{Binding NumberText}" FontSize="19" FontWeight="Bold" Foreground="{Binding NumberBadgeText}" />
                         </Border>
                         <TextBlock Text="{Binding DanText}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                       </StackPanel>

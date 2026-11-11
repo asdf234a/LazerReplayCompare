@@ -358,7 +358,12 @@
   </Style>
 
   <!-- Flyouts: the app's own translucent panel instead of Fluent's opaque one -->
+  <!-- (a popup is a window of its own: it doesn't take the main window's typeface by itself) -->
+  <Style Selector="PopupRoot">
+    <Setter Property="FontFamily" Value="avares://LazerReplayCompare/Assets/Fonts#Torus, LRC Sans" />
+  </Style>
   <Style Selector="FlyoutPresenter">
+    <Setter Property="FontFamily" Value="avares://LazerReplayCompare/Assets/Fonts#Torus, LRC Sans" />
     <Setter Property="Background" Value="{DynamicResource FlyoutBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource FlyoutBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />

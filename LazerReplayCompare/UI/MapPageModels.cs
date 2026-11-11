@@ -68,21 +68,14 @@ public sealed class MapCardViewModel : ObservableObject
         StarsBrush = map.Stars >= 0 ? DifficultyColors.ForStars(map.Stars) : DifficultyColors.Neutral;
         StarsBadgeBrush = map.Stars >= 0 ? DifficultyColors.StarsBadge(map.Stars) : DifficultyColors.Neutral;
         StarsBadgeTextBrush = DifficultyColors.StarsBadgeText(map.Stars);
-        VersionText = map.Version;
+        VersionText = $"[{map.Keys}K] {map.Version}";   // as osu! writes a mania difficulty
         Mapper = map.Mapper;
 
-        int notes = Math.Max(map.Objects, 0);
         double lnRatio = difficulty.LnRatio;
-        int holds = map.Holds > 0 ? map.Holds : (int)Math.Round(notes * lnRatio);
+        // (notes, hold notes and keys are not listed: the LN ratio says the first two, the difficulty's name the keys)
         ContentStats =
         [
-            new MapStat("Notes", notes.ToString("N0", CultureInfo.InvariantCulture), notes / 3000.0),
-            new MapStat("Hold notes", holds.ToString("N0", CultureInfo.InvariantCulture), notes > 0 ? (double)holds / notes : 0),
             new MapStat("LN ratio", (lnRatio * 100).ToString("0", CultureInfo.InvariantCulture) + "%", lnRatio),
-        ];
-        SettingStats =
-        [
-            new MapStat("Keys", map.Keys.ToString(CultureInfo.InvariantCulture), map.Keys / 10.0),
             double.TryParse(odFlag, NumberStyles.Float, CultureInfo.InvariantCulture, out var setOd)
                 ? new MapStat("Accuracy (OD)", setOd.ToString("0.#", CultureInfo.InvariantCulture), setOd / 10.0)
                 : new MapStat("Accuracy (OD)", map.Od.ToString("0.#", CultureInfo.InvariantCulture) + (odFlag == null ? string.Empty : " " + odFlag), map.Od / 10.0),

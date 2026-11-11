@@ -90,12 +90,14 @@ public sealed class MapRow : ObservableObject
 
         (Number, NumberText, _) = number(map, difficulty, numberKind);
 
-        // The colour is the map's, whichever number is shown: its Sunny rating's place on the spectrum, so the same map
-        // has the same colour as Sunny, as a dan level and as stars. Without a Sunny rating the shown number's own.
-        double onSpectrum = difficulty.Sunny is { } sunny ? sunny * DifficultyColors.SunnyScale
-            : numberKind == LibraryViewModel.NumberDan && difficulty.DanLevel is { } level ? level * DifficultyColors.DanScale
-            : map.Stars >= 0 ? map.Stars
-            : double.NaN;
+        // The colour is the shown number's: a Sunny rating's place on the spectrum; a dan level's as the Sunny rating maps
+        // of that level have (surveyed: see DifficultyColors), so the two agree; osu!'s stars as the game colours them.
+        double onSpectrum = numberKind switch
+        {
+            LibraryViewModel.NumberStars => map.Stars >= 0 ? map.Stars : double.NaN,
+            LibraryViewModel.NumberDan when difficulty.DanLevel is { } level => DifficultyColors.SunnyOfDanLevel(map.Keys, level) * DifficultyColors.SunnyScale,
+            _ => difficulty.Sunny is { } sunny ? sunny * DifficultyColors.SunnyScale : double.NaN,
+        };
         NumberBrush = double.IsFinite(onSpectrum) ? DifficultyColors.ForStars(onSpectrum) : DifficultyColors.Neutral;
         NumberBadge = DifficultyColors.Badge(onSpectrum);
         NumberBadgeText = DifficultyColors.BadgeText(onSpectrum);
@@ -738,6 +740,44 @@ public sealed class LibraryViewModel : ObservableObject
             SelectedGroup = group;
     }
 
+    /// <summary>A map was found in the lists (the page scrolls to its row).</summary>
+    public event Action<MapRow>? Located;
+
+    private string? pendingLocate;
+
+    /// <summary>
+    /// Shows a map in the lists: its group is picked. When the search, the keys or a filter hide it,
+    /// <paramref name="force"/> drops those first. False when it isn't shown.
+    /// </summary>
+    public bool Locate(string md5, bool force)
+    {
+        if (string.IsNullOrEmpty(md5))
+            return false;
+
+        bool has(MapRow row) => string.Equals(row.Md5, md5, StringComparison.OrdinalIgnoreCase);
+        if (Groups.FirstOrDefault(g => g.Rows.Any(has)) is { } group)
+        {
+            SelectedGroup = group;
+            if (Rows.FirstOrDefault(has) is { } row)
+                Located?.Invoke(row);
+            return true;
+        }
+
+        if (!force || service.Maps.Find(md5) is not { } map)
+            return false;
+
+        // hidden by what is picked: the map's own keys, no search, no collection, no quick filter
+        pendingLocate = md5;
+        string keys = map.Keys is 4 or 6 or 7 ? map.Keys.ToString(CultureInfo.InvariantCulture) : "others";
+        selectedKeys = KeysOptions.First(o => o.Key == keys);
+        OnPropertyChanged(nameof(SelectedKeys));
+        searchText = string.Empty;
+        OnPropertyChanged(nameof(SearchText));
+        OptionsChanged?.Invoke();
+        ClearOtherFilters();   // (builds the lists again)
+        return false;
+    }
+
     public MapRow? RowOf(string md5) => all.FirstOrDefault(row => string.Equals(row.Md5, md5, StringComparison.OrdinalIgnoreCase));
 
     private void markCurrentGroup()
@@ -894,6 +934,12 @@ public sealed class LibraryViewModel : ObservableObject
                         ?? Groups.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedGroup));
         showGroup();
+
+        if (pendingLocate is { } wanted)
+        {
+            pendingLocate = null;
+            Locate(wanted, force: false);
+        }
     }
 
     private void showGroup()

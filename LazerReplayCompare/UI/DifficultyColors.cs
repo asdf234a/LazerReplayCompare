@@ -31,8 +31,35 @@ public static class DifficultyColors
     /// <summary>A star rating as text: along the spectrum, and yellow from 6.5 stars as in the game.</summary>
     public static IBrush ForStars(double stars) => double.IsFinite(stars) && stars >= HighStars ? highText : brush(stars);
 
-    /// <summary>Where a Sunny rating and a dan level are read on osu!'s star spectrum.</summary>
-    public const double SunnyScale = 0.85, DanScale = 0.55;
+    /// <summary>Where a Sunny rating is read on osu!'s star spectrum.</summary>
+    public const double SunnyScale = 0.85;
+
+    // The Sunny rating maps of a dan level have: the median of each level (x.00 to x.99, at x.5) over a library of
+    // 29,000 4K and 14,000 7K maps the estimators gave a number. A dan level is coloured as that Sunny rating, so a map
+    // has much the same colour by either number. (4K's first point is everything under Reform 3.)
+    private static readonly (double Level, double Sunny)[] dan4K =
+    [
+        (2.5, 2.61), (3.5, 3.79), (4.5, 4.31), (5.5, 4.74), (6.5, 5.14), (7.5, 5.42), (8.5, 5.65), (9.5, 5.86), (10.5, 6.18),
+        (11.5, 6.51), (12.5, 6.87), (13.5, 7.30), (14.5, 7.89), (15.5, 8.62), (16.5, 9.29), (17.5, 9.88),
+    ];
+
+    private static readonly (double Level, double Sunny)[] dan7K =
+    [
+        (-0.5, 3.64), (0.5, 4.06), (1.5, 4.62), (2.5, 5.10), (3.5, 5.50), (4.5, 5.84), (5.5, 6.18), (6.5, 6.62), (7.5, 7.00),
+        (8.5, 7.39), (9.5, 7.83), (10.5, 8.27), (11.5, 8.75), (12.5, 9.22), (13.5, 9.80), (14.5, 10.35),
+    ];
+
+    /// <summary>The Sunny rating a dan level stands for (between the surveyed points, and on past them at their last slope).</summary>
+    public static double SunnyOfDanLevel(int keys, double level)
+    {
+        var points = keys == 4 ? dan4K : dan7K;
+        int i = 1;
+        while (i < points.Length - 1 && level > points[i].Level)
+            i++;
+
+        var (a, b) = (points[i - 1], points[i]);
+        return Math.Max(0, a.Sunny + (level - a.Level) / (b.Level - a.Level) * (b.Sunny - a.Sunny));
+    }
 
     private static readonly IBrush noBadge = new SolidColorBrush(Color.Parse("#22FFFFFF")).ToImmutable();
 
