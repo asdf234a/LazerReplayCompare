@@ -85,6 +85,12 @@ export function createSession({
         // who the play is raced against (rivals.js), best final score first, and the name the app gives the player
         rivals: [],
         rivalsPlayer: '',
+
+        // tosu's performance numbers for the play going on (see the PP items in metrics.js): the star rating of the part
+        // played so far, tosu's own pp for it, and the whole beatmap's pp at 100% with the play's mods
+        ppStarsLive: 0,
+        ppCurrent: 0,
+        ppFull: 0,
     };
 
     let loadedStateKey = '';
@@ -533,6 +539,9 @@ export function createSession({
             state.hits = data.play.hits;
             state.hitIndex = getHitIndex(data.play.hits);
         }
+        if (data.beatmap?.stats?.stars?.live != null) state.ppStarsLive = Number(data.beatmap.stats.stars.live) || 0;
+        if (data.play?.pp?.current != null) state.ppCurrent = Number(data.play.pp.current) || 0;
+        if (data.performance?.accuracy?.[100] != null) state.ppFull = Number(data.performance.accuracy[100]) || 0;
         if (data.play?.mods != null) {
             const next = getCurrentModsKey(data.play.mods);
             state.modAcronyms = (Array.isArray(data.play.mods.array) ? data.play.mods.array : []).map((mod) => normalizeAcronym(mod.acronym));
@@ -581,6 +590,19 @@ export function createSession({
     setInterval(check, 1000);
     setInterval(loadRanks, 1000);
 
+    /** What the PP items need besides a source's own judgements (the same for the play and for a replay frame). */
+    function ppContext() {
+        const mods = state.modAcronyms || [];
+        return {
+            starsLive: state.ppStarsLive,
+            current: state.ppCurrent,
+            full: state.ppFull,
+            liveHits: state.hits,
+            // osu!mania's pp multipliers
+            multiplier: (mods.includes('NF') ? 0.75 : 1) * (mods.includes('EZ') ? 0.5 : 1),
+        };
+    }
+
     return {
         state,
         frameAt,
@@ -598,6 +620,7 @@ export function createSession({
             index: state.hitIndex,
             perfectTotal: perfectTotal(state.perfectLive),
             rivals: rivalList(),
+            pp: ppContext(),
         }),
         /** A replay frame as an item source. */
         frameSource: (frame) => (frame ? {
@@ -611,6 +634,7 @@ export function createSession({
             perfectTotal: perfectTotal(state.perfectReplay),
             rivals: rivalList(),
             self: state.target?.filePath || '',
+            pp: ppContext(),
         } : null),
         /** The rivals with their timelines (see rivals.js); empty when there are none or none are needed. */
         rivals: rivalList,

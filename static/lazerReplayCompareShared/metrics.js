@@ -1,6 +1,6 @@
 // Items the overlays can show, and how their values are worked out.
 //
-// Built in: score, score_acc, score_acc_log, acc, acc_log, stable_acc, lazer_acc, ma_ratio, and the Rivals items
+// Built in: score, score_acc, score_acc_log, pp, pp_final, acc, acc_log, stable_acc, lazer_acc, ma_ratio, and the Rivals items
 // (rival_rank, rival_gap). Which item each overlay shows, and any custom items (made of judgement counts, from
 // the app's metrics.json), come from LazerReplayCompare's /state.
 
@@ -110,6 +110,46 @@ function lostAccuracy(s) {
 }
 
 /**
+ * How much of a beatmap's pp a set of judgements keeps (0..1): osu!mania's pp is its difficulty part times
+ * max(0, 5 x accuracy - 4), with the accuracy that counts a 300 as 300 of 320. Null before any judgement.
+ */
+function ppShare(hits) {
+    const total = totalHits(hits);
+    return total > 0 ? Math.max(0, (5 * weighted(hits, PP_VALUES)) / (320 * total) - 4) : null;
+}
+
+/**
+ * pp for the part of the beatmap played so far, as tosu shows it for the play: osu!mania's formula on the star rating
+ * of that part (tosu's) and the source's judgements. For a replay frame it is the pp that replay had at the same note.
+ * What the formula gives for the play's own judgements is held against tosu's number, and the small difference (tosu
+ * sends the stars rounded; the game's formula may have moved on) is taken out of every source alike.
+ */
+function ppSoFar(s) {
+    const context = s.pp;
+    const share = ppShare(s.hits);
+    if (!context || !(context.starsLive > 0) || share == null) return null;
+
+    const formula = (hits) => {
+        const part = ppShare(hits);
+        return part == null ? 0
+            : 8 * Math.pow(Math.max(context.starsLive - 0.15, 0.05), 2.2) * part * (1 + 0.1 * Math.min(1, totalHits(hits) / 1500)) * context.multiplier;
+    };
+
+    const live = formula(context.liveHits);
+    const fit = live > 1 && context.current > 0 ? Math.min(1.25, Math.max(0.8, context.current / live)) : 1;
+    return formula(s.hits) * fit;
+}
+
+/**
+ * pp the play ends with when it goes on as accurately as so far: the whole beatmap's pp at 100% with the play's mods
+ * (tosu's), times what the judgements so far keep of it.
+ */
+function ppAtThisPace(s) {
+    const share = ppShare(s.hits);
+    return !s.pp || !(s.pp.full > 0) || share == null ? null : s.pp.full * share;
+}
+
+/**
  * A source is what an item is evaluated on: the live play or a replay frame, as
  * { score, accuracy (0..1), hits, perfect (score if every judgement so far were MAX, or null), rankScores (the beatmap's
  * leaderboard, best first, or nothing), rankOthers (the same without the player's own scores), and for the Rivals items:
@@ -143,6 +183,9 @@ const BUILT_IN = {
             return lost == null ? null : 10 * Math.log2(baseLostShare(s) / lost);
         },
     },
+    // pp of the part played so far (tosu's number for the play; the same formula for a replay), and where it is heading
+    pp: { name: 'PP', format: 'decimal', scaleKey: 'Score', value: ppSoFar },
+    pp_final: { name: 'PP final', format: 'decimal', scaleKey: 'Score', value: ppAtThisPace },
     acc: { name: 'Acc', format: 'percent', scaleKey: 'Acc', value: (s) => (Number(s.accuracy) || 0) * 100 },
     // 0 at its base accuracy (95% unless picked otherwise), +10 each time the accuracy lost is halved.
     acc_log: {

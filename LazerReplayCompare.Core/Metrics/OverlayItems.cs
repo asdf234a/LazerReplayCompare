@@ -56,6 +56,10 @@ public static class OverlayItems
         // 0 at a base picked on the Compare page (999,000, or a place on the leaderboard), +10 each time the score lost is
         // halved; all MAX counts as e^-gamma of a 300 (see metrics.js)
         new("score_acc_log", "Score log", "decimal", true),
+        // pp of the part played so far (as tosu shows it; for a replay, what it had at the same note), and the pp the
+        // play ends with at this accuracy (metrics.js)
+        new("pp", "PP", "decimal", true),
+        new("pp_final", "PP final", "decimal", true),
         new("acc", "Acc", "percent", true),
         // 0 at a picked accuracy, +10 each time the accuracy lost is halved; the formula is picked too (metrics.js)
         new("acc_log", "Acc log", "decimal", true),
@@ -178,6 +182,8 @@ public static class OverlayItems
         ["score_acc"] = "Score",
         ["score_acc_log"] = "Score",
         ["pp_score"] = "Score",
+        ["pp"] = "Score",
+        ["pp_final"] = "Score",
         ["acc"] = "Accuracy",
         ["acc_log"] = "Accuracy",
         ["stable_acc"] = "Accuracy",

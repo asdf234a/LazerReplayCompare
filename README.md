@@ -95,6 +95,8 @@ What Main and Sub show, and who the rivals are, is picked in the replay list's t
 | Score | Score, as the game counts it (osu!stable: ScoreV1). |
 | Score acc | Score as a share of the best score possible so far. |
 | Score log | How far you are from a base score (999,000 by default, or a place on the leaderboard): +10 each time the score lost is halved. |
+| PP | pp of the part played so far, as tosu shows it; for the replay, the pp it had at the same note. |
+| PP final | The pp the play ends with if it goes on as accurately as so far. |
 | Acc | Accuracy, as the game shows it. |
 | Acc log | The same scale for accuracy: 0 at a base accuracy you pick (95% by default), +10 for half the accuracy lost. |
 | Stable acc | osu!stable's accuracy, from the judgements. Handy while playing osu!lazer. |
