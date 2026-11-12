@@ -564,10 +564,12 @@ export function createSession({
         socket.addEventListener('open', () => {
             socket.send(`applyFilters:${JSON.stringify([
                 'client',
-                { field: 'beatmap', keys: ['checksum', 'id'] },
+                // (stats.stars, play.pp and performance.accuracy are for the PP items; the performance graph is left out)
+                { field: 'beatmap', keys: ['checksum', 'id', { field: 'stats', keys: ['stars'] }] },
                 { field: 'files', keys: ['beatmap'] },
                 { field: 'folders', keys: ['songs', 'beatmap'] },
-                { field: 'play', keys: ['score', 'accuracy', 'hits', 'combo', 'mods'] },
+                { field: 'play', keys: ['score', 'accuracy', 'hits', 'combo', 'mods', { field: 'pp', keys: ['current'] }] },
+                { field: 'performance', keys: ['accuracy'] },
                 { field: 'profile', keys: ['username', 'name', 'user'] },
                 { field: 'state', keys: ['name'] },
             ])}`);
