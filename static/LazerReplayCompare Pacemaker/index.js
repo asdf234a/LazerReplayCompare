@@ -8,11 +8,11 @@ import { standings, windowRows } from '../lazerReplayCompareShared/rivals.js';
 import { createSession } from '../lazerReplayCompareShared/session.js';
 
 // Settings. Either can also be given in the overlay's address: ?rows=6&by=accuracy
-const MAX_ROWS = 8;             // rows shown at most (2 or more): the first place and the rows around you
+const MAX_ROWS = 8;             // rows shown at most (3 or more): you, the two above you, and the top of the list
 const COMPARE_BY = 'score';     // 'score' or 'accuracy'
 
 const query = new URLSearchParams(location.search);
-const maxRows = Math.max(2, Math.floor(Number(query.get('rows'))) || MAX_ROWS);
+const maxRows = Math.max(3, Math.floor(Number(query.get('rows'))) || MAX_ROWS);
 const compareBy = /^acc/i.test(query.get('by') || COMPARE_BY) ? 'accuracy' : 'score';
 // the item the numbers are formatted as
 const item = compareBy === 'accuracy' ? 'acc' : 'score';
@@ -114,7 +114,9 @@ function render() {
             setText(diff, formatted.text);
         }
 
-        const className = `row${position === 0 ? ' first' : ''}${row.isPlayer ? ' player' : ''}${!row.isPlayer && row.rival.isTarget ? ' target' : ''}`;
+        // a row that doesn't follow the one above it (places are skipped between the top of the list and you)
+        const skipped = position > 0 && row.place !== rows[position - 1].place + 1;
+        const className = `row${position === 0 ? ' first' : ''}${skipped ? ' skipped' : ''}${row.isPlayer ? ' player' : ''}${!row.isPlayer && row.rival.isTarget ? ' target' : ''}`;
         if (element.className !== className) element.className = className;
         const diffClass = `diff ${tone}`;
         if (diff.className !== diffClass) diff.className = diffClass;

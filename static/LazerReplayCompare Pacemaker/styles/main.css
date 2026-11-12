@@ -61,6 +61,9 @@ body {
 
 .row.first { border-top-color: transparent; }
 
+/* places are skipped above this row: a dashed line instead of the plain divider */
+.row.skipped { border-top: 1px dashed #5F6776; }
+
 .row.player {
     background: #3A1C2C;
     box-shadow: inset 3px 0 0 #FF66AA;

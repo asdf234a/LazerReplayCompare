@@ -86,7 +86,7 @@ Hover a chart to see its numbers. On a results screen the app opens that replay'
 
 What Main and Sub show, and who the rivals are, is picked in the replay list's tab row (**Main**, **Sub**, **Rivals**). The overlays follow within a second.
 
-**Rivals** are your local replays at this rate, the online ranking, or both. A rival with a replay is where that replay was at this note; one without (an online score not downloaded) moves at an even pace towards its final score and is marked `est.`. The Pacemaker shows 8 rows at most; add `?rows=6&by=accuracy` to its address to change that or to compare by accuracy.
+**Rivals** are your local replays at this rate, the online ranking, or both. A rival with a replay is where that replay was at this note; one without (an online score not downloaded) moves at an even pace towards its final score and is marked `est.`. The Pacemaker shows 8 rows at most: you, the two rivals directly above you, and the top of the list from first place down (a dashed line marks skipped places). Add `?rows=6&by=accuracy` to its address to change the number of rows or to compare by accuracy.
 
 **Show** is **Diff** (you minus the target at the same note; positive means you are ahead), **Live** (your value) or **Replay** (the target's value at the same note).
 

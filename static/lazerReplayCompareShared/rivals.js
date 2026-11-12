@@ -107,17 +107,20 @@ export function standings(rivals, player, point, by = 'score') {
 }
 
 /**
- * The rows to show when there is room for `max` (2 or more): all of them when they fit; otherwise the first one and the
- * rows around the player (as many above as below, moved along at either end of the list).
+ * The rows to show when there is room for `max` (3 or more): all of them when they fit; otherwise the player, the two
+ * rows directly above (who is next to catch), and the top of the list from first place down for the room that is left.
+ * A player near the top simply gets the first `max` rows.
  */
 export function windowRows(rows, playerIndex, max) {
-    const size = Math.max(2, Math.floor(Number(max)) || 2);
+    const size = Math.max(3, Math.floor(Number(max)) || 3);
     if (rows.length <= size) return rows.slice();
 
-    const around = size - 1;                                    // rows next to the first one
-    let start = Math.max(1, playerIndex - Math.floor((around - 1) / 2));
-    start = Math.min(start, rows.length - around);
-    return [rows[0], ...rows.slice(start, start + around)];
+    const shown = new Set();
+    for (let i = Math.max(0, playerIndex - 2); i <= playerIndex; i++) shown.add(i);
+    // from first place down, then (when the player is near the top) on below the player
+    for (let i = 0; i < rows.length && shown.size < size; i++) shown.add(i);
+
+    return [...shown].sort((x, y) => x - y).map((i) => rows[i]);
 }
 
 /**

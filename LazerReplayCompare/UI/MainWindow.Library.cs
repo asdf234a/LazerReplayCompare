@@ -855,7 +855,10 @@ public sealed partial class MainWindow
 
     // --- Rivals for the pacemaker overlay ---
 
-    private const int max_rivals = 12;
+    // Rivals with a replay have their timeline built for the overlays (two at a time, the best ones first): no more
+    // than this many. A leaderboard score without a replay costs nothing (it moves at an even pace), so all of those
+    // stay: the whole online top 50 can be raced against.
+    private const int max_replay_rivals = 30;
 
     /// <summary>The opponents for the game's map: local replays at the play's rate, and leaderboard scores without a replay here.</summary>
     private RivalSet buildRivals()
@@ -904,7 +907,9 @@ public sealed partial class MainWindow
             }
         }
 
-        return new RivalSet(md5, mode, library.Player, rivals.OrderByDescending(rival => rival.Score).Take(max_rivals).ToList());
+        var ordered = rivals.OrderByDescending(rival => rival.Score).ToList();
+        var kept = ordered.Where(rival => rival.FilePath.Length > 0).Take(max_replay_rivals).ToHashSet();
+        return new RivalSet(md5, mode, library.Player, ordered.Where(rival => rival.FilePath.Length == 0 || kept.Contains(rival)).ToList());
     }
 
     /// <summary>
