@@ -289,6 +289,12 @@ public sealed class ReplayApiServer : IDisposable
     /// <summary>What /rivals answers with (set by the window).</summary>
     public Func<RivalSet>? Rivals { get; set; }
 
+    /// <summary>
+    /// Changes whenever /rivals would answer differently for a reason the replay list doesn't show: who the rivals are
+    /// (local, online, both) and the online ranking arriving. The overlays ask for the rivals again when it does.
+    /// </summary>
+    public Func<string>? RivalsVersion { get; set; }
+
     private object BuildState()
     {
         var (md5, replayList, selectedReplay) = getReplays();
@@ -321,6 +327,7 @@ public sealed class ReplayApiServer : IDisposable
             selectedReplay = replay,
             replayCount = replayList.Count,
             replayListVersion,
+            rivalsVersion = RivalsVersion?.Invoke() ?? string.Empty,
             selectedReplayKey,
             timelineKey,
             isReady = !string.IsNullOrWhiteSpace(md5) && replay != null,

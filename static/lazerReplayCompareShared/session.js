@@ -272,7 +272,7 @@ export function createSession({
     }
 
     /**
-     * Asks the app for the rivals when a play started or its replay list or target changed (`data` is /state's answer),
+     * Asks the app for the rivals when a play started or its replay list, target or rivals changed (`data` is /state's answer),
      * at most once a second, and queues the timelines of those with a replay file that aren't kept yet.
      */
     async function checkRivals(data) {
@@ -281,7 +281,8 @@ export function createSession({
         const base = baseKey();
         const correction = state.correctionMode;
         const metric = rivalMetric();
-        const key = `${base}|${state.client}|${plays}|${data.replayListVersion || ''}|${data.selectedReplayKey || ''}|${correction}|${metric}`;
+        // (rivalsVersion: who the rivals are, and the online ranking, which can arrive after the play began)
+        const key = `${base}|${state.client}|${plays}|${data.replayListVersion || ''}|${data.rivalsVersion || ''}|${data.selectedReplayKey || ''}|${correction}|${metric}`;
         if (key === rivalsKey || Date.now() < rivalsCheckAfter) return;
 
         rivalsCheckAfter = Date.now() + rivals_check_delay;

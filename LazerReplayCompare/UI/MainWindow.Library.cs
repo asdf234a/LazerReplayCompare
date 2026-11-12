@@ -861,6 +861,21 @@ public sealed partial class MainWindow
     private const int max_replay_rivals = 30;
 
     /// <summary>The opponents for the game's map: local replays at the play's rate, and leaderboard scores without a replay here.</summary>
+    /// <summary>
+    /// What the rivals depend on besides the replay list: their kind, and the online ranking of the game's map (which
+    /// arrives a moment after the map is selected, possibly once a play has begun).
+    /// </summary>
+    private string rivalsVersion()
+    {
+        string mode = settingsService.Current.RivalsMode is "online" or "both" ? settingsService.Current.RivalsMode : "local";
+        if (mode == "local")
+            return mode;
+
+        // (read from the API's thread: the list is replaced as a whole, never changed in place)
+        var scores = onlineScores;
+        return $"{mode}|{onlineScoresMd5}|{scores.Count}";
+    }
+
     private RivalSet buildRivals()
     {
         string mode = settingsService.Current.RivalsMode is "online" or "both" ? settingsService.Current.RivalsMode : "local";

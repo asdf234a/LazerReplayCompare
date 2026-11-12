@@ -114,6 +114,7 @@ public sealed partial class MainWindow : Window
         pageZoom = this.FindControl<LayoutTransformControl>("PageZoom")!;
         setUpLibrary();
         apiServer.Rivals = buildRivals;
+        apiServer.RivalsVersion = rivalsVersion;
 
         // back from a details page, and zoom, from anywhere in the window (before controls handle the input)
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
