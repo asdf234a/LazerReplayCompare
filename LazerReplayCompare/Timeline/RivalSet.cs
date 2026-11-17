@@ -11,7 +11,10 @@ namespace LazerReplayCompare;
 /// <param name="IsTarget">The replay the Main and Sub overlays compare against.</param>
 /// <param name="IsUser">One of the user's own plays.</param>
 public sealed record Rival(string Id, string Name, string Source, string FilePath, long Score, double Accuracy, int MaxCombo, string Rank, string ModsText,
-    string Date, bool IsTarget, bool IsUser);
+    string Date, bool IsTarget, bool IsUser,
+    // an online score set in osu!stable: the score and accuracy osu!stable shows for it, which a play in osu!stable is
+    // held against (Score is osu!lazer's for the same play); 0 otherwise
+    long StableScore = 0, double StableAccuracy = 0);
 
 /// <summary>What /rivals answers with: the opponents for the beatmap being played.</summary>
 /// <param name="Mode">Which opponents the user picked: "local", "online" or "both".</param>

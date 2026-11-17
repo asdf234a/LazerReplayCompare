@@ -303,7 +303,7 @@ export function createSession({
             }
 
             const rate = parseFloat(state.modsKey.split('|')[1]) || 1;
-            const rivals = toRivals(answer.rivals);
+            const rivals = toRivals(answer.rivals, state.client);
             for (const rival of rivals) {
                 if (rival.source !== 'replay') continue;
                 rival.timelineKey = `${base}|${state.client}|${rival.filePath}|${correction}|${metric}`;

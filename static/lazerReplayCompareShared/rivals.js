@@ -8,10 +8,22 @@
 // A point of the song is { index (judgements so far), perfect (best possible score so far), perfectTotal (best possible
 // score of the whole beatmap) }.
 
-/** The /rivals list as rivals (without timelines); entries without a score are dropped. */
-export function toRivals(list) {
+/**
+ * The /rivals list as rivals (without timelines), best first; entries without a score are dropped.
+ *
+ * A play in osu!stable (`client` 'stable') is held against what osu!stable shows: an online score set there counts with
+ * its osu!stable score and accuracy (the list's own score is osu!lazer's for the same play, which is lower for the same
+ * judgements), and online scores set in osu!lazer, which osu!stable's ranking doesn't have, are left out.
+ */
+export function toRivals(list, client = 'lazer') {
+    const stable = client === 'stable';
     return (Array.isArray(list) ? list : [])
         .filter((entry) => entry && Number.isFinite(Number(entry.score)))
+        .filter((entry) => !stable || !String(entry.id || '').startsWith('online:') || entry.filePath || Number(entry.stableScore) > 0)
+        .map((entry) => (stable && Number(entry.stableScore) > 0
+            ? { ...entry, score: Number(entry.stableScore), accuracy: Number(entry.stableAccuracy) || entry.accuracy }
+            : entry))
+        .sort((a, b) => Number(b.score) - Number(a.score))
         .map((entry, i) => ({
             id: String(entry.id || `${entry.source || ''}:${entry.filePath || entry.name || ''}:${i}`),
             name: String(entry.name || 'unknown'),

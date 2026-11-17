@@ -918,7 +918,8 @@ public sealed partial class MainWindow
                 bool saved = File.Exists(path);
                 rivals.Add(new Rival($"online:{score.ScoreId}", score.Player, saved ? "replay" : "online", saved ? path : string.Empty, score.TotalScore, score.Accuracy, score.MaxCombo,
                     Ranks.Letter(score.Rank), score.Mods.Count == 0 ? "NM" : string.Join(" ", score.Mods), score.Date?.ToString("O") ?? string.Empty,
-                    false, string.Equals(score.Player, library.Player, StringComparison.OrdinalIgnoreCase)));
+                    false, string.Equals(score.Player, library.Player, StringComparison.OrdinalIgnoreCase),
+                    score.StableScore, score.StableAccuracy));
             }
         }
 

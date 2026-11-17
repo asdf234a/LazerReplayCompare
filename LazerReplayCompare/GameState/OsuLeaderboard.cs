@@ -7,7 +7,9 @@ public sealed record LeaderboardScore(int Position, long UserId, string Name, lo
 
 /// <summary>A leaderboard score with what the app's Online ranking lists (and its id, to ask for its replay).</summary>
 public sealed record OnlineScore(int Position, long ScoreId, long UserId, string Player, long TotalScore, double Accuracy, int MaxCombo, string Rank,
-    IReadOnlyList<string> Mods, int Miss, DateTimeOffset? Date, bool HasReplay);
+    IReadOnlyList<string> Mods, int Miss, DateTimeOffset? Date, bool HasReplay,
+    // for a score set in osu!stable: the score and accuracy osu!stable shows for it (0 for an osu!lazer score)
+    long StableScore = 0, double StableAccuracy = 0);
 
 /// <summary>
 /// A beatmap's top scores from the osu! API (tosu can't read osu!lazer's leaderboard), with the user's own OAuth client.
@@ -251,8 +253,17 @@ public sealed class OsuLeaderboard : IDisposable
                 }
             }
 
-            int miss = score.TryGetProperty("statistics", out var statistics) && statistics.ValueKind == JsonValueKind.Object
-                       && statistics.TryGetProperty("miss", out var missValue) && missValue.ValueKind == JsonValueKind.Number ? missValue.GetInt32() : 0;
+            bool counted = score.TryGetProperty("statistics", out var statistics) && statistics.ValueKind == JsonValueKind.Object;
+            int count(string judgement) => counted && statistics.TryGetProperty(judgement, out var value) && value.ValueKind == JsonValueKind.Number ? value.GetInt32() : 0;
+            int miss = count("miss");
+
+            // an osu!stable score also has the score osu!stable gave it (total_score is osu!lazer's for the same play);
+            // osu!stable's accuracy counts a 300 like a MAX
+            long stableScore = score.TryGetProperty("legacy_total_score", out var legacy) && legacy.ValueKind == JsonValueKind.Number ? legacy.GetInt64() : 0;
+            int judged = count("perfect") + count("great") + count("good") + count("ok") + count("meh") + miss;
+            double stableAccuracy = stableScore > 0 && judged > 0
+                ? (300.0 * (count("perfect") + count("great")) + 200 * count("good") + 100 * count("ok") + 50 * count("meh")) / (300.0 * judged)
+                : 0;
             DateTimeOffset? date = score.TryGetProperty("ended_at", out var ended) && ended.ValueKind == JsonValueKind.String
                                    && DateTimeOffset.TryParse(ended.GetString(), out var parsed) ? parsed : null;
 
@@ -268,7 +279,8 @@ public sealed class OsuLeaderboard : IDisposable
                 mods,
                 miss,
                 date,
-                score.TryGetProperty("has_replay", out var hasReplay) && hasReplay.ValueKind == JsonValueKind.True));
+                score.TryGetProperty("has_replay", out var hasReplay) && hasReplay.ValueKind == JsonValueKind.True,
+                stableScore, stableAccuracy));
         }
 
         return list;
