@@ -214,6 +214,55 @@ public sealed class ReplayApiServer : IDisposable
                 return;
             }
 
+            if (uri.AbsolutePath == "/plugin")
+            {
+                // a replay plugin's script, for the overlays to run on the play going on
+                var plugin = Plugin?.Invoke(GetQueryValue(ParseQuery(uri.Query), "key") ?? string.Empty);
+                if (plugin == null)
+                    Respond(new { error = "No such plugin" }, 404);
+                else
+                    Respond(plugin);
+                return;
+            }
+
+            if (uri.AbsolutePath == "/plugin-replay")
+            {
+                // a replay as plugins see it: every press and release with its error (analysed on the first ask)
+                var query = ParseQuery(uri.Query);
+                var replayPath = GetQueryValue(query, "osr") ?? string.Empty;
+                var beatmapPath = GetQueryValue(query, "osu") ?? string.Empty;
+                var roots = getAllowedRoots().ToList();
+                if (!LocalRequestGuard.IsInside(replayPath, roots) || !LocalRequestGuard.IsInside(beatmapPath, roots))
+                {
+                    Respond(new { error = "Only files inside the osu! folders can be read" }, 403);
+                    return;
+                }
+
+                var json = PluginReplay?.Invoke(replayPath, beatmapPath);
+                if (json == null)
+                    Respond(new { error = "Not available" }, 404);
+                else
+                    Respond(JsonSerializer.Deserialize<JsonElement>(json));
+                return;
+            }
+
+            if (uri.AbsolutePath == "/chart")
+            {
+                // every object the game judges in the beatmap with these mods, to tell tosu's live hit errors apart
+                var query = ParseQuery(uri.Query);
+                var beatmapPath = GetQueryValue(query, "osu") ?? GetQueryValue(query, "beatmap") ?? string.Empty;
+                if (!LocalRequestGuard.IsInside(beatmapPath, getAllowedRoots()))
+                {
+                    Respond(new { error = "Only files inside the osu! folders can be read" }, 403);
+                    return;
+                }
+
+                var mods = (GetQueryValue(query, "mods") ?? string.Empty).Split(new[] { ',', '+', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                var rate = double.TryParse(GetQueryValue(query, "rate"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var r) && r > 0 ? r : 0;
+                Respond(GetChart(beatmapPath, mods, rate));
+                return;
+            }
+
             if (uri.AbsolutePath == "/metrics")
             {
                 Respond(new { metrics = MetricRegistry.ToJson() });
@@ -285,6 +334,39 @@ public sealed class ReplayApiServer : IDisposable
 
         return scores;
     }
+
+    // /chart results by beatmap and mods (most recent last)
+    private readonly List<(string Key, ChartObjectList Chart)> charts = new();
+    private const int kept_charts = 4;
+
+    private ChartObjectList GetChart(string beatmapPath, IReadOnlyList<string> mods, double rate)
+    {
+        var key = $"{beatmapPath}|{string.Join("+", mods.Select(m => m.ToUpperInvariant()).Order())}|{rate.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        lock (charts)
+        {
+            var index = charts.FindIndex(entry => entry.Key == key);
+            if (index >= 0)
+                return charts[index].Chart;
+        }
+
+        var chart = ChartObjects.Build(beatmapPath, mods, rate);
+        IdleCollector.AfterHeavyWork();
+        lock (charts)
+        {
+            charts.RemoveAll(entry => entry.Key == key);
+            charts.Add((key, chart));
+            if (charts.Count > kept_charts)
+                charts.RemoveAt(0);
+        }
+
+        return chart;
+    }
+
+    /// <summary>What /plugin answers with for a plugin's key: its name, format, version and script; null for none (set by the window).</summary>
+    public Func<string, object?>? Plugin { get; set; }
+
+    /// <summary>What /plugin-replay answers with for a replay and its beatmap file: the replay's data as JSON, or null (set by the window).</summary>
+    public Func<string, string, string?>? PluginReplay { get; set; }
 
     /// <summary>What /rivals answers with (set by the window).</summary>
     public Func<RivalSet>? Rivals { get; set; }

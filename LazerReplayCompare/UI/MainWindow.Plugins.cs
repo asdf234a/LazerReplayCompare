@@ -13,15 +13,45 @@ public sealed partial class MainWindow
     // how long a map's replay list must stay before its replays are analysed for the column
     private static readonly TimeSpan plugin_settle = TimeSpan.FromMilliseconds(700);
 
-    /// <summary>Reads the plugins folder and follows it: a saved script shows its new values at once.</summary>
-    private void startPlugins()
+    /// <summary>
+    /// Reads the plugins folder and makes its plugins overlay items; the overlays get the scripts, the replays' data
+    /// and the charts from the API server to work them out during a play.
+    /// </summary>
+    private void loadPlugins()
     {
         plugins.Start();
+        publishPluginItems();
+
+        apiServer.Plugin = key => plugins.Find(key) is { Usable: true } plugin
+            ? new { key = plugin.Key, name = plugin.Name, format = plugin.Format, version = plugin.Version, source = plugin.Source }
+            : null;
+        apiServer.PluginReplay = (replayPath, beatmapPath) =>
+        {
+            if (!File.Exists(replayPath) || !File.Exists(beatmapPath))
+                return null;
+
+            // the listed entry (its player, score and mods as the list has them), or the file's own
+            var entry = GetCurrentReplays().Replays.FirstOrDefault(replay => string.Equals(replay.FilePath, replayPath, StringComparison.OrdinalIgnoreCase))
+                        ?? ReplayFinder.ReadReplay(replayPath, beatmapPath);
+            return pluginScores.ReplayData(entry, beatmapPath);
+        };
+    }
+
+    private void publishPluginItems()
+        => OverlayItems.Plugins = plugins.All.Where(plugin => plugin.Usable)
+                                         .Select(plugin => new OverlayItem(OverlayItems.PluginItemKey(plugin.Key), plugin.Name, plugin.Format, false, Plugin: plugin.Key, Version: plugin.Version))
+                                         .ToList();
+
+    /// <summary>Follows the plugins folder: a saved script shows its new values at once, in the list and in the overlays.</summary>
+    private void startPlugins()
+    {
         plugins.Changed += () => Dispatcher.UIThread.Post(() =>
         {
             if (closing)
                 return;
 
+            publishPluginItems();
+            viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay, settingsService.Current.HiddenItems);
             fillListColumns();
             updateListColumn();
         });

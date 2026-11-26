@@ -26,7 +26,9 @@ public sealed record OverlayItem(
     IReadOnlyDictionary<string, double>? Per = null,
     double Add = 0,
     double? Log = null,
-    double? Pow = null);
+    double? Pow = null,
+    string? Plugin = null,
+    string? Version = null);
 
 /// <summary>How an overlay shows its item: the difference to the compared replay, the live value, or the replay's value.</summary>
 public static class OverlayShow
@@ -130,8 +132,31 @@ public static class OverlayItems
         }
     }
 
-    /// <summary>Every item: built-in first, then custom ones (a custom item never replaces a built-in one).</summary>
-    public static IReadOnlyList<OverlayItem> All => BuiltIn.Concat(Custom().Where(item => BuiltIn.All(b => !same(b.Key, item.Key)))).ToList();
+    /// <summary>The key of the item a replay plugin makes (see <see cref="Plugins"/>).</summary>
+    public static string PluginItemKey(string plugin) => "plugin_" + plugin;
+
+    private static IReadOnlyList<OverlayItem> plugins = [];
+
+    /// <summary>
+    /// The replay plugins as items (set by the app): worked out by the overlays from every press's timing, with the
+    /// plugin's own script (<see cref="OverlayItem.Plugin"/> names it, <see cref="OverlayItem.Version"/> its file's content).
+    /// </summary>
+    public static IReadOnlyList<OverlayItem> Plugins
+    {
+        get => Volatile.Read(ref plugins);
+        set => Volatile.Write(ref plugins, value);
+    }
+
+    /// <summary>Every item: built-in first, then custom ones (a custom item never replaces a built-in one), then the plugins'.</summary>
+    public static IReadOnlyList<OverlayItem> All
+    {
+        get
+        {
+            var items = BuiltIn.Concat(Custom().Where(item => BuiltIn.All(b => !same(b.Key, item.Key)))).ToList();
+            items.AddRange(Plugins.Where(plugin => items.All(item => !same(item.Key, plugin.Key))));
+            return items;
+        }
+    }
 
     /// <summary>The custom items, re-read when the file changed; the last good ones when it is missing or broken.</summary>
     public static IReadOnlyList<OverlayItem> Custom()
@@ -174,7 +199,7 @@ public static class OverlayItems
     }
 
     /// <summary>The groups of the item lists, in order.</summary>
-    public static readonly IReadOnlyList<string> Groups = ["Score", "Accuracy", "Judgements", "Ranking", "Rivals", "Custom"];
+    public static readonly IReadOnlyList<string> Groups = ["Score", "Accuracy", "Judgements", "Ranking", "Rivals", "Custom", "Plugins"];
 
     private static readonly Dictionary<string, string> item_groups = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -197,7 +222,8 @@ public static class OverlayItems
     };
 
     /// <summary>The group an item is listed under; a custom item the app doesn't know goes under Custom.</summary>
-    public static string GroupOf(string item) => item_groups.GetValueOrDefault(item, "Custom");
+    public static string GroupOf(string item)
+        => item.StartsWith("plugin_", StringComparison.OrdinalIgnoreCase) && Plugins.Any(plugin => same(plugin.Key, item)) ? "Plugins" : item_groups.GetValueOrDefault(item, "Custom");
 
     /// <summary>The <see cref="MetricRegistry"/> metric a scaled timeline is stretched by for this item.</summary>
     public static string ScaleMetric(string item) => item.ToLowerInvariant() switch
@@ -225,6 +251,8 @@ public static class OverlayItems
         add = item.Add,
         log = item.Log,
         pow = item.Pow,
+        plugin = item.Plugin,
+        version = item.Version,
     }).ToList();
 
     private static bool same(string a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);

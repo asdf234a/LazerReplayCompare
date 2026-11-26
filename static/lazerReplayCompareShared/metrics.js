@@ -303,6 +303,19 @@ export function setItems(list) {
     if (!Array.isArray(list)) return;
     const next = {};
     for (const item of list) {
+        // a replay plugin: its value comes with the source (see plugins.js), worked out from every press's timing
+        if (item && !item.builtIn && typeof item.key === 'string' && typeof item.plugin === 'string' && item.plugin) {
+            const plugin = item.plugin;
+            next[item.key] = {
+                name: String(item.name || item.key),
+                format: item.format === 'percent' || item.format === 'decimal' ? item.format : 'integer',
+                scaleKey: 'Score',
+                plugin: { key: plugin, version: String(item.version || '') },
+                value: (s) => s.plugin?.[plugin] ?? null,
+            };
+            continue;
+        }
+
         if (!item || item.builtIn || typeof item.key !== 'string' || !item.weights) continue;
         const scale = Number(item.scale) || 1;
         const add = Number(item.add) || 0;
@@ -375,6 +388,11 @@ export function needsRank(key) {
 /** Whether the item is about the app's rivals (/rivals). */
 export function needsRivals(key) {
     return Boolean(definition(key)?.rivals);
+}
+
+/** The replay plugin behind the item ({ key, version }), or null. */
+export function pluginOf(key) {
+    return definition(key)?.plugin ?? null;
 }
 
 /** Whether the item's own value carries a sign ("+" when positive, coloured like a difference). */

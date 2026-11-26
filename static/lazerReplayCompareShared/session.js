@@ -15,7 +15,8 @@ import {
     timelineScaleMetric,
     updateOsuPath,
 } from './overlayState.js';
-import { setClient } from './metrics.js';
+import { hitValue, setClient } from './metrics.js';
+import { createPluginRunner } from './plugins.js';
 import { toRivals } from './rivals.js';
 
 const TOSU_HOST = window.TOSU_HOST || location.host || '127.0.0.1:24050';
@@ -30,6 +31,7 @@ const LAZER_COMPARE_HOST = window.LAZER_COMPARE_HOST || '127.0.0.1:24052';
  * @param {() => boolean} [options.needsRank]      Whether the leaderboard's scores are needed (Score log from a place, or Live rank, is shown).
  * @param {() => boolean} [options.needsRivals]    Whether the rivals are needed (a Rivals item, or the Pacemaker, is shown).
  * @param {() => string} [options.rivalMetric]     App metric the rivals' scaled timelines are stretched by.
+ * @param {() => ({ key: string, version: string } | null)} [options.plugin]  The replay plugin behind the shown item, if any.
  * @param {(data: object) => void} [options.onState]  Called with every /state answer (what to show, custom items).
  */
 export function createSession({
@@ -40,6 +42,7 @@ export function createSession({
     needsRank = () => false,
     needsRivals = () => false,
     rivalMetric = () => 'Score',
+    plugin = () => null,
     onState = () => {},
 }) {
     const state = {
@@ -118,6 +121,51 @@ export function createSession({
     let rivalBuilds = 0;
 
     const baseKey = () => `${state.beatmapChecksum}|${state.osuPath}|${state.modsKey}`;
+
+    // a replay plugin's values for the play and the compared replay (plugins.js); tosu's hit errors are only asked
+    // for while one is shown (they are the bulk of a message)
+    const pluginRunner = createPluginRunner({ fetchJson, onChange: () => update() });
+    let socket = null;
+    let errorsWanted = false;
+
+    function sendFilters() {
+        if (!socket || socket.readyState !== 1) return;
+        socket.send(`applyFilters:${JSON.stringify([
+            'client',
+            // (stats.stars, play.pp and performance.accuracy are for the PP items; the performance graph is left out)
+            { field: 'beatmap', keys: ['checksum', 'id', ...(errorsWanted ? ['time'] : []), { field: 'stats', keys: ['stars'] }] },
+            { field: 'files', keys: ['beatmap'] },
+            { field: 'folders', keys: ['songs', 'beatmap'] },
+            { field: 'play', keys: ['score', 'accuracy', 'hits', 'combo', 'mods', ...(errorsWanted ? ['hitErrorArray'] : []), { field: 'pp', keys: ['current'] }] },
+            { field: 'performance', keys: ['accuracy'] },
+            { field: 'profile', keys: ['username', 'name', 'user'] },
+            { field: 'state', keys: ['name'] },
+        ])}`);
+    }
+
+    /** Tells the plugin runner what is shown and played (it asks the app for what it lacks), and tosu whether hit errors are needed. */
+    function syncPlugin() {
+        // (osu!stable's hit errors are not known to be told the same way: osu!lazer only)
+        const wanted = isPlaying() && state.client === 'lazer' && state.beatmapChecksum && state.osuPath ? plugin() : null;
+        pluginRunner.sync({
+            plugin: wanted,
+            osuPath: state.osuPath,
+            mods: state.modAcronyms,
+            rate: parseFloat(state.modsKey.split('|')[1]) || 1,
+            base: baseKey(),
+            // the compared replay, once its timeline is the one loaded (told the same way as the play: see plugins.js)
+            target: state.framesKey === baseKey() && state.target?.filePath ? {
+                path: state.target.filePath,
+                mods: (Array.isArray(state.target.mods) ? state.target.mods : []).map((mod) => normalizeAcronym(mod.acronym)),
+                rate: parseFloat(getReplayModsKey(state.target).split('|')[1]) || 1,
+            } : null,
+        });
+
+        if (Boolean(wanted) !== errorsWanted) {
+            errorsWanted = Boolean(wanted);
+            sendFilters();
+        }
+    }
 
     const isPlaying = () => {
         const value = String(state.gameState || '').toLowerCase();
@@ -420,6 +468,7 @@ export function createSession({
             try {
                 const data = await fetchJson('/state');
                 onState(data);
+                syncPlugin();
                 update();
             } catch {
                 // the app is not running (yet)
@@ -434,6 +483,7 @@ export function createSession({
             const data = await fetchJson('/state');
             state.correctionMode = data.correctionMode || state.correctionMode;
             onState(data);
+            syncPlugin();
             update();
             if (data.beatmapMd5 !== state.beatmapChecksum) {
                 resetTarget();
@@ -553,27 +603,26 @@ export function createSession({
         }
 
         updateOsuPath(state);
+        syncPlugin();
+        if (errorsWanted && Array.isArray(data.play?.hitErrorArray) && data.beatmap?.time?.live != null) {
+            pluginRunner.onLive(data.play.hitErrorArray, data.beatmap.time.live, {
+                player: state.player,
+                score: state.score,
+                accuracy: state.accuracy,
+                maxCombo: Number(data.play.combo?.max) || 0,
+                mods: state.modAcronyms,
+            }, hitValue(state.hits, 'Miss'));
+        }
+
         // outside play (or after a failed load) the 1 s check is enough; in play a new target is picked up on the next message
         if (isPlaying() && state.framesKey !== baseKey() && !state.noReplay && Date.now() >= retryAfter) check();
         update();
     }
 
     function connect() {
-        const socket = new WebSocket(`ws://${TOSU_HOST}/websocket/v2`);
+        socket = new WebSocket(`ws://${TOSU_HOST}/websocket/v2`);
 
-        socket.addEventListener('open', () => {
-            socket.send(`applyFilters:${JSON.stringify([
-                'client',
-                // (stats.stars, play.pp and performance.accuracy are for the PP items; the performance graph is left out)
-                { field: 'beatmap', keys: ['checksum', 'id', { field: 'stats', keys: ['stars'] }] },
-                { field: 'files', keys: ['beatmap'] },
-                { field: 'folders', keys: ['songs', 'beatmap'] },
-                { field: 'play', keys: ['score', 'accuracy', 'hits', 'combo', 'mods', { field: 'pp', keys: ['current'] }] },
-                { field: 'performance', keys: ['accuracy'] },
-                { field: 'profile', keys: ['username', 'name', 'user'] },
-                { field: 'state', keys: ['name'] },
-            ])}`);
-        });
+        socket.addEventListener('open', sendFilters);
 
         socket.addEventListener('message', (event) => {
             try {
@@ -623,6 +672,7 @@ export function createSession({
             perfectTotal: perfectTotal(state.perfectLive),
             rivals: rivalList(),
             pp: ppContext(),
+            plugin: pluginRunner.liveValues(),
         }),
         /** A replay frame as an item source. */
         frameSource: (frame) => (frame ? {
@@ -637,6 +687,7 @@ export function createSession({
             rivals: rivalList(),
             self: state.target?.filePath || '',
             pp: ppContext(),
+            plugin: pluginRunner.replayValues(),
         } : null),
         /** The rivals with their timelines (see rivals.js); empty when there are none or none are needed. */
         rivals: rivalList,

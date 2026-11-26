@@ -322,6 +322,8 @@ public sealed partial class MainWindow : Window
 
         // custom overlay items: metrics.json next to the settings, watched so new items appear in the pickers at once
         OverlayItems.CustomPath = AppPaths.Metrics;
+        // (the replay plugins are items too: read before the pickers are filled, so a saved choice of one is kept)
+        loadPlugins();
         viewModel.SetOverlayItems(OverlayItems.All, settingsService.OverlayDisplay, settingsService.Current.HiddenItems);
         watchCustomItems();
         lastTimelineSettings = (viewModel.CorrectionMode, OverlayItems.ScaleMetric(viewModel.OverlayDisplay.MainItem));

@@ -37,6 +37,9 @@ public sealed class ReplayPlugin
     /// <summary>What the file holds (a changed file is another version: its values are worked out again).</summary>
     public string Version { get; }
 
+    /// <summary>The script itself (the overlays run it too, on the play going on).</summary>
+    public string Source { get; } = string.Empty;
+
     /// <summary>Why the script can't be used, or why its last call failed; null when all is well.</summary>
     public string? Error { get; private set; }
 
@@ -51,6 +54,7 @@ public sealed class ReplayPlugin
         try
         {
             var text = File.ReadAllText(path);
+            Source = text;
             Version = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)))[..16];
 
             // No access to files, the network or .NET: a script can only compute. A script that runs away is stopped.
@@ -241,8 +245,14 @@ public sealed class ReplayPlugins : IDisposable
     public static readonly (string Name, string Text)[] Examples =
     [
         ("wife3.js", """
-            // A replay plugin: this file is one column of the replay list (pick it with "Column" above the list).
-            // Saved changes apply right away. Copy the file under another name to make another column.
+            // A replay plugin: this file is one column of the replay list (pick it with "Column" above the list),
+            // and an item the Main and Sub overlays can show during a play (under Plugins in their pickers).
+            // Saved changes apply right away. Copy the file under another name to make another one.
+            //
+            // During a play the game only tells how far off each judged press and release was, not which note it
+            // belongs to. There the plugin gets every one of them as a "note" (column -1, no "head" or "release"), and
+            // each miss in unpressed; the compared replay is told the same way, so the two can be compared. The
+            // numbers then match this column's only on maps without hold notes.
             //
             //   name      the column's title
             //   format    "percent" (97.53%), "decimal" (97.53) or "integer" (9,753)
@@ -260,7 +270,7 @@ public sealed class ReplayPlugins : IDisposable
             //                  column  0 is the leftmost lane
             //   unpressed    notes and hold note heads that were never pressed: { time, column, result }
             //   heldPastEnd  hold notes held past their end, so with no release to time: { time, column, result }
-            //   misses       how many judgements were a miss
+            //   misses       how many judgements were a miss; missTimes: when each was counted (real ms)
             //   notes, holds how many notes and hold notes the map has
             //   rate         1.5 with Double Time (the times above are real time already)
             //   od, columns, length (ms), stable (true: an osu!stable replay, one judgement per hold note)
@@ -379,6 +389,7 @@ public static class PluginReplayData
             notes = analysis.Notes,
             holds = analysis.Holds,
             misses = analysis.MissTimes.Count,
+            missTimes = analysis.MissTimes.Select(time => round(time, 1)),
             hits = analysis.Samples.Select(sample => new
             {
                 ms = round(sample.Error, 3),
@@ -441,24 +452,7 @@ public sealed class PluginScores : IDisposable
     public PluginValue? Compute(ReplayPlugin plugin, ReplayEntry entry, string beatmapPath)
     {
         var key = ReplayKey(entry.FilePath, beatmapPath);
-        string? json;
-        lock (sync)
-            json = replays.FirstOrDefault(item => item.Key == key).Json;
-
-        if (json == null)
-        {
-            json = PluginReplayData.Build(entry, ReplayAnalyzer.Analyze(entry.FilePath, beatmapPath));
-            IdleCollector.AfterHeavyWork();
-            lock (sync)
-            {
-                replays.RemoveAll(item => item.Key == key);
-                replays.Add((key, json));
-                if (replays.Count > kept_replays)
-                    replays.RemoveAt(0);
-            }
-        }
-
-        var value = plugin.Score(json);
+        var value = plugin.Score(ReplayData(entry, beatmapPath));
         // (a script that failed is asked again once it is fixed: its version changes with the file)
         lock (sync)
         {
@@ -485,6 +479,33 @@ public sealed class PluginScores : IDisposable
         }
 
         return value;
+    }
+
+    /// <summary>
+    /// A replay as plugins see it (<see cref="PluginReplayData"/>): analysed once, then kept for the maps looked at
+    /// lately. Call off the UI thread.
+    /// </summary>
+    public string ReplayData(ReplayEntry entry, string beatmapPath)
+    {
+        var key = ReplayKey(entry.FilePath, beatmapPath);
+        string? json;
+        lock (sync)
+            json = replays.FirstOrDefault(item => item.Key == key).Json;
+
+        if (json != null)
+            return json;
+
+        json = PluginReplayData.Build(entry, ReplayAnalyzer.Analyze(entry.FilePath, beatmapPath));
+        IdleCollector.AfterHeavyWork();
+        lock (sync)
+        {
+            replays.RemoveAll(item => item.Key == key);
+            replays.Add((key, json));
+            if (replays.Count > kept_replays)
+                replays.RemoveAt(0);
+        }
+
+        return json;
     }
 
     private void load()

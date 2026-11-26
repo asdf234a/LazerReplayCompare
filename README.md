@@ -66,6 +66,8 @@ A plugin is a `.js` file in `data\plugins` with a `score(replay)` function that 
 
 Working a value out means analysing the whole replay, so a map's column fills in one replay at a time (not during a play) and the values are kept for the next time.
 
+**During a play.** The plugins are also items the Main and Sub overlays can show (under Plugins in their pickers): the play's value so far, the compared replay's at the same moment of the song, or the difference. tosu only reports how far off each judged press and release was, not which note it belongs to, so during a play a plugin is told less: every one of them as a plain note, and each miss the game counted as a note never pressed. The compared replay is told the same way, so the two are like for like. On a map without hold notes the play's final value is what the Column shows for its replay afterwards; with hold notes it is not (a release counts as a press there, which most plugins score differently), though the difference to the replay still says who is ahead. osu!lazer only.
+
 ## Online ranking
 
 The second tab lists the map's online top 50. Click a score to download its replay and compare against it.
