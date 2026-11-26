@@ -91,7 +91,9 @@ public sealed record TosuSnapshot(
     PlaySpeed? Speed = null,
     string GameFolder = "",
     ResultsScreenScore? Results = null,
-    string? OdFlag = null)
+    string? OdFlag = null,
+    string? CvtFlag = null,
+    double? DrainRate = null)
 {
     /// <summary>The game shows a results screen (after a play, or a score opened from the leaderboard).</summary>
     public bool IsResultsScreen => State.Contains("result", StringComparison.OrdinalIgnoreCase);
@@ -138,6 +140,8 @@ public sealed record TosuSnapshot(
             DirectBackgroundPath: GetString(root, "directPath", "beatmapBackground"),
             Speed: GetPlaySpeed(root),
             OdFlag: GetOdFlag(root),
+            CvtFlag: GetCvtFlag(root),
+            DrainRate: GetDrainRate(root),
             GameFolder: GetString(root, "folders", "game"),
             Results: GetResults(root));
     }
@@ -230,6 +234,61 @@ public sealed record TosuSnapshot(
         return flag;
     }
 
+    /// <summary>
+    /// The selected mod that makes another chart of the map, the way the difficulty ratings take it: "HO" (Hold Off:
+    /// every hold note is a note), "IN" (Invert), or null.
+    /// </summary>
+    private static string? GetCvtFlag(JsonElement root)
+    {
+        foreach (var mod in SelectedMods(root))
+        {
+            var acronym = GetString(mod, "acronym").Trim().ToUpperInvariant();
+            if (acronym is "HO" or "IN")
+                return acronym;
+        }
+
+        return null;
+    }
+
+    /// <summary>The HP set with Difficulty Adjust, or null when the map's own stands.</summary>
+    private static double? GetDrainRate(JsonElement root)
+    {
+        foreach (var mod in SelectedMods(root))
+        {
+            if (!string.Equals(GetString(mod, "acronym").Trim(), "DA", StringComparison.OrdinalIgnoreCase) ||
+                !mod.TryGetProperty("settings", out var settings) || settings.ValueKind != JsonValueKind.Object)
+                continue;
+
+            foreach (var setting in settings.EnumerateObject())
+            {
+                if (!setting.Name.Contains("drain", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var value = setting.Value.ValueKind == JsonValueKind.Object && setting.Value.TryGetProperty("value", out var inner) ? inner : setting.Value;
+                var text = value.ValueKind == JsonValueKind.Number ? value.GetRawText() : value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+                if (double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hp) && hp >= 0)
+                    return hp;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>tosu's play.mods.array: the mods selected in the game (none when it reports no mods).</summary>
+    private static IEnumerable<JsonElement> SelectedMods(JsonElement root)
+    {
+        if (!root.TryGetProperty("play", out var play) || play.ValueKind != JsonValueKind.Object ||
+            !play.TryGetProperty("mods", out var mods) || mods.ValueKind != JsonValueKind.Object ||
+            !mods.TryGetProperty("array", out var array) || array.ValueKind != JsonValueKind.Array)
+            yield break;
+
+        foreach (var mod in array.EnumerateArray())
+        {
+            if (mod.ValueKind == JsonValueKind.Object)
+                yield return mod;
+        }
+    }
+
     /// <summary>play.mods → rate/Classic, the way the overlays read it (getCurrentModsKey), and whether the client is osu!stable.</summary>
     private static PlaySpeed GetPlaySpeed(JsonElement root)
     {
@@ -247,10 +306,11 @@ public sealed record TosuSnapshot(
                 if (mod.ValueKind != JsonValueKind.Object)
                     continue;
 
-                acronyms.Add(GetString(mod, "acronym"));
+                var acronym = GetString(mod, "acronym");
+                acronyms.Add(acronym);
                 if (settingsRate == null && mod.TryGetProperty("settings", out var settings) && settings.ValueKind == JsonValueKind.Object)
                 {
-                    settingsRate = AutoTargetRule.RateFromSettings(settings.EnumerateObject()
+                    settingsRate = AutoTargetRule.RateFromSettings(acronym, settings.EnumerateObject()
                         .Select(setting => new KeyValuePair<string, string>(setting.Name, settingText(setting.Value))));
                 }
             }

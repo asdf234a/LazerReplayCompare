@@ -131,8 +131,11 @@ public sealed class LibraryService
     public MapDifficulty DifficultyOf(MapInfo map)
         => difficulty(map, Sunny.Get(map.Md5) ?? early.GetValueOrDefault(map.Md5), DanLookup?.Invoke(map.Md5));
 
-    /// <summary>The dan estimate of a map at another rate and OD (the estimator's; null when there is none).</summary>
-    public Func<MapInfo, double, string?, Task<DanLookupResult?>>? DanAtRate { get; set; }
+    /// <summary>
+    /// The dan estimate of a map at another rate and OD, or with Hold Off / Invert ("HO" / "IN") (the estimator's; null
+    /// when there is none).
+    /// </summary>
+    public Func<MapInfo, double, string?, string?, Task<DanLookupResult?>>? DanAtRate { get; set; }
 
     /// <summary>A map's rating at another rate or OD is in (only what shows that map needs to follow).</summary>
     public event Action? ModdedChanged;
@@ -147,12 +150,13 @@ public sealed class LibraryService
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Modded> modded = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// How hard a map is at the rate and OD the game's mods make (<paramref name="odFlag"/>: "HR", "EZ", an OD, or
-    /// null). Worked out in the background the first time: null until it is in (<see cref="ModdedChanged"/> follows).
+    /// How hard a map is at the rate, OD and chart the game's mods make (<paramref name="odFlag"/>: "HR", "EZ", an OD,
+    /// or null; <paramref name="cvtFlag"/>: "HO" for Hold Off, "IN" for Invert, or null). Worked out in the background
+    /// the first time: null until it is in (<see cref="ModdedChanged"/> follows).
     /// </summary>
-    public MapDifficulty? DifficultyAt(MapInfo map, double rate, string? odFlag)
+    public MapDifficulty? DifficultyAt(MapInfo map, double rate, string? odFlag, string? cvtFlag = null)
     {
-        bool plain = Math.Abs(rate - 1) < 0.005 && odFlag == null;
+        bool plain = Math.Abs(rate - 1) < 0.005 && odFlag == null && cvtFlag == null;
         if (!SunnyCache.Rated(map.Keys) || map.ChartPath.Length == 0)
             return plain ? DifficultyOf(map) : null;
 
@@ -161,7 +165,7 @@ public sealed class LibraryService
                   && (Sunny.Get(map.Md5) ?? early.GetValueOrDefault(map.Md5)) != null)
             return DifficultyOf(map);
 
-        var key = $"{map.Md5}|{Math.Round(rate, 2).ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture)}|{odFlag}";
+        var key = $"{map.Md5}|{Math.Round(rate, 2).ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture)}|{odFlag}|{cvtFlag}";
         if (modded.TryGetValue(key, out var found))
             return found.Ready ? difficulty(map, found.Sunny, found.Dan) : null;
 
@@ -173,7 +177,7 @@ public sealed class LibraryService
         {
             try
             {
-                entry.Sunny = await Sunny.AtRateAsync(map, rate, odFlag);
+                entry.Sunny = await Sunny.AtRateAsync(map, rate, odFlag, cvtFlag);
 
                 // The estimator's dan usually follows within moments. It is waited for that long (from how long it took
                 // before), so the map shows its dan level at once instead of a stand-in first; only when it takes
@@ -181,7 +185,7 @@ public sealed class LibraryService
                 if (DanAtRate is { } estimator && map.Keys is 4 or 6 or 7)
                 {
                     var watch = System.Diagnostics.Stopwatch.StartNew();
-                    var estimate = estimator(map, rate, odFlag);
+                    var estimate = estimator(map, rate, odFlag, cvtFlag);
                     if (await Task.WhenAny(estimate, Task.Delay(danGrace)) != estimate)
                     {
                         entry.Ready = true;

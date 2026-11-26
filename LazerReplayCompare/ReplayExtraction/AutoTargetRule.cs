@@ -29,7 +29,7 @@ public static class AutoTargetRule
     public static PlaySpeed ForReplay(ReplayEntry replay)
     {
         var acronyms = replay.Mods.Select(mod => mod.Acronym).ToList();
-        var settingsRate = replay.Mods.Select(mod => RateFromSettings(mod.Settings)).FirstOrDefault(rate => rate != null);
+        var settingsRate = replay.Mods.Select(mod => RateFromSettings(mod.Acronym, mod.Settings)).FirstOrDefault(rate => rate != null);
         return new PlaySpeed(settingsRate ?? DefaultRate(acronyms), IsClassic(acronyms));
     }
 
@@ -43,9 +43,16 @@ public static class AutoTargetRule
         return current.Stable ? replay.IsLegacy : speed.Classic == current.Classic;
     }
 
-    /// <summary>A rate-like mod setting ("speed_change", "rate", …), parsed leniently like the overlay does.</summary>
-    public static double? RateFromSettings(IEnumerable<KeyValuePair<string, string>> settings)
+    /// <summary>
+    /// A rate mod's rate setting ("speed_change", "rate", …), parsed leniently like the overlay does. Only Double Time,
+    /// Nightcore, Half Time and Daycore set the rate: other mods' settings can look like one (Difficulty Adjust's HP is
+    /// "drain_rate", Wind Up's rates change during the play) and are left alone.
+    /// </summary>
+    public static double? RateFromSettings(string? acronym, IEnumerable<KeyValuePair<string, string>> settings)
     {
+        if (string.IsNullOrWhiteSpace(acronym) || !ModUtility.IsSpeedChangeMod(acronym.Trim()))
+            return null;
+
         foreach (var (key, value) in settings)
         {
             var name = key.ToLowerInvariant();

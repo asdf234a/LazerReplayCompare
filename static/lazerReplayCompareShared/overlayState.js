@@ -42,7 +42,15 @@ export function buildModsKey(acronyms, rate) {
     return `${mods}|${normalizeRate(rate).toFixed(4)}`;
 }
 
-export function getRateFromSettings(settings) {
+const RATE_MODS = new Set(['DT', 'NC', 'HT', 'DC']);
+
+/**
+ * A rate mod's rate setting. Only Double Time, Nightcore, Half Time and Daycore set the rate: other mods' settings can
+ * look like one (Difficulty Adjust's HP is "drain_rate") and are left alone.
+ */
+export function getRateFromSettings(mod) {
+    const settings = mod?.settings;
+    if (!RATE_MODS.has(normalizeAcronym(mod?.acronym))) return null;
     if (!settings || typeof settings !== 'object') return null;
     for (const [key, value] of Object.entries(settings)) {
         const name = String(key).toLowerCase();
@@ -57,7 +65,7 @@ export function getRateFromSettings(settings) {
 export function getCurrentModsKey(mods) {
     const modArray = Array.isArray(mods?.array) ? mods.array : [];
     const acronyms = modArray.map((mod) => normalizeAcronym(mod.acronym));
-    const settingsRate = modArray.map((mod) => getRateFromSettings(mod.settings)).find((v) => v != null);
+    const settingsRate = modArray.map((mod) => getRateFromSettings(mod)).find((v) => v != null);
     const rate = settingsRate ?? normalizeRate(mods?.rate);
     return buildModsKey(acronyms, rate !== 1 ? rate : defaultRateForMods(acronyms));
 }
@@ -65,7 +73,7 @@ export function getCurrentModsKey(mods) {
 export function getReplayModsKey(replay) {
     const mods = Array.isArray(replay?.mods) ? replay.mods : [];
     const acronyms = mods.map((mod) => normalizeAcronym(mod.acronym));
-    const rate = mods.map((mod) => getRateFromSettings(mod.settings)).find((v) => v != null)
+    const rate = mods.map((mod) => getRateFromSettings(mod)).find((v) => v != null)
         ?? defaultRateForMods(acronyms);
     return buildModsKey(acronyms, rate);
 }

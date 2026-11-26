@@ -18,7 +18,7 @@ public sealed class MapCardViewModel : ObservableObject
 {
     /// <param name="map">The library's entry, or null when the library doesn't know the map (the game's own texts are shown).</param>
     public MapCardViewModel(MapInfo? map, MapDifficulty? difficulty, MapRecord? record, string numberKind, string fallbackTitle, string fallbackSubtitle, bool browsing, string liveMapText,
-        double rate = 1, string? odFlag = null, bool modsPending = false, bool waiting = false)
+        double rate = 1, string? odFlag = null, bool modsPending = false, bool waiting = false, string? cvtFlag = null, double? drainRate = null)
     {
         Map = map;
         IsBrowsing = browsing;
@@ -51,15 +51,17 @@ public sealed class MapCardViewModel : ObservableObject
             _ => "Sunny",
         };
 
-        // the game's rate and OD mods: the difficulty is the one they make
+        // the game's rate, OD and chart mods: the difficulty is the one they make
         bool rated = Math.Abs(rate - 1) >= 0.005;
-        if (rated || odFlag != null)
+        if (rated || odFlag != null || cvtFlag != null)
         {
             var parts = new List<string>();
             if (rated)
                 parts.Add(rate.ToString("0.0#", CultureInfo.InvariantCulture) + "×");
             if (odFlag != null)
                 parts.Add(odFlag is "HR" or "EZ" ? odFlag : "OD " + odFlag);
+            if (cvtFlag != null)
+                parts.Add(cvtFlag switch { "HO" => "Hold Off", "IN" => "Invert", _ => cvtFlag });
             ModsText = "with " + string.Join(" · ", parts) + (modsPending ? " · working it out…" : string.Empty);
         }
         DanText = difficulty.Dan ?? (map.Keys is 4 or 6 or 7 ? string.Empty : $"{map.Keys}K has no dans");
@@ -87,7 +89,8 @@ public sealed class MapCardViewModel : ObservableObject
             double.TryParse(odFlag, NumberStyles.Float, CultureInfo.InvariantCulture, out var setOd)
                 ? new MapStat("Accuracy (OD)", setOd.ToString("0.#", CultureInfo.InvariantCulture), setOd / 10.0)
                 : new MapStat("Accuracy (OD)", map.Od.ToString("0.#", CultureInfo.InvariantCulture) + (odFlag == null ? string.Empty : " " + odFlag), map.Od / 10.0),
-            new MapStat("HP drain", map.Hp.ToString("0.#", CultureInfo.InvariantCulture), map.Hp / 10.0),
+            // (Difficulty Adjust's HP is the one played with)
+            new MapStat("HP drain", (drainRate ?? map.Hp).ToString("0.#", CultureInfo.InvariantCulture), (drainRate ?? map.Hp) / 10.0),
         ];
 
         if (record?.Best is { } best)

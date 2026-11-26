@@ -309,8 +309,8 @@ public sealed partial class MainWindow
                 applyBackgroundSpeed();
                 var engine = danEngine;
                 library.DanLookup = md5 => engine.Get(md5) is { } estimate ? new DanLookupResult(estimate.Rc, estimate.Ln, estimate.Numeric) : null;
-                library.DanAtRate = async (map, rate, odFlag) =>
-                    engine.Unavailable == null && await engine.AtRateAsync(map, rate, odFlag) is { } estimate ? new DanLookupResult(estimate.Rc, estimate.Ln, estimate.Numeric) : null;
+                library.DanAtRate = async (map, rate, odFlag, cvtFlag) =>
+                    engine.Unavailable == null && await engine.AtRateAsync(map, rate, odFlag, cvtFlag) is { } estimate ? new DanLookupResult(estimate.Rc, estimate.Ln, estimate.Numeric) : null;
             }
 
             if (danEngine.Unavailable == null)
@@ -377,8 +377,9 @@ public sealed partial class MainWindow
         libraryModel.NowPlayingText = string.IsNullOrWhiteSpace(snapshot.BeatmapChecksum) ? string.Empty
             : string.Join(" ", new[] { snapshot.BeatmapTitle, string.IsNullOrWhiteSpace(snapshot.BeatmapVersion) ? string.Empty : $"[{snapshot.BeatmapVersion}]" }.Where(part => part.Length > 0));
 
-        // other rate or OD mods in the game: the shown map's difficulty follows
-        if (!debugMods && (Math.Abs(snapshot.PlaySpeed.Rate - shownMods.Rate) >= 0.005 || snapshot.OdFlag != shownMods.OdFlag))
+        // other rate, OD, HP or chart (Hold Off, Invert) mods in the game: the shown map's difficulty follows
+        if (!debugMods && (Math.Abs(snapshot.PlaySpeed.Rate - shownMods.Rate) >= 0.005 || snapshot.OdFlag != shownMods.OdFlag
+                           || snapshot.CvtFlag != shownMods.CvtFlag || snapshot.DrainRate != shownMods.DrainRate))
             Dispatcher.UIThread.Post(updateMapCard);
 
         if (!browsing)
@@ -602,7 +603,7 @@ public sealed partial class MainWindow
         onlineTimer.Start();
     }
 
-    private (double Rate, string? OdFlag) shownMods = (1, null);
+    private (double Rate, string? OdFlag, string? CvtFlag, double? DrainRate) shownMods = (1, null, null, null);
 
 #if DEBUG
     private static readonly bool debugMods = Environment.GetEnvironmentVariable("LRC_DEBUG_MODS") is { Length: > 0 };
@@ -619,22 +620,26 @@ public sealed partial class MainWindow
         var live = string.IsNullOrWhiteSpace(liveSnapshot.BeatmapChecksum) ? "nothing yet"
             : string.Join(" ", new[] { liveSnapshot.BeatmapTitle, string.IsNullOrWhiteSpace(liveSnapshot.BeatmapVersion) ? string.Empty : $"[{liveSnapshot.BeatmapVersion}]" }.Where(part => part.Length > 0));
 
-        // the rate and OD mods selected in the game change how hard the map is; until that is worked out the plain
-        // difficulty stands in
+        // the rate, OD and chart (Hold Off, Invert) mods selected in the game change how hard the map is; until that is
+        // worked out the plain difficulty stands in
         double rate = liveSnapshot.PlaySpeed.Rate;
         string? odFlag = liveSnapshot.OdFlag;
+        string? cvtFlag = liveSnapshot.CvtFlag;
+        double? drainRate = liveSnapshot.DrainRate;
 #if DEBUG
         if (Environment.GetEnvironmentVariable("LRC_DEBUG_MODS") is { Length: > 0 } debugModsText)
         {
-            // (for looking at the card without the game: "1.2|9", "1.5|HR", "1.1|")
+            // (for looking at the card without the game: "1.2|9", "1.5|HR", "1.1|", "1||HO", "1|9||8" for DA's HP 8)
             var parts = debugModsText.Split('|');
             rate = double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var debugRate) ? debugRate : 1;
             odFlag = parts.Length > 1 && parts[1].Length > 0 ? parts[1] : null;
+            cvtFlag = parts.Length > 2 && parts[2].Length > 0 ? parts[2] : null;
+            drainRate = parts.Length > 3 && double.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out var debugHp) ? debugHp : null;
         }
 #endif
 
-        var modded = map == null ? null : library.DifficultyAt(map, rate, odFlag);
-        shownMods = (rate, odFlag);
+        var modded = map == null ? null : library.DifficultyAt(map, rate, odFlag, cvtFlag);
+        shownMods = (rate, odFlag, cvtFlag, drainRate);
 
         viewModel.MapCard = new MapCardViewModel(
             map,
@@ -647,8 +652,10 @@ public sealed partial class MainWindow
             live,
             rate,
             odFlag,
-            modsPending: map != null && modded == null && (Math.Abs(rate - 1) >= 0.005 || odFlag != null),
-            waiting: map != null && modded == null);
+            modsPending: map != null && modded == null && (Math.Abs(rate - 1) >= 0.005 || odFlag != null || cvtFlag != null),
+            waiting: map != null && modded == null,
+            cvtFlag: cvtFlag,
+            drainRate: drainRate);
         libraryModel.ShownMd5 = md5;
         centreRail();
     }
@@ -967,7 +974,11 @@ public sealed partial class MainWindow
                 viewModel.IsSettingsPage = true;
             else
             {
-                var best = library.Maps.Maps.Values.OrderByDescending(map => library.RecordOf(map.Md5)?.Plays ?? 0).FirstOrDefault();
+                // (LRC_DEBUG_MAP: the first map whose title has that text, instead of the most played one)
+                var wanted = Environment.GetEnvironmentVariable("LRC_DEBUG_MAP");
+                var best = library.Maps.Maps.Values
+                                  .Where(map => string.IsNullOrEmpty(wanted) || map.TitleEnglish.Contains(wanted, StringComparison.OrdinalIgnoreCase))
+                                  .OrderByDescending(map => library.RecordOf(map.Md5)?.Plays ?? 0).FirstOrDefault();
                 if (best != null)
                     BrowseTo(best);
                 if (page.StartsWith("rail", StringComparison.OrdinalIgnoreCase))
