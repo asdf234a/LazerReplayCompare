@@ -71,6 +71,9 @@ public enum ReplaySortKey
     Accuracy,
     Miss,
     Combo,
+
+    /// <summary>The list's own column (a plugin's value).</summary>
+    Custom,
 }
 
 /// <summary>State shown by <see cref="MainWindow"/> and <see cref="CompactWindow"/>.</summary>
@@ -309,6 +312,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(AccuracyHeader));
         OnPropertyChanged(nameof(MissHeader));
         OnPropertyChanged(nameof(ComboHeader));
+        OnPropertyChanged(nameof(CustomHeader));
     }
 
     // --- Comparison target ---

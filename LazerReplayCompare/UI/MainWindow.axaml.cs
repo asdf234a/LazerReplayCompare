@@ -284,6 +284,9 @@ public sealed partial class MainWindow : Window
     {
         closing = true;
         customItemsWatcher?.Dispose();
+        pluginWork?.Cancel();
+        plugins.Dispose();
+        pluginScores.Dispose();
         stableReplaysWatcher?.Dispose();
         lazerReplays.Dispose();
         compactWindow?.Close();
@@ -329,6 +332,7 @@ public sealed partial class MainWindow : Window
         viewModel.UseDanEngine = current.UseDanEngine;
         viewModel.RestoreSpeed(current.BackgroundSpeed);
         applyBackgroundSpeed();
+        startPlugins();
         startLibrary();
     }
 
@@ -342,6 +346,17 @@ public sealed partial class MainWindow : Window
         var display = viewModel.OverlayDisplay;
         settingsService.SetOverlayDisplay(display);
         settingsService.SetHiddenItems(viewModel.HiddenItems);
+
+        // the Main item's value on an open details page follows what Main shows
+        viewModel.Details?.RefreshMainItem();
+
+        // the replay list's own column
+        if (settingsService.Current.ListColumn != viewModel.ListColumnKey)
+        {
+            settingsService.Current.ListColumn = viewModel.ListColumnKey;
+            settingsService.Save();
+            updateListColumn();
+        }
 
         // the library's settings
         var saved = settingsService.Current;
@@ -1001,6 +1016,7 @@ public sealed partial class MainWindow : Window
         viewModel.NotifyReplaysChanged();
         UpdateTarget();
         updateLocalPlaces();
+        updateListColumn();
         OpenPendingResults();
     }
 
@@ -1070,6 +1086,8 @@ public sealed partial class MainWindow : Window
             ReplaySortKey.Accuracy => row => row.Entry.Accuracy,
             ReplaySortKey.Miss => row => row.Miss,
             ReplaySortKey.Combo => row => row.Entry.MaxCombo,
+            // (replays with no value, or none yet, go last when the best is first)
+            ReplaySortKey.Custom => row => row.CustomValue ?? double.NegativeInfinity,
             _ => row => row.Entry.Score,
         };
 
@@ -1730,11 +1748,12 @@ public sealed partial class MainWindow : Window
             applyReplayColumns(container);
     }
 
-    // The replay list's columns (header and rows): pin, player, date, mods, score, vs target, accuracy, miss, combo,
-    // rank, chevron. A narrow page drops date, vs target and combo.
+    // The replay list's columns (header and rows): pin, player, date, mods, score, the plugin's column, accuracy, miss,
+    // combo, rank, chevron. A narrow page drops date and combo. The plugin's column has no room until one is chosen.
     private const string replay_columns = "84,1.1*,1.1*,1.3*,1*,0,0.8*,0.55*,0.65*,0.55*,36";
     private const string narrow_replay_columns = "84,1.5*,0,1.4*,1*,0,0.9*,0.6*,0,0.6*,36";
     private static readonly int[] narrow_hidden_columns = [2, 5, 8];
+    private const int custom_column = 5;
 
     private void applyReplayColumns(Control control)
     {
@@ -1742,14 +1761,22 @@ public sealed partial class MainWindow : Window
         if (grid == null)
             return;
 
-        // (only when the page's width class changed: see LibraryView.applyColumns)
-        if ((grid.Tag as bool? ?? false) == narrowPage)
+        // (only when the page's width class or the plugin's column changed: see LibraryView.applyColumns)
+        bool custom = viewModel.HasListColumn;
+        var state = $"{narrowPage}|{custom}";
+        if (grid.Tag as string == state)
             return;
 
-        grid.Tag = narrowPage;
-        grid.ColumnDefinitions = new ColumnDefinitions(narrowPage ? narrow_replay_columns : replay_columns);
+        grid.Tag = state;
+        var columns = (narrowPage ? narrow_replay_columns : replay_columns).Split(',');
+        if (custom)
+            columns[custom_column] = narrowPage ? "0.9*" : "0.8*";
+        grid.ColumnDefinitions = new ColumnDefinitions(string.Join(",", columns));
         foreach (var cell in grid.Children)
-            cell.IsVisible = !narrowPage || !narrow_hidden_columns.Contains(Grid.GetColumn(cell));
+        {
+            int column = Grid.GetColumn(cell);
+            cell.IsVisible = column == custom_column ? custom : !narrowPage || !narrow_hidden_columns.Contains(column);
+        }
     }
 
     /// <summary>Pins the replay as the comparison target, or unpins it when it already is.</summary>

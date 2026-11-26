@@ -677,7 +677,7 @@
                     </Flyout>
                   </Button.Flyout>
                 </Button>
-                <Button MinHeight="28" Padding="9,0" Margin="0,0,0,4" VerticalAlignment="Center"
+                <Button MinHeight="28" Padding="9,0" Margin="0,0,6,4" VerticalAlignment="Center"
                         ToolTip.Tip="Who the Pacemaker overlay and the Rival items race against">
                   <StackPanel Orientation="Horizontal" Spacing="7">
                     <TextBlock Classes="muted" FontSize="12" Text="Rivals" VerticalAlignment="Center" />
@@ -690,6 +690,25 @@
                         <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
                                    Text="Who the Pacemaker overlay and the Rival items race against: your local replays at this rate, the online ranking (asked for once per map), or both." />
                         <ListBox Classes="pick" ItemsSource="{Binding RivalsOptions}" SelectedItem="{Binding SelectedRivals, Mode=TwoWay}" />
+                      </StackPanel>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+                <Button MinHeight="28" Padding="9,0" Margin="0,0,0,4" VerticalAlignment="Center"
+                        ToolTip.Tip="A column of your own in the local replays, worked out by a plugin from every press's timing">
+                  <StackPanel Orientation="Horizontal" Spacing="7">
+                    <TextBlock Classes="muted" FontSize="12" Text="Column" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SelectedListColumn.Name}" VerticalAlignment="Center" />
+                    <Path Width="9" Height="6" Stretch="Uniform" StrokeThickness="1.8" Stroke="{DynamicResource TextSecondaryBrush}" Data="M1,1 L5,5 L9,1" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight">
+                      <StackPanel Spacing="8" MinWidth="250" MaxWidth="300">
+                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                                   Text="An extra column for the local replays, worked out by a plugin from how many milliseconds off every press and release was. A plugin is a .js file: edit or copy the examples to make your own (saved changes apply right away)." />
+                        <ListBox Classes="pick" ItemsSource="{Binding ListColumnOptions}" SelectedItem="{Binding SelectedListColumn, Mode=TwoWay}" />
+                        <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" Text="{Binding ListColumnError}" IsVisible="{Binding HasListColumnError}" />
+                        <Button Content="Open plugins folder" Click="OpenPluginsFolder" HorizontalAlignment="Left" />
                       </StackPanel>
                     </Flyout>
                   </Button.Flyout>
@@ -726,6 +745,8 @@
                     <Button Grid.Column="2" Classes="sortHeader" HorizontalContentAlignment="Left" Margin="8,0" Content="{Binding DateHeader}" Tag="Date" Click="SortReplays" />
                     <TextBlock Grid.Column="3" Classes="muted" FontSize="12" Text="Mods" VerticalAlignment="Center" Margin="8,0" />
                     <Button Grid.Column="4" Classes="sortHeader" Margin="8,0" Content="{Binding ScoreHeader}" Tag="Score" Click="SortReplays" />
+                    <!-- (the plugin's column: shown, and given its width, in applyReplayColumns) -->
+                    <Button Grid.Column="5" Classes="sortHeader" Margin="8,0" Content="{Binding CustomHeader}" Tag="Custom" Click="SortReplays" IsVisible="False" />
                     <Button Grid.Column="6" Classes="sortHeader" Margin="8,0" Content="{Binding AccuracyHeader}" Tag="Accuracy" Click="SortReplays" />
                     <Button Grid.Column="7" Classes="sortHeader" Margin="8,0" Content="{Binding MissHeader}" Tag="Miss" Click="SortReplays" />
                     <Button Grid.Column="8" Classes="sortHeader" Margin="8,0" Content="{Binding ComboHeader}" Tag="Combo" Click="SortReplays" />
@@ -766,6 +787,7 @@
                                 <TextBlock Classes="secondary mono" Text="NM" IsVisible="{Binding !HasMods}" />
                               </Panel>
                               <TextBlock Grid.Column="4" Classes="mono" Text="{Binding ScoreText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                              <TextBlock Grid.Column="5" Classes="mono" Text="{Binding CustomText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" IsVisible="False" />
                               <TextBlock Grid.Column="6" Classes="mono" Text="{Binding AccuracyText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                               <TextBlock Grid.Column="7" Classes="mono miss" Classes.fullCombo="{Binding IsFullCombo}" Text="{Binding MissText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                               <TextBlock Grid.Column="8" Classes="mono" Text="{Binding ComboText}" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />

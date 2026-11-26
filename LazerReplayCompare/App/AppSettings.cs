@@ -56,6 +56,9 @@ public sealed class AppSettings
     /// <summary>The library card beside the map page is open.</summary>
     public bool RailExpanded { get; set; }
 
+    /// <summary>The plugin whose value the replay list shows as a column (its file's name), or "" for none.</summary>
+    public string ListColumn { get; set; } = string.Empty;
+
     /// <summary>Who the pacemaker overlay races against: "local", "online" or "both".</summary>
     public string RivalsMode { get; set; } = "local";
 

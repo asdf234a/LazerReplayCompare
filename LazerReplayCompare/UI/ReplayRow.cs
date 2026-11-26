@@ -48,6 +48,24 @@ public sealed class ReplayRow : ObservableObject
     public string RankLetter => Ranks.Letter(Entry.Rank);
     public Avalonia.Media.IBrush RankBrush => DifficultyColors.ForRank(Entry.Rank);
 
+    private string customText = string.Empty;
+
+    /// <summary>The list's own column: the chosen plugin's value ("…" while it is worked out, "—" when there is none).</summary>
+    public string CustomText
+    {
+        get => customText;
+        private set => Set(ref customText, value);
+    }
+
+    /// <summary>The number the list sorts that column by.</summary>
+    public double? CustomValue { get; private set; }
+
+    public void SetCustom(double? value, string text)
+    {
+        CustomValue = value;
+        CustomText = text;
+    }
+
     private int position;
 
     /// <summary>Its place among the listed replays, by score.</summary>

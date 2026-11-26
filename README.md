@@ -58,6 +58,14 @@ Dans are given for 4K, 6K and 7K. They come from the analyser's estimators where
 - **Pinned.** Pin a replay in the list to compare against it instead, whatever its mods or speed. Unpin it to go back to auto.
 - **Playing in osu!stable.** The list comes from osu!stable itself (`scores.db`, with replays from `Data/r`), scored the way osu!stable does: ScoreV1, one judgement per hold note. Scores whose replay file is missing are listed with a NO REPLAY badge and are never a target.
 
+## A column of your own (plugins)
+
+**Column**, above the replay list, adds a column worked out by a plugin from how many milliseconds off every press and release of a replay was: another game's accuracy, a score of your own, a count. Click its header to sort by it.
+
+A plugin is a `.js` file in `data\plugins` with a `score(replay)` function that returns a number. The folder starts with two examples to edit or copy: `wife3.js` (Etterna's Wife3, a curve over the timing error) and `windows.js` (timing windows of your own with a value each). The comment at the top of `wife3.js` lists what a plugin is given. Saved changes apply right away; a script's error is shown under the picker.
+
+Working a value out means analysing the whole replay, so a map's column fills in one replay at a time (not during a play) and the values are kept for the next time.
+
 ## Online ranking
 
 The second tab lists the map's online top 50. Click a score to download its replay and compare against it.
@@ -68,7 +76,7 @@ This uses the osu! API with your own OAuth client: make one under osu! account s
 
 Click a replay to open its details. Each replay is judged by the engine of the game that recorded it.
 
-- **Summary.** Rank, score, accuracy, MAX : 300, max combo, the judgement ring, whether the judgements match the replay, and the difference to the target.
+- **Summary.** Rank, score, accuracy, MAX : 300, max combo, the judgement ring, whether the judgements match the replay, and the difference to the target. What the Main overlay shows is listed too, with how far it is from the target's (items made of the recorded score and judgement counts: not Score acc, Score log, the PP items or the Rivals items).
 - **Hit error distribution.** Every press and release in 3 ms bins, coloured by judgement, with early vs late, mean, median, unstable rate and an offset hint.
 - **Over the song.** Every press as a dot over time, with the judgement windows as lines.
 - **Lanes.** Each lane's judgements, accuracy, misses, mean error and unstable rate, and each hand's accuracy. With an odd key count the middle lane goes to the hand you pick.
@@ -172,6 +180,7 @@ These are compiled into `LazerReplayCompare.exe`.
 | [Realm](https://github.com/realm/realm-dotnet) | Apache License 2.0 |
 | [Avalonia](https://github.com/AvaloniaUI/Avalonia) (with SkiaSharp and HarfBuzzSharp) | MIT, Copyright (c) AvaloniaUI OÜ |
 | [Json.NET](https://github.com/JamesNK/Newtonsoft.Json) | MIT, Copyright (c) 2007 James Newton-King |
+| [Jint](https://github.com/sebastienros/jint) (runs the plugins' scripts), with [Acornima](https://github.com/adams85/acornima) | BSD 2-Clause, Copyright (c) Sebastien Ros; Acornima: BSD 3-Clause, Copyright (c) Adam Simon |
 | .NET runtime libraries | MIT, Copyright (c) .NET Foundation and Contributors |
 
 ### Fonts and images

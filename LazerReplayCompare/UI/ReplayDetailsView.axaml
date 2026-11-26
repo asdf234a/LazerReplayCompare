@@ -154,6 +154,13 @@
                 <TextBlock Classes="statLabel" Text="Max combo" HorizontalAlignment="Right" />
                 <TextBlock Classes="statValue" Text="{Binding MaxComboText}" HorizontalAlignment="Right" />
               </StackPanel>
+              <!-- What the Main overlay shows, for this replay; under it, how far that is from the target's -->
+              <StackPanel Spacing="2" IsVisible="{Binding HasMainItem}">
+                <TextBlock Classes="statLabel" Text="{Binding MainItemLabel}" HorizontalAlignment="Right" />
+                <TextBlock Classes="statValue" Text="{Binding MainItemText}" HorizontalAlignment="Right" />
+                <TextBlock Classes="secondary mono" FontSize="12" Text="{Binding MainItemDifferenceText}" HorizontalAlignment="Right"
+                           IsVisible="{Binding HasMainItemDifference}" />
+              </StackPanel>
             </WrapPanel>
           </Grid>
 

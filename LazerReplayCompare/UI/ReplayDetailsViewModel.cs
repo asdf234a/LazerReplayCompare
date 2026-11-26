@@ -115,6 +115,8 @@ public sealed class ReplayDetailsViewModel : ObservableObject
 
             OnPropertyChanged(nameof(HasVsTarget));
             OnPropertyChanged(nameof(VsTargetText));
+            OnPropertyChanged(nameof(HasMainItemDifference));
+            OnPropertyChanged(nameof(MainItemDifferenceText));
         }
     }
 
@@ -163,6 +165,54 @@ public sealed class ReplayDetailsViewModel : ObservableObject
             int misses = Entry.Statistics.GetValueOrDefault("Miss") - Target.Statistics.GetValueOrDefault("Miss");
             return $"{score.ToString("+#,0;−#,0;±0", invariant)} pts · {accuracy.ToString("+0.00;−0.00;±0.00", invariant)}% acc · {misses.ToString("+0;−0;±0", invariant)} misses";
         }
+    }
+
+    // --- The Main overlay's item ---
+
+    // What the Main overlay shows, for this replay's final result. Items that need more than the recorded score (the
+    // best possible score, tosu's star rating, the rivals) have no value here, and the stat is left out.
+    private static (OverlayItem Item, OverlayDisplay Display)? mainItem()
+    {
+        var display = AppSettingsService.Shared.OverlayDisplay;
+        return OverlayItems.All.FirstOrDefault(item => string.Equals(item.Key, display.MainItem, StringComparison.OrdinalIgnoreCase)) is { } item ? (item, display) : null;
+    }
+
+    private double? mainValue(ReplayEntry replay)
+        => mainItem() is { } main ? ItemValues.Final(main.Item, replay, main.Display.AccLogKind, main.Display.AccLogBase) : null;
+
+    public bool HasMainItem => mainValue(Entry) != null;
+
+    public string MainItemLabel => mainItem() is { } main ? $"Main · {main.Item.Name}" : string.Empty;
+
+    public string MainItemText => mainItem() is { } main && mainValue(Entry) is { } value
+        ? ItemValues.Text(main.Item, value, cutPercent: !listedFromStable)
+        : string.Empty;
+
+    public bool HasMainItemDifference => HasVsTarget && mainValue(Entry) != null && mainValue(Target!) != null;
+
+    /// <summary>The Main item's value minus the target's ("+0.35% vs target").</summary>
+    public string MainItemDifferenceText
+    {
+        get
+        {
+            if (!HasVsTarget || mainItem() is not { } main || mainValue(Entry) is not { } value || mainValue(Target!) is not { } other)
+                return string.Empty;
+
+            // (between the values as shown, like the accuracy difference)
+            if (main.Item.Format == "percent" && !listedFromStable)
+                (value, other) = (Math.Floor(value * 100 + 1e-6) / 100, Math.Floor(other * 100 + 1e-6) / 100);
+            return ItemValues.DifferenceText(main.Item, value - other) + " vs target";
+        }
+    }
+
+    /// <summary>What Main shows was changed (or its settings were): the stat follows.</summary>
+    public void RefreshMainItem()
+    {
+        OnPropertyChanged(nameof(HasMainItem));
+        OnPropertyChanged(nameof(MainItemLabel));
+        OnPropertyChanged(nameof(MainItemText));
+        OnPropertyChanged(nameof(HasMainItemDifference));
+        OnPropertyChanged(nameof(MainItemDifferenceText));
     }
 
     // --- Analysis state ---
